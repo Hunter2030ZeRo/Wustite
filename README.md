@@ -1,3 +1,3 @@
 # Wustite
 
-Wustite is a compiler for Python, designed to bring drastic speedups compared to CPython interpreters. 
+Wustite is a tiered, hybrid-approach compiler that is able to utilize GPGPU during the compilation process.  
