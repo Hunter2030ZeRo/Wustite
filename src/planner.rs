@@ -1,5 +1,5 @@
 use crate::profiler::Profile;
-use crate::structure_map::{LiveSlot, RegionExit, StructureMap, RegionId};
+use crate::structure_map::{LiveSlot, RegionExit, RegionId, StructureMap};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JitPlan {

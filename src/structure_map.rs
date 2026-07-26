@@ -31,4 +31,5 @@ pub struct StructureMap {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Stable identifier for a WVM region in a StructureMap.
 pub struct RegionId(pub usize);

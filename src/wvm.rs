@@ -1,8 +1,8 @@
 use crate::bytecode::{Instruction, Register};
+use crate::executable::ExecutableFunction;
 use crate::profiler::Profile;
 use crate::value::Value;
 use crate::verifier::verify;
-use crate::executable::ExecutableFunction;
 
 pub struct Frame {
     pc: usize,

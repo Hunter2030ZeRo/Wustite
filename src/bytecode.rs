@@ -1,4 +1,3 @@
-
 pub type Register = u16;
 
 pub enum Instruction {
