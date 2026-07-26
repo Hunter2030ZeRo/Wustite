@@ -26,6 +26,10 @@ pub enum Instruction {
     Return {
         src: Register,
     },
+    Move {
+        dst: Register,
+        src: Register,
+    },
 }
 
 pub struct Function {

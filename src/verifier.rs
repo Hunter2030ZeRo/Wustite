@@ -27,6 +27,10 @@ pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
             Instruction::Return { src } => {
                 verify_register(bytecode, *src, pc, "Return src")?;
             }
+            Instruction::Move { dst, src } => {
+                verify_register(bytecode, *dst, pc, "Move dst")?;
+                verify_register(bytecode, *src, pc, "Move src")?;
+            }
         }
     }
 

@@ -167,6 +167,12 @@ impl Vm {
                     frame.pc += 1;
                 }
 
+                Instruction::Move { dst, src } => {
+                    let value = read_register(&frame, *src)?;
+                    write_register(&mut frame, *dst, value)?;
+                    frame.pc += 1;
+                }
+
                 Instruction::Jump { target } => {
                     frame.pc = *target;
                 }
@@ -195,11 +201,8 @@ impl Vm {
         frame: &mut Frame,
         jit: &mut JitRuntime,
     ) -> bool {
-        if frame
-            .suppress_osr_pc
-            .take()
-            .is_some_and(|suppressed_pc| suppressed_pc == frame.pc)
-        {
+        if frame.suppress_osr_pc == Some(frame.pc) {
+            frame.suppress_osr_pc = None;
             return false;
         }
 

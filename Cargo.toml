@@ -9,5 +9,6 @@ cranelift-codegen = "0.134.2"
 cranelift-frontend = "0.134.2"
 cranelift-jit = "0.134.2"
 cranelift-module = "0.134.2"
+rustpython-parser = { version = "0.4.0", default-features = false, features = ["num-bigint"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"

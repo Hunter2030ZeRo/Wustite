@@ -399,6 +399,14 @@ impl<'a> RegionBuilder<'a> {
                     environment.insert(*dst, TypedValue { id: result, ty });
                     pc += 1;
                 }
+                Instruction::Move { dst, src } => {
+                    let value = environment
+                        .get(src)
+                        .copied()
+                        .ok_or(WxBuildError::MissingRegister { pc, register: *src })?;
+                    environment.insert(*dst, value);
+                    pc += 1;
+                }
                 Instruction::Jump { target } => {
                     let target = self.control_target(*target, &environment)?;
                     break WxTerminator::Jump {

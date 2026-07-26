@@ -1,5 +1,6 @@
 pub mod bytecode;
 pub mod executable;
+pub mod frontend;
 pub mod jit;
 pub mod planner;
 pub mod profiler;
