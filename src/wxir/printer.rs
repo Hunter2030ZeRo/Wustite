@@ -1,6 +1,6 @@
 use super::ir::{
     WxBinaryOp, WxBlockTarget, WxCompareOp, WxConstant, WxFloatBinaryOp, WxFloatCompareOp,
-    WxFunction, WxInst, WxInstKind, WxIntBinaryOp, WxIntCompareOp, WxOverflowBehavior,
+    WxFunction, WxGuardMode, WxInst, WxInstKind, WxIntBinaryOp, WxIntCompareOp, WxIntOverflowOp,
     WxTerminator, WxValueId,
 };
 
@@ -68,6 +68,12 @@ fn print_instruction(instruction: &WxInst) -> String {
         WxInstKind::Binary { op, lhs, rhs } => {
             format!("{} {lhs}, {rhs}", print_binary_op(*op))
         }
+        WxInstKind::IntegerBinaryWithOverflow { op, lhs, rhs } => {
+            let operation = match op {
+                WxIntOverflowOp::Add => "iadd.with_overflow",
+            };
+            format!("{operation} {lhs}, {rhs}")
+        }
         WxInstKind::Compare { op, lhs, rhs } => {
             format!("{} {lhs}, {rhs}", print_compare_op(*op))
         }
@@ -89,7 +95,17 @@ fn print_instruction(instruction: &WxInst) -> String {
         WxInstKind::Shuffle { left, right, lanes } => {
             format!("shuffle {left}, {right}, {lanes:?}")
         }
-        WxInstKind::Guard { condition, exit } => format!("guard {condition}, {exit}"),
+        WxInstKind::Guard {
+            condition,
+            exit,
+            mode,
+        } => {
+            let mode = match mode {
+                WxGuardMode::ExitWhenTrue => "exit_when_true",
+                WxGuardMode::ExitWhenFalse => "exit_when_false",
+            };
+            format!("guard.{mode} {condition}, {exit}")
+        }
         WxInstKind::Call {
             callee, arguments, ..
         } => format!("call {callee}({})", print_values(arguments)),
@@ -141,9 +157,9 @@ fn print_constant(constant: WxConstant) -> String {
 
 fn print_binary_op(op: WxBinaryOp) -> &'static str {
     match op {
-        WxBinaryOp::Integer(WxIntBinaryOp::Add(overflow)) => overflow_name("iadd", overflow),
-        WxBinaryOp::Integer(WxIntBinaryOp::Sub(overflow)) => overflow_name("isub", overflow),
-        WxBinaryOp::Integer(WxIntBinaryOp::Mul(overflow)) => overflow_name("imul", overflow),
+        WxBinaryOp::Integer(WxIntBinaryOp::Add) => "iadd.wrapping",
+        WxBinaryOp::Integer(WxIntBinaryOp::Sub) => "isub.wrapping",
+        WxBinaryOp::Integer(WxIntBinaryOp::Mul) => "imul.wrapping",
         WxBinaryOp::Integer(WxIntBinaryOp::And) => "iand",
         WxBinaryOp::Integer(WxIntBinaryOp::Or) => "ior",
         WxBinaryOp::Integer(WxIntBinaryOp::Xor) => "ixor",
@@ -151,18 +167,6 @@ fn print_binary_op(op: WxBinaryOp) -> &'static str {
         WxBinaryOp::Float(WxFloatBinaryOp::Sub) => "fsub",
         WxBinaryOp::Float(WxFloatBinaryOp::Mul) => "fmul",
         WxBinaryOp::Float(WxFloatBinaryOp::Div) => "fdiv",
-    }
-}
-
-fn overflow_name(operation: &'static str, overflow: WxOverflowBehavior) -> &'static str {
-    match (operation, overflow) {
-        ("iadd", WxOverflowBehavior::Checked) => "iadd.checked",
-        ("iadd", WxOverflowBehavior::Wrapping) => "iadd.wrapping",
-        ("isub", WxOverflowBehavior::Checked) => "isub.checked",
-        ("isub", WxOverflowBehavior::Wrapping) => "isub.wrapping",
-        ("imul", WxOverflowBehavior::Checked) => "imul.checked",
-        ("imul", WxOverflowBehavior::Wrapping) => "imul.wrapping",
-        _ => operation,
     }
 }
 

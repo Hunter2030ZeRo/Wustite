@@ -9,9 +9,9 @@ use crate::structure_map::{LiveSlot, SlotType};
 use crate::verifier as wvm_verifier;
 
 use super::ir::{
-    WxBinaryOp, WxBlock, WxBlockId, WxBlockParam, WxBlockTarget, WxCompareOp, WxExitId, WxFunction,
-    WxInst, WxInstKind, WxInstResult, WxIntBinaryOp, WxIntCompareOp, WxOverflowBehavior,
-    WxRegionOrigin, WxSideExit, WxStateValue, WxTerminator, WxValueId,
+    WxBlock, WxBlockId, WxBlockParam, WxBlockTarget, WxCompareOp, WxExitId, WxFunction,
+    WxGuardMode, WxInst, WxInstKind, WxInstResult, WxIntCompareOp, WxIntOverflowOp, WxRegionOrigin,
+    WxSideExit, WxStateValue, WxTerminator, WxValueId,
 };
 use super::types::{WxScalarType, WxType};
 use super::verifier as wxir_verifier;
@@ -133,11 +133,13 @@ struct RegionBuilder<'a> {
     exit_by_pc: HashMap<usize, usize>,
     block_specs: HashMap<usize, BlockSpec>,
     exit_specs: HashMap<usize, ExitBlockSpec>,
+    synthetic_exits: Vec<WxSideExit>,
     queue: VecDeque<usize>,
     built: HashSet<usize>,
     blocks: Vec<WxBlock>,
     next_value: u32,
     next_block: u32,
+    next_exit: u32,
 }
 
 impl<'a> RegionBuilder<'a> {
@@ -180,11 +182,14 @@ impl<'a> RegionBuilder<'a> {
             exit_by_pc,
             block_specs: HashMap::new(),
             exit_specs: HashMap::new(),
+            synthetic_exits: Vec::new(),
             queue: VecDeque::new(),
             built: HashSet::new(),
             blocks: Vec::new(),
             next_value: 0,
             next_block: 0,
+            next_exit: u32::try_from(plan.exits.len())
+                .map_err(|_| WxBuildError::IdSpaceExhausted("side-exit"))?,
         };
 
         let entry_id = builder.allocate_block()?;
@@ -262,6 +267,8 @@ impl<'a> RegionBuilder<'a> {
                 state,
             });
         }
+        side_exits.append(&mut self.synthetic_exits);
+        side_exits.sort_by_key(|side_exit| side_exit.id.0);
 
         let entry = self
             .block_specs
@@ -332,15 +339,29 @@ impl<'a> RegionBuilder<'a> {
                     let lhs = self.read_register(&environment, pc, *lhs, WxScalarType::I64)?;
                     let rhs = self.read_register(&environment, pc, *rhs, WxScalarType::I64)?;
                     let result = self.allocate_value()?;
+                    let overflow = self.allocate_value()?;
                     let ty = WxType::Scalar(WxScalarType::I64);
                     instructions.push(WxInst {
-                        results: vec![WxInstResult { id: result, ty }],
-                        kind: WxInstKind::Binary {
-                            op: WxBinaryOp::Integer(WxIntBinaryOp::Add(
-                                WxOverflowBehavior::Checked,
-                            )),
+                        results: vec![
+                            WxInstResult { id: result, ty },
+                            WxInstResult {
+                                id: overflow,
+                                ty: WxType::Scalar(WxScalarType::I1),
+                            },
+                        ],
+                        kind: WxInstKind::IntegerBinaryWithOverflow {
+                            op: WxIntOverflowOp::Add,
                             lhs: lhs.id,
                             rhs: rhs.id,
+                        },
+                    });
+                    let exit = self.create_overflow_exit(pc, &environment)?;
+                    instructions.push(WxInst {
+                        results: Vec::new(),
+                        kind: WxInstKind::Guard {
+                            condition: overflow,
+                            exit,
+                            mode: WxGuardMode::ExitWhenTrue,
                         },
                     });
                     environment.insert(*dst, TypedValue { id: result, ty });
@@ -578,6 +599,41 @@ impl<'a> RegionBuilder<'a> {
                 actual: value.ty,
             })
         }
+    }
+
+    fn create_overflow_exit(
+        &mut self,
+        pc: usize,
+        environment: &HashMap<Register, TypedValue>,
+    ) -> Result<WxExitId, WxBuildError> {
+        let exit = WxExitId(self.next_exit);
+        self.next_exit = self
+            .next_exit
+            .checked_add(1)
+            .ok_or(WxBuildError::IdSpaceExhausted("side-exit"))?;
+
+        let mut registers: Vec<_> = environment.keys().copied().collect();
+        registers.sort_unstable();
+        let state = registers
+            .into_iter()
+            .map(|register| {
+                let value = environment
+                    .get(&register)
+                    .copied()
+                    .ok_or(WxBuildError::MissingRegister { pc, register })?;
+                Ok(WxStateValue {
+                    register,
+                    value: value.id,
+                    ty: value.ty,
+                })
+            })
+            .collect::<Result<_, WxBuildError>>()?;
+        self.synthetic_exits.push(WxSideExit {
+            id: exit,
+            resume_pc: pc,
+            state,
+        });
+        Ok(exit)
     }
 
     fn allocate_value(&mut self) -> Result<WxValueId, WxBuildError> {

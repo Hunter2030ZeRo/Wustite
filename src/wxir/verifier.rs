@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::ir::{
     WxBinaryOp, WxBlock, WxBlockId, WxBlockTarget, WxCastOp, WxCompareOp, WxConstant, WxExitId,
-    WxFunction, WxInst, WxInstKind, WxSideExit, WxTerminator, WxValueId,
+    WxFunction, WxGuardMode, WxInst, WxInstKind, WxSideExit, WxTerminator, WxValueId,
 };
 use super::types::{WxScalarType, WxType};
 
@@ -149,6 +149,21 @@ fn verify_instruction(
                 _ => return Err(format!("binary operation is incompatible with {lhs_ty}")),
             }
         }
+        WxInstKind::IntegerBinaryWithOverflow { lhs, rhs, .. } => {
+            let [value_result, overflow_result] = two_results(instruction)?;
+            let lhs_ty = value_type(available, *lhs)?;
+            let rhs_ty = value_type(available, *rhs)?;
+            if lhs_ty != rhs_ty || !is_scalar_integer(lhs_ty) {
+                return Err(
+                    "checked integer operands must have the same scalar integer type".to_string(),
+                );
+            }
+            if value_result.ty != lhs_ty || overflow_result.ty != WxType::Scalar(WxScalarType::I1) {
+                return Err(
+                    "checked integer results must be the operand type followed by i1".to_string(),
+                );
+            }
+        }
         WxInstKind::Compare { op, lhs, rhs } => {
             let result = one_result(instruction)?;
             let lhs_ty = value_type(available, *lhs)?;
@@ -253,9 +268,16 @@ fn verify_instruction(
                 _ => return Err("invalid shuffle result or lane selection".to_string()),
             }
         }
-        WxInstKind::Guard { condition, exit } => {
+        WxInstKind::Guard {
+            condition,
+            exit,
+            mode,
+        } => {
             no_results(instruction)?;
             expect_type(available, *condition, WxType::Scalar(WxScalarType::I1))?;
+            match mode {
+                WxGuardMode::ExitWhenTrue | WxGuardMode::ExitWhenFalse => {}
+            }
             verify_exit_use(*exit, available, side_exits, used_exits)?;
         }
         WxInstKind::Call {
@@ -436,6 +458,16 @@ fn one_result(instruction: &WxInst) -> Result<super::ir::WxInstResult, String> {
         [result] => Ok(*result),
         results => Err(format!(
             "instruction requires one result, found {}",
+            results.len()
+        )),
+    }
+}
+
+fn two_results(instruction: &WxInst) -> Result<[super::ir::WxInstResult; 2], String> {
+    match instruction.results.as_slice() {
+        [value, overflow] => Ok([*value, *overflow]),
+        results => Err(format!(
+            "checked integer instruction requires two results, found {}",
             results.len()
         )),
     }

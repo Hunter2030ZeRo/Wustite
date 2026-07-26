@@ -4,8 +4,8 @@ use wustite::planner::{JitPlan, select_hot_loop};
 use wustite::structure_map::{LiveSlot, LoopRegion, RegionExit, RegionId, SlotType, StructureMap};
 use wustite::wvm::Vm;
 use wustite::wxir::{
-    self, WxBinaryOp, WxBuildError, WxInstKind, WxIntBinaryOp, WxOverflowBehavior, WxScalarType,
-    WxTerminator, WxType, build_region,
+    self, WxBuildError, WxGuardMode, WxInstKind, WxIntOverflowOp, WxScalarType, WxTerminator,
+    WxType, build_region,
 };
 
 fn sum_function() -> ExecutableFunction {
@@ -104,40 +104,97 @@ fn sum_region_lowers_to_verified_ssa() {
         .unwrap();
     let checked_adds: Vec<_> = backedge
         .instructions
-        .iter()
-        .filter_map(|instruction| match instruction.kind {
-            WxInstKind::Binary {
-                op: WxBinaryOp::Integer(WxIntBinaryOp::Add(WxOverflowBehavior::Checked)),
-                ..
-            } => Some(instruction.results[0].id),
-            _ => None,
-        })
+        .windows(2)
+        .filter_map(
+            |instructions| match (&instructions[0].kind, &instructions[1].kind) {
+                (
+                    WxInstKind::IntegerBinaryWithOverflow {
+                        op: WxIntOverflowOp::Add,
+                        lhs,
+                        ..
+                    },
+                    WxInstKind::Guard {
+                        condition,
+                        exit,
+                        mode: WxGuardMode::ExitWhenTrue,
+                    },
+                ) => Some((
+                    instructions[0].results[0].id,
+                    instructions[0].results[1].id,
+                    *lhs,
+                    *condition,
+                    *exit,
+                )),
+                _ => None,
+            },
+        )
         .collect();
     assert_eq!(checked_adds.len(), 2);
+    assert!(
+        checked_adds
+            .iter()
+            .all(|(_, overflow, _, condition, _)| overflow == condition)
+    );
 
     let WxTerminator::Jump { target, arguments } = &backedge.terminator else {
         unreachable!();
     };
     assert_eq!(*target, function.entry);
-    assert_eq!(arguments[0], checked_adds[0]);
-    assert_eq!(arguments[1], checked_adds[1]);
+    assert_eq!(arguments[0], checked_adds[0].0);
+    assert_eq!(arguments[1], checked_adds[1].0);
     assert_ne!(arguments[0], header.parameters[0].id);
     assert_ne!(arguments[1], header.parameters[1].id);
 
-    assert_eq!(function.side_exits.len(), 1);
-    assert_eq!(function.side_exits[0].resume_pc, 9);
+    assert_eq!(function.side_exits.len(), 3);
+    let normal_exit = function
+        .side_exits
+        .iter()
+        .find(|side_exit| side_exit.resume_pc == 9)
+        .unwrap();
     assert_eq!(
-        function.side_exits[0]
+        normal_exit
             .state
             .iter()
             .map(|state| state.register)
             .collect::<Vec<_>>(),
         vec![0, 1, 2, 3]
     );
+    for ((_, _, lhs, _, exit), (resume_pc, dst)) in checked_adds.iter().zip([(6, 0), (7, 1)]) {
+        let metadata = function
+            .side_exits
+            .iter()
+            .find(|side_exit| side_exit.id == *exit)
+            .unwrap();
+        assert_eq!(metadata.resume_pc, resume_pc);
+        assert_eq!(
+            metadata
+                .state
+                .iter()
+                .find(|state| state.register == dst)
+                .unwrap()
+                .value,
+            *lhs
+        );
+    }
+    let second_overflow = function
+        .side_exits
+        .iter()
+        .find(|side_exit| side_exit.id == checked_adds[1].4)
+        .unwrap();
+    assert_eq!(
+        second_overflow
+            .state
+            .iter()
+            .find(|state| state.register == 0)
+            .unwrap()
+            .value,
+        checked_adds[0].0
+    );
 
     let printed = wxir::print_function(&function);
     assert!(printed.contains("icmp.slt"));
-    assert!(printed.contains("iadd.checked"));
+    assert!(printed.contains("iadd.with_overflow"));
+    assert!(printed.contains("guard.exit_when_true"));
     assert!(printed.contains("side_exit x0 resume_pc=9"));
 }
 

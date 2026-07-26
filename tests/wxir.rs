@@ -1,8 +1,8 @@
 use wustite::structure_map::RegionId;
 use wustite::wxir::{
     self, WxBlock, WxBlockId, WxBlockParam, WxBlockTarget, WxCompareOp, WxConstant, WxExitId,
-    WxFunction, WxInst, WxInstKind, WxInstResult, WxIntCompareOp, WxRegionOrigin, WxScalarType,
-    WxSideExit, WxStateValue, WxTerminator, WxType, WxValueId,
+    WxFunction, WxGuardMode, WxInst, WxInstKind, WxInstResult, WxIntCompareOp, WxIntOverflowOp,
+    WxRegionOrigin, WxScalarType, WxSideExit, WxStateValue, WxTerminator, WxType, WxValueId,
 };
 
 fn i64_type() -> WxType {
@@ -183,6 +183,58 @@ fn duplicate_side_exit_register_is_rejected() {
             .unwrap_err()
             .contains("duplicate WVM register")
     );
+}
+
+#[test]
+fn invalid_checked_integer_result_signature_is_rejected() {
+    let mut function = valid_function();
+    function.blocks[0].instructions.insert(
+        1,
+        WxInst {
+            results: vec![WxInstResult {
+                id: WxValueId(5),
+                ty: i64_type(),
+            }],
+            kind: WxInstKind::IntegerBinaryWithOverflow {
+                op: WxIntOverflowOp::Add,
+                lhs: WxValueId(0),
+                rhs: WxValueId(1),
+            },
+        },
+    );
+
+    assert!(
+        wxir::verify(&function)
+            .unwrap_err()
+            .contains("requires two results")
+    );
+}
+
+#[test]
+fn invalid_guard_condition_is_rejected() {
+    let mut function = valid_function();
+    function.side_exits.push(WxSideExit {
+        id: WxExitId(1),
+        resume_pc: 6,
+        state: vec![WxStateValue {
+            register: 0,
+            value: WxValueId(0),
+            ty: i64_type(),
+        }],
+    });
+    function.blocks[0].instructions.insert(
+        1,
+        WxInst {
+            results: vec![],
+            kind: WxInstKind::Guard {
+                condition: WxValueId(0),
+                exit: WxExitId(1),
+                mode: WxGuardMode::ExitWhenTrue,
+            },
+        },
+    );
+
+    assert!(wxir::verify(&function).unwrap_err().contains("expected i1"));
 }
 
 #[test]

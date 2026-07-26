@@ -57,23 +57,28 @@ pub struct WxBlockParam {
     pub ty: WxType,
 }
 
-/// Integer overflow behavior is explicit so WVM checked arithmetic cannot
-/// silently become native wrapping arithmetic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WxOverflowBehavior {
-    Wrapping,
-    Checked,
-}
-
-/// Integer binary operations.
+/// Modular integer binary operations with one result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WxIntBinaryOp {
-    Add(WxOverflowBehavior),
-    Sub(WxOverflowBehavior),
-    Mul(WxOverflowBehavior),
+    Add,
+    Sub,
+    Mul,
     And,
     Or,
     Xor,
+}
+
+/// Integer operations that explicitly produce a value and signed-overflow flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WxIntOverflowOp {
+    Add,
+}
+
+/// Determines which boolean guard outcome leaves the compiled region.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WxGuardMode {
+    ExitWhenTrue,
+    ExitWhenFalse,
 }
 
 /// Floating-point binary operations.
@@ -155,6 +160,11 @@ pub enum WxInstKind {
         lhs: WxValueId,
         rhs: WxValueId,
     },
+    IntegerBinaryWithOverflow {
+        op: WxIntOverflowOp,
+        lhs: WxValueId,
+        rhs: WxValueId,
+    },
     Compare {
         op: WxCompareOp,
         lhs: WxValueId,
@@ -195,6 +205,7 @@ pub enum WxInstKind {
     Guard {
         condition: WxValueId,
         exit: WxExitId,
+        mode: WxGuardMode,
     },
     Call {
         callee: String,
