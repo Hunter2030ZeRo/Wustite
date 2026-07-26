@@ -1,4 +1,3 @@
-use crate::structure_map::StructureMap;
 
 pub type Register = u16;
 
@@ -33,9 +32,4 @@ pub enum Instruction {
 pub struct Function {
     pub code: Vec<Instruction>,
     pub register_count: usize,
-}
-
-pub struct ExecutableFunction {
-    pub bytecode: Function,
-    pub structure_map: StructureMap,
 }

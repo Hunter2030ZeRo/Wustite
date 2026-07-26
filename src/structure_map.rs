@@ -29,3 +29,6 @@ pub struct LoopRegion {
 pub struct StructureMap {
     pub loops: Vec<LoopRegion>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RegionID(pub u32);

@@ -1,8 +1,9 @@
 use crate::profiler::Profile;
-use crate::structure_map::{LiveSlot, RegionExit, StructureMap};
+use crate::structure_map::{LiveSlot, RegionExit, StructureMap, RegionID};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JitPlan {
+    pub region_id: RegionID,
     pub header: usize,
     pub backedge: usize,
     pub exits: Vec<RegionExit>,
@@ -17,9 +18,11 @@ pub fn select_hot_loop(
     structure_map
         .loops
         .iter()
-        .filter(|region| profile.is_hot(region.header, threshold))
-        .max_by_key(|region| profile.count(region.header))
-        .map(|region| JitPlan {
+        .enumerate()
+        .filter(|(_, region)| profile.is_hot(region.header, threshold))
+        .max_by_key(|(_, region)| profile.count(region.header))
+        .map(|(index, region)| JitPlan {
+            region_id: RegionID(index as u32),
             header: region.header,
             backedge: region.backedge,
             exits: region.exits.clone(),

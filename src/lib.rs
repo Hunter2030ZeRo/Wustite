@@ -6,3 +6,4 @@ pub mod structure_map;
 pub mod value;
 pub mod verifier;
 pub mod wvm;
+pub mod executable;

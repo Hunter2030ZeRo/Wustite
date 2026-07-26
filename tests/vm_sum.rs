@@ -1,7 +1,7 @@
-use wustite::{bytecode, planner, structure_map, value, verifier, wvm};
+use wustite::{bytecode, executable, planner, structure_map, value, verifier, wvm};
 
-fn sum_function() -> bytecode::ExecutableFunction {
-    bytecode::ExecutableFunction {
+fn sum_function() -> executable::ExecutableFunction {
+    executable::ExecutableFunction {
         bytecode: bytecode::Function {
             register_count: 5,
             code: vec![
@@ -90,7 +90,7 @@ fn sum_one_to_one_hundred() {
 
 #[test]
 fn verifier_rejects_invalid_register() {
-    let function = bytecode::ExecutableFunction {
+    let function = executable::ExecutableFunction {
         bytecode: bytecode::Function {
             register_count: 1,
             code: vec![
@@ -110,7 +110,7 @@ fn verifier_rejects_invalid_register() {
 
 #[test]
 fn verifier_rejects_invalid_jump_target() {
-    let function = bytecode::ExecutableFunction {
+    let function = executable::ExecutableFunction {
         bytecode: bytecode::Function {
             register_count: 0,
             code: vec![bytecode::Instruction::Jump { target: 1 }],
@@ -123,7 +123,7 @@ fn verifier_rejects_invalid_jump_target() {
 
 #[test]
 fn verifier_rejects_invalid_loop_metadata() {
-    let function = bytecode::ExecutableFunction {
+    let function = executable::ExecutableFunction {
         bytecode: bytecode::Function {
             register_count: 1,
             code: vec![

@@ -1,7 +1,8 @@
-use crate::bytecode::{ExecutableFunction, Instruction, Register};
+use crate::bytecode::{Instruction, Register};
 use crate::profiler::Profile;
 use crate::value::Value;
 use crate::verifier::verify;
+use crate::executable::ExecutableFunction;
 
 pub struct Frame {
     pc: usize,
@@ -26,6 +27,7 @@ impl Vm {
     }
 
     pub fn execute(&mut self, executable: &ExecutableFunction) -> Result<ExecutionResult, String> {
+        self.profile = None;
         verify(executable)?;
 
         let function = &executable.bytecode;

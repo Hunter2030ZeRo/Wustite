@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use crate::bytecode::{ExecutableFunction, Function, Instruction, Register};
+use crate::bytecode::{Function, Instruction, Register};
+use crate::executable::ExecutableFunction;
 
 pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
     let bytecode = &function.bytecode;
