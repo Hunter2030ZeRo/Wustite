@@ -29,3 +29,20 @@ pub fn select_hot_loop(
             live_slots: region.live_slots.clone(),
         })
 }
+
+/// Builds a plan for one specific region after it reaches the hot threshold.
+pub fn plan_hot_region(
+    structure_map: &StructureMap,
+    profile: &Profile,
+    threshold: u64,
+    region_id: RegionId,
+) -> Option<JitPlan> {
+    let region = structure_map.loops.get(region_id.0)?;
+    profile.is_hot(region.header, threshold).then(|| JitPlan {
+        region_id,
+        header: region.header,
+        backedge: region.backedge,
+        exits: region.exits.clone(),
+        live_slots: region.live_slots.clone(),
+    })
+}
