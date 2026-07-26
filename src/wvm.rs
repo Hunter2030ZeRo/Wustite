@@ -1,6 +1,7 @@
-use crate::bytecode::{Function, Instruction, Register};
+use crate::bytecode::{ExecutableFunction, Instruction, Register};
 use crate::profiler::Profile;
 use crate::value::Value;
+use crate::verifier::verify;
 
 pub struct Frame {
     pc: usize,
@@ -8,12 +9,11 @@ pub struct Frame {
 }
 
 pub struct Vm {
-    pub profile: Option<Profile>,
+    profile: Option<Profile>,
 }
 
 pub struct ExecutionResult {
     pub value: Value,
-    pub profile: Profile,
 }
 
 impl Vm {
@@ -21,16 +21,26 @@ impl Vm {
         Self { profile: None }
     }
 
-    pub fn execute(&mut self, function: &Function) -> Result<ExecutionResult, String> {
+    pub fn profile(&self) -> Option<&Profile> {
+        self.profile.as_ref()
+    }
+
+    pub fn execute(&mut self, executable: &ExecutableFunction) -> Result<ExecutionResult, String> {
+        verify(executable)?;
+
+        let function = &executable.bytecode;
         let mut frame = Frame {
             pc: 0,
             registers: vec![Value::Uninitialized; function.register_count],
         };
 
-        let mut profile = Profile::new(function.code.len());
+        self.profile = Some(Profile::new(function.code.len()));
 
         while frame.pc < function.code.len() {
-            profile.record(frame.pc);
+            self.profile
+                .as_mut()
+                .ok_or_else(|| "profile is not initialized".to_string())?
+                .record(frame.pc);
 
             match &function.code[frame.pc] {
                 Instruction::ConstI64 { dst, value } => {
@@ -59,7 +69,6 @@ impl Vm {
                 }
 
                 Instruction::Jump { target } => {
-                    validate_target(function, *target)?;
                     frame.pc = *target;
                 }
 
@@ -67,14 +76,13 @@ impl Vm {
                     let condition = read_bool(&frame, *cond)?;
                     let target = if condition { *yes } else { *no };
 
-                    validate_target(function, target)?;
                     frame.pc = target;
                 }
 
                 Instruction::Return { src } => {
                     let value = read_register(&frame, *src)?;
 
-                    return Ok(ExecutionResult { value, profile });
+                    return Ok(ExecutionResult { value });
                 }
             }
         }
@@ -118,13 +126,5 @@ fn read_bool(frame: &Frame, register: Register) -> Result<bool, String> {
     match read_register(frame, register)? {
         Value::Bool(value) => Ok(value),
         other => Err(format!("expected bool in r{register}, found {other:?}")),
-    }
-}
-
-fn validate_target(function: &Function, target: usize) -> Result<(), String> {
-    if target < function.code.len() {
-        Ok(())
-    } else {
-        Err(format!("invalid jump target {target}"))
     }
 }

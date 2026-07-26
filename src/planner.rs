@@ -1,29 +1,28 @@
-use crate::bytecode::Register;
 use crate::profiler::Profile;
-use crate::structure_map::StructureMap;
+use crate::structure_map::{LiveSlot, RegionExit, StructureMap};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JITPlan {
+pub struct JitPlan {
     pub header: usize,
     pub backedge: usize,
-    pub exit: usize,
-    pub live_registers: Vec<Register>,
+    pub exits: Vec<RegionExit>,
+    pub live_slots: Vec<LiveSlot>,
 }
 
 pub fn select_hot_loop(
     structure_map: &StructureMap,
     profile: &Profile,
     threshold: u64,
-) -> Option<JITPlan> {
+) -> Option<JitPlan> {
     structure_map
         .loops
         .iter()
         .filter(|region| profile.is_hot(region.header, threshold))
         .max_by_key(|region| profile.count(region.header))
-        .map(|region| JITPlan {
+        .map(|region| JitPlan {
             header: region.header,
             backedge: region.backedge,
-            exit: region.exit,
-            live_registers: region.live_registers.clone(),
+            exits: region.exits.clone(),
+            live_slots: region.live_slots.clone(),
         })
 }

@@ -11,14 +11,18 @@ impl Profile {
     }
 
     pub fn record(&mut self, pc: usize) {
-        self.execution_counts[pc] += 1;
+        if let Some(count) = self.execution_counts.get_mut(pc) {
+            *count = count.saturating_add(1);
+        }
     }
 
     pub fn count(&self, pc: usize) -> u64 {
-        self.execution_counts[pc]
+        self.execution_counts.get(pc).copied().unwrap_or(0)
     }
 
     pub fn is_hot(&self, pc: usize, threshold: u64) -> bool {
-        self.count(pc) >= threshold
+        self.execution_counts
+            .get(pc)
+            .is_some_and(|count| *count >= threshold)
     }
 }

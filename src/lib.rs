@@ -4,4 +4,5 @@ pub mod planner;
 pub mod profiler;
 pub mod structure_map;
 pub mod value;
+pub mod verifier;
 pub mod wvm;
