@@ -82,6 +82,7 @@ fn sum_one_to_one_hundred() {
     assert_eq!(plan.backedge, 8);
     assert_eq!(plan.exits, vec![structure_map::RegionExit { target: 9 }]);
     assert_eq!(plan.live_slots, function.structure_map.loops[0].live_slots);
+    assert_eq!(plan.region_id, structure_map::RegionId(0));
     assert_eq!(hot_loop.header, 4);
     assert_eq!(profile.count(hot_loop.header), 101);
     assert_eq!(result.value, value::Value::I64(5050));

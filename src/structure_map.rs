@@ -31,4 +31,4 @@ pub struct StructureMap {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RegionID(pub u32);
+pub struct RegionId(pub usize);
