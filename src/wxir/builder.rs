@@ -275,6 +275,20 @@ impl<'a> RegionBuilder<'a> {
             .get(&self.plan.header)
             .map(|spec| spec.id)
             .ok_or_else(|| WxBuildError::InvalidPlan("missing entry block".to_string()))?;
+        let entry_state = self
+            .block_specs
+            .get(&self.plan.header)
+            .map(|spec| {
+                spec.parameters
+                    .iter()
+                    .map(|(register, parameter)| WxStateValue {
+                        register: *register,
+                        value: parameter.id,
+                        ty: parameter.ty,
+                    })
+                    .collect()
+            })
+            .ok_or_else(|| WxBuildError::InvalidPlan("missing entry state".to_string()))?;
 
         Ok(WxFunction {
             origin: WxRegionOrigin {
@@ -283,6 +297,7 @@ impl<'a> RegionBuilder<'a> {
                 bytecode_backedge: self.plan.backedge,
             },
             entry,
+            entry_state,
             blocks: std::mem::take(&mut self.blocks),
             returns: Vec::new(),
             side_exits,

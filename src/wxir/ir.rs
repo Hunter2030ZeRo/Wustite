@@ -280,6 +280,8 @@ pub struct WxSideExit {
 pub struct WxFunction {
     pub origin: WxRegionOrigin,
     pub entry: WxBlockId,
+    /// Maps WVM registers to the entry block parameters used for marshalling.
+    pub entry_state: Vec<WxStateValue>,
     pub blocks: Vec<WxBlock>,
     pub returns: Vec<WxType>,
     pub side_exits: Vec<WxSideExit>,

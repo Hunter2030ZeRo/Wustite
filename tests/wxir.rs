@@ -17,6 +17,11 @@ fn valid_function() -> WxFunction {
             bytecode_backedge: 8,
         },
         entry: WxBlockId(0),
+        entry_state: vec![WxStateValue {
+            register: 0,
+            value: WxValueId(0),
+            ty: i64_type(),
+        }],
         blocks: vec![
             WxBlock {
                 id: WxBlockId(0),
@@ -246,6 +251,11 @@ fn vector_masks_are_valid_but_pointer_lanes_are_rejected() {
             bytecode_backedge: 0,
         },
         entry: WxBlockId(0),
+        entry_state: vec![WxStateValue {
+            register: 0,
+            value: WxValueId(0),
+            ty,
+        }],
         blocks: vec![WxBlock {
             id: WxBlockId(0),
             parameters: vec![WxBlockParam {

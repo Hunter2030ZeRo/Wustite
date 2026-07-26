@@ -14,9 +14,10 @@ pub fn verify(function: &WxFunction) -> Result<(), String> {
             return Err(format!("duplicate block ID {}", block.id));
         }
     }
-    if !blocks.contains_key(&function.entry) {
-        return Err(format!("entry block {} does not exist", function.entry));
-    }
+    let entry = blocks
+        .get(&function.entry)
+        .ok_or_else(|| format!("entry block {} does not exist", function.entry))?;
+    verify_entry_state(function, entry)?;
 
     for ty in &function.returns {
         verify_type(*ty)?;
@@ -71,6 +72,50 @@ pub fn verify(function: &WxFunction) -> Result<(), String> {
         }
     }
 
+    Ok(())
+}
+
+fn verify_entry_state(function: &WxFunction, entry: &WxBlock) -> Result<(), String> {
+    if function.entry_state.len() != entry.parameters.len() {
+        return Err(format!(
+            "entry state count {} does not match entry parameter count {}",
+            function.entry_state.len(),
+            entry.parameters.len()
+        ));
+    }
+
+    let mut registers = HashSet::new();
+    let mut values = HashSet::new();
+    for state in &function.entry_state {
+        if !registers.insert(state.register) {
+            return Err(format!(
+                "entry state contains duplicate WVM register r{}",
+                state.register
+            ));
+        }
+        if !values.insert(state.value) {
+            return Err(format!(
+                "entry state contains duplicate value {}",
+                state.value
+            ));
+        }
+        let parameter = entry
+            .parameters
+            .iter()
+            .find(|parameter| parameter.id == state.value)
+            .ok_or_else(|| {
+                format!(
+                    "entry state value {} is not an entry block parameter",
+                    state.value
+                )
+            })?;
+        if parameter.ty != state.ty {
+            return Err(format!(
+                "entry state value {} has type {}, expected {}",
+                state.value, state.ty, parameter.ty
+            ));
+        }
+    }
     Ok(())
 }
 
