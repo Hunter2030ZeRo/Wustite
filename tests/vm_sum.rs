@@ -1,4 +1,4 @@
-use wustite::{bytecode, value, wvm};
+use wustite::{bytecode, value, wvm, structure_map, planner};
 
 #[test]
 fn sum_one_to_one_hundred() {
@@ -34,7 +34,32 @@ fn sum_one_to_one_hundred() {
         ],
     };
 
-    let mut vm = wvm::Vm;
+    let mut vm = wvm::Vm::new();
     let result = vm.execute(&function).unwrap();
-    assert_eq!(result, value::Value::I64(5050));
+
+    let structure_map = structure_map::StructureMap {
+        loops: vec![structure_map::LoopRegion {
+            header: 4, 
+            backedge: 8, 
+            exit: 9, 
+            live_registers: vec![0, 1, 2, 3],
+        }]
+    };
+
+    let hot_loop = structure_map
+        .loops
+        .iter()
+        .find(|region| result.profile.is_hot(region.header, 50))
+        .unwrap();
+
+    let plan = planner::select_hot_loop(&structure_map, &result.profile, 50).unwrap();
+
+    assert_eq!(plan.header, 4);
+    assert_eq!(plan.backedge, 8);
+    assert_eq!(plan.exit, 9);
+    assert_eq!(plan.live_registers, vec![0, 1, 2, 3]);
+    assert_eq!(hot_loop.header, 4);
+    assert_eq!(result.profile.count(hot_loop.header), 101);
+    assert_eq!(result.value, value::Value::I64(5050));
+    assert_eq!(result.profile.count(4), 101);
 }

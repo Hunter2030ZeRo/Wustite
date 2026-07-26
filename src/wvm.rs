@@ -1,25 +1,37 @@
 use crate::bytecode::{Function, Instruction, Register};
 use crate::value::Value;
+use crate::profiler::Profile;
 
 pub struct Frame {
     pc: usize,
     registers: Vec<Value>,
 }
 
-pub struct Vm;
+pub struct Vm {
+    pub profile: Option<Profile>,
+}
+
+pub struct ExecutionResult {
+    pub value: Value, 
+    pub profile: Profile,
+}
 
 impl Vm {
     pub fn new() -> Self {
-        Self
+        Self { profile: None }
     }
 
-    pub fn execute(&mut self, function: &Function) -> Result<Value, String> {
+    pub fn execute(&mut self, function: &Function) -> Result<ExecutionResult, String> {
         let mut frame = Frame {
             pc: 0,
             registers: vec![Value::Uninitialized; function.register_count],
         };
 
+        let mut profile = Profile::new(function.code.len());
+
         while frame.pc < function.code.len() {
+            profile.record(frame.pc);
+            
             match &function.code[frame.pc] {
                 Instruction::ConstI64 { dst, value } => {
                     write_register(&mut frame, *dst, Value::I64(*value))?;
@@ -60,7 +72,9 @@ impl Vm {
                 }
 
                 Instruction::Return { src } => {
-                    return read_register(&frame, *src);
+                    let value = read_register(&frame, *src)?;
+
+                    return Ok(ExecutionResult { value, profile });
                 }
             }
         }
