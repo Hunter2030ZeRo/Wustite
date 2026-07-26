@@ -1,4 +1,4 @@
-use wustite::{bytecode, value, wvm, structure_map, planner};
+use wustite::{bytecode, planner, structure_map, value, wvm};
 
 #[test]
 fn sum_one_to_one_hundred() {
@@ -39,11 +39,11 @@ fn sum_one_to_one_hundred() {
 
     let structure_map = structure_map::StructureMap {
         loops: vec![structure_map::LoopRegion {
-            header: 4, 
-            backedge: 8, 
-            exit: 9, 
+            header: 4,
+            backedge: 8,
+            exit: 9,
             live_registers: vec![0, 1, 2, 3],
-        }]
+        }],
     };
 
     let hot_loop = structure_map

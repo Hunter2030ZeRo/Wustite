@@ -1,6 +1,6 @@
 use crate::bytecode::{Function, Instruction, Register};
-use crate::value::Value;
 use crate::profiler::Profile;
+use crate::value::Value;
 
 pub struct Frame {
     pc: usize,
@@ -12,7 +12,7 @@ pub struct Vm {
 }
 
 pub struct ExecutionResult {
-    pub value: Value, 
+    pub value: Value,
     pub profile: Profile,
 }
 
@@ -31,7 +31,7 @@ impl Vm {
 
         while frame.pc < function.code.len() {
             profile.record(frame.pc);
-            
+
             match &function.code[frame.pc] {
                 Instruction::ConstI64 { dst, value } => {
                     write_register(&mut frame, *dst, Value::I64(*value))?;
