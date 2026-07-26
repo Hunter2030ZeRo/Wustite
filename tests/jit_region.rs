@@ -1,11 +1,14 @@
 use wustite::bytecode::{Function, Instruction};
 use wustite::executable::ExecutableFunction;
-use wustite::jit::{CraneliftRegionCompiler, RegionCompiler};
+use wustite::jit::{CompileError, CraneliftRegionCompiler, RegionCompiler};
 use wustite::planner::{self, JitPlan};
 use wustite::structure_map::{LiveSlot, LoopRegion, RegionExit, RegionId, SlotType, StructureMap};
 use wustite::value::Value;
-use wustite::wvm::Vm;
-use wustite::wxir::build_region;
+use wustite::wvm::{JitFailureStage, Vm};
+use wustite::wxir::{
+    WxBlock, WxBlockId, WxBlockParam, WxExitKind, WxFunction, WxRegionOrigin, WxScalarType,
+    WxStateValue, WxTerminator, WxType, WxValueId, build_region,
+};
 
 fn i64_slot(register: u16) -> LiveSlot {
     LiveSlot {
@@ -87,7 +90,7 @@ fn overflow_function() -> ExecutableFunction {
     }
 }
 
-fn unsupported_region_function() -> ExecutableFunction {
+fn invalid_region_metadata_function() -> ExecutableFunction {
     ExecutableFunction {
         bytecode: Function {
             register_count: 4,
@@ -103,7 +106,7 @@ fn unsupported_region_function() -> ExecutableFunction {
                 Instruction::Branch {
                     cond: 2,
                     yes: 6,
-                    no: 5,
+                    no: 8,
                 },
                 Instruction::Return { src: 0 },
                 Instruction::AddI64 {
@@ -112,6 +115,7 @@ fn unsupported_region_function() -> ExecutableFunction {
                     rhs: 1,
                 },
                 Instruction::Jump { target: 3 },
+                Instruction::Return { src: 0 },
             ],
         },
         structure_map: StructureMap {
@@ -122,6 +126,34 @@ fn unsupported_region_function() -> ExecutableFunction {
                 live_slots: vec![i64_slot(0), i64_slot(1), i64_slot(3)],
             }],
         },
+    }
+}
+
+fn unsupported_f64_wxir() -> WxFunction {
+    let ty = WxType::Scalar(WxScalarType::F64);
+    WxFunction {
+        origin: WxRegionOrigin {
+            region_id: RegionId(0),
+            bytecode_header: 0,
+            bytecode_backedge: 0,
+        },
+        entry: WxBlockId(0),
+        entry_state: vec![WxStateValue {
+            register: 0,
+            value: WxValueId(0),
+            ty,
+        }],
+        blocks: vec![WxBlock {
+            id: WxBlockId(0),
+            parameters: vec![WxBlockParam {
+                id: WxValueId(0),
+                ty,
+            }],
+            instructions: vec![],
+            terminator: WxTerminator::Return { values: vec![] },
+        }],
+        returns: vec![],
+        side_exits: vec![],
     }
 }
 
@@ -142,6 +174,7 @@ fn compiled_sum_region_restores_live_state_and_resume_pc() {
     registers[3] = Value::I64(101);
 
     let exit = compiled.execute(&mut registers).unwrap();
+    assert_eq!(exit.kind, WxExitKind::RegionExit);
     assert_eq!(exit.resume_pc, 9);
     assert_eq!(registers[0], Value::I64(5050));
     assert_eq!(registers[1], Value::I64(101));
@@ -162,6 +195,7 @@ fn compiled_overflow_exits_before_updating_destination() {
     let mut registers = vec![Value::I64(i64::MAX), Value::I64(1)];
 
     let exit = compiled.execute(&mut registers).unwrap();
+    assert_eq!(exit.kind, WxExitKind::ReplayInstruction);
     assert_eq!(exit.resume_pc, 2);
     assert_eq!(registers[0], Value::I64(i64::MAX));
     assert_eq!(registers[1], Value::I64(1));
@@ -183,6 +217,7 @@ fn vm_automatically_tiers_up_sum_once() {
     assert_eq!(vm.jit_report().compiled_regions, 1);
     assert_eq!(vm.jit_report().native_executions, 1);
     assert_eq!(vm.jit_report().last_resume_pc, Some(9));
+    assert_eq!(vm.jit_report().last_exit_kind, Some(WxExitKind::RegionExit));
 }
 
 #[test]
@@ -198,11 +233,15 @@ fn vm_replays_synthetic_overflow_exit_in_interpreter() {
     assert_eq!(vm.jit_report().compiled_regions, 1);
     assert_eq!(vm.jit_report().native_executions, 1);
     assert_eq!(vm.jit_report().last_resume_pc, Some(2));
+    assert_eq!(
+        vm.jit_report().last_exit_kind,
+        Some(WxExitKind::ReplayInstruction)
+    );
 }
 
 #[test]
-fn unsupported_region_is_disabled_after_one_attempt() {
-    let executable = unsupported_region_function();
+fn invalid_region_metadata_is_disabled_after_one_attempt() {
+    let executable = invalid_region_metadata_function();
     let mut vm = Vm::with_hot_threshold(0);
 
     let result = vm.execute(&executable).unwrap();
@@ -213,6 +252,24 @@ fn unsupported_region_is_disabled_after_one_attempt() {
     assert_eq!(vm.jit_report().compiled_regions, 0);
     assert_eq!(vm.jit_report().disabled_regions, 1);
     assert_eq!(vm.jit_report().native_executions, 0);
+    assert_eq!(vm.jit_report().failures.len(), 1);
+    let failure = &vm.jit_report().failures[0];
+    assert_eq!(failure.region_id, RegionId(0));
+    assert_eq!(failure.stage, JitFailureStage::BuildWxir);
+    assert!(failure.reason.contains("has no JitPlan exit"));
+}
+
+#[test]
+fn backend_rejects_unsupported_f64_state() {
+    let error = CraneliftRegionCompiler::new()
+        .compile(&unsupported_f64_wxir())
+        .err()
+        .unwrap();
+
+    assert_eq!(
+        error,
+        CompileError::UnsupportedType(WxType::Scalar(WxScalarType::F64))
+    );
 }
 
 #[test]

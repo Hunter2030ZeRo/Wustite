@@ -144,3 +144,32 @@ fn verifier_rejects_invalid_loop_metadata() {
 
     assert!(verifier::verify(&function).is_err());
 }
+
+#[test]
+fn verifier_rejects_duplicate_loop_headers() {
+    let mut function = sum_function();
+    function
+        .structure_map
+        .loops
+        .push(function.structure_map.loops[0].clone());
+
+    assert!(
+        verifier::verify(&function)
+            .unwrap_err()
+            .contains("duplicates loop header")
+    );
+}
+
+#[test]
+fn verifier_rejects_duplicate_exit_targets() {
+    let mut function = sum_function();
+    function.structure_map.loops[0]
+        .exits
+        .push(structure_map::RegionExit { target: 9 });
+
+    assert!(
+        verifier::verify(&function)
+            .unwrap_err()
+            .contains("duplicate exit target")
+    );
+}

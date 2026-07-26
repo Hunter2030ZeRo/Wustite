@@ -5,7 +5,7 @@ use cranelift_jit::JITModule;
 
 use crate::bytecode::Register;
 use crate::value::Value;
-use crate::wxir::{WxExitId, WxScalarType, WxSideExit, WxStateValue, WxType};
+use crate::wxir::{WxExitId, WxExitKind, WxScalarType, WxSideExit, WxStateValue, WxType};
 
 use super::layout::RegionLayout;
 
@@ -15,6 +15,7 @@ pub(crate) type NativeRegionEntry = unsafe extern "C" fn(*mut u8) -> u32;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegionExecution {
     pub exit: WxExitId,
+    pub kind: WxExitKind,
     pub resume_pc: usize,
 }
 
@@ -127,6 +128,7 @@ impl CompiledRegion {
 
         Ok(RegionExecution {
             exit,
+            kind: metadata.kind,
             resume_pc: metadata.resume_pc,
         })
     }

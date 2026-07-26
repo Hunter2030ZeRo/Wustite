@@ -267,10 +267,22 @@ pub struct WxStateValue {
     pub ty: WxType,
 }
 
+/// Interpreter-resume semantics attached to a native side exit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WxExitKind {
+    /// A WVM control-flow edge leaves the compiled region.
+    RegionExit,
+    /// The instruction at `resume_pc` must be replayed by the interpreter.
+    ReplayInstruction,
+    /// Reserved for future speculative-state reconstruction.
+    Deopt,
+}
+
 /// Metadata needed to resume WVM interpretation after native execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WxSideExit {
     pub id: WxExitId,
+    pub kind: WxExitKind,
     pub resume_pc: usize,
     pub state: Vec<WxStateValue>,
 }

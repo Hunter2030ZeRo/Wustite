@@ -2,9 +2,15 @@ use std::collections::{HashMap, HashSet};
 
 use super::ir::{
     WxBinaryOp, WxBlock, WxBlockId, WxBlockTarget, WxCastOp, WxCompareOp, WxConstant, WxExitId,
-    WxFunction, WxGuardMode, WxInst, WxInstKind, WxSideExit, WxTerminator, WxValueId,
+    WxExitKind, WxFunction, WxGuardMode, WxInst, WxInstKind, WxSideExit, WxTerminator, WxValueId,
 };
 use super::types::{WxScalarType, WxType};
+
+#[derive(Debug, Clone, Copy)]
+enum ExitUse {
+    Guard,
+    Terminator,
+}
 
 /// Verifies SSA identity, typing, control-flow edges, and side-exit metadata.
 pub fn verify(function: &WxFunction) -> Result<(), String> {
@@ -151,7 +157,13 @@ fn verify_block(
             verify_values(values, returns, &available, "return")?;
         }
         WxTerminator::SideExit { exit, values } => {
-            let expected = verify_exit_use(*exit, &available, side_exits, used_exits)?;
+            let expected = verify_exit_use(
+                *exit,
+                ExitUse::Terminator,
+                &available,
+                side_exits,
+                used_exits,
+            )?;
             if values != &expected {
                 return Err(format!(
                     "side exit {exit} values do not match its state metadata"
@@ -323,7 +335,7 @@ fn verify_instruction(
             match mode {
                 WxGuardMode::ExitWhenTrue | WxGuardMode::ExitWhenFalse => {}
             }
-            verify_exit_use(*exit, available, side_exits, used_exits)?;
+            verify_exit_use(*exit, ExitUse::Guard, available, side_exits, used_exits)?;
         }
         WxInstKind::Call {
             callee,
@@ -395,6 +407,7 @@ fn verify_values(
 
 fn verify_exit_use(
     exit: WxExitId,
+    use_kind: ExitUse,
     available: &HashMap<WxValueId, WxType>,
     side_exits: &HashMap<WxExitId, &WxSideExit>,
     used_exits: &mut HashSet<WxExitId>,
@@ -402,6 +415,24 @@ fn verify_exit_use(
     let metadata = side_exits
         .get(&exit)
         .ok_or_else(|| format!("side exit {exit} has no metadata"))?;
+    match (use_kind, metadata.kind) {
+        (ExitUse::Terminator, WxExitKind::RegionExit) => {}
+
+        (ExitUse::Guard, WxExitKind::ReplayInstruction) => {}
+        (ExitUse::Guard, WxExitKind::Deopt) => {}
+
+        (ExitUse::Terminator, actual) => {
+            return Err(format!(
+                "side-exit terminator requires RegionExit, found {actual:?}"
+            ));
+        }
+
+        (ExitUse::Guard, actual) => {
+            return Err(format!(
+                "guard requires ReplayInstruction or Deopt, found {actual:?}"
+            ));
+        }
+    }
     if !used_exits.insert(exit) {
         return Err(format!("side exit {exit} is referenced more than once"));
     }

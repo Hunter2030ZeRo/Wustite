@@ -1,8 +1,9 @@
 use wustite::structure_map::RegionId;
 use wustite::wxir::{
     self, WxBlock, WxBlockId, WxBlockParam, WxBlockTarget, WxCompareOp, WxConstant, WxExitId,
-    WxFunction, WxGuardMode, WxInst, WxInstKind, WxInstResult, WxIntCompareOp, WxIntOverflowOp,
-    WxRegionOrigin, WxScalarType, WxSideExit, WxStateValue, WxTerminator, WxType, WxValueId,
+    WxExitKind, WxFunction, WxGuardMode, WxInst, WxInstKind, WxInstResult, WxIntCompareOp,
+    WxIntOverflowOp, WxRegionOrigin, WxScalarType, WxSideExit, WxStateValue, WxTerminator, WxType,
+    WxValueId,
 };
 
 fn i64_type() -> WxType {
@@ -88,6 +89,7 @@ fn valid_function() -> WxFunction {
         returns: vec![i64_type()],
         side_exits: vec![WxSideExit {
             id: WxExitId(0),
+            kind: WxExitKind::RegionExit,
             resume_pc: 9,
             state: vec![WxStateValue {
                 register: 0,
@@ -106,7 +108,7 @@ fn valid_function_verifies_and_prints() {
     let printed = wxir::print_function(&function);
     assert!(printed.contains("b0("));
     assert!(printed.contains("icmp.slt"));
-    assert!(printed.contains("side_exit x0"));
+    assert!(printed.contains("side_exit x0 kind=region resume_pc=9"));
 }
 
 #[test]
@@ -220,6 +222,7 @@ fn invalid_guard_condition_is_rejected() {
     let mut function = valid_function();
     function.side_exits.push(WxSideExit {
         id: WxExitId(1),
+        kind: WxExitKind::ReplayInstruction,
         resume_pc: 6,
         state: vec![WxStateValue {
             register: 0,
@@ -240,6 +243,62 @@ fn invalid_guard_condition_is_rejected() {
     );
 
     assert!(wxir::verify(&function).unwrap_err().contains("expected i1"));
+}
+
+#[test]
+fn guard_rejects_region_exit_metadata() {
+    let mut function = valid_function();
+    function.blocks[0].instructions.push(WxInst {
+        results: vec![],
+        kind: WxInstKind::Guard {
+            condition: WxValueId(2),
+            exit: WxExitId(0),
+            mode: WxGuardMode::ExitWhenTrue,
+        },
+    });
+
+    assert!(
+        wxir::verify(&function)
+            .unwrap_err()
+            .contains("guard requires ReplayInstruction or Deopt")
+    );
+}
+
+#[test]
+fn side_exit_terminator_rejects_replay_metadata() {
+    let mut function = valid_function();
+    function.side_exits[0].kind = WxExitKind::ReplayInstruction;
+
+    assert!(
+        wxir::verify(&function)
+            .unwrap_err()
+            .contains("side-exit terminator requires RegionExit")
+    );
+}
+
+#[test]
+fn replay_instruction_guard_is_valid() {
+    let mut function = valid_function();
+    function.side_exits.push(WxSideExit {
+        id: WxExitId(1),
+        kind: WxExitKind::ReplayInstruction,
+        resume_pc: 6,
+        state: vec![WxStateValue {
+            register: 0,
+            value: WxValueId(0),
+            ty: i64_type(),
+        }],
+    });
+    function.blocks[0].instructions.push(WxInst {
+        results: vec![],
+        kind: WxInstKind::Guard {
+            condition: WxValueId(2),
+            exit: WxExitId(1),
+            mode: WxGuardMode::ExitWhenTrue,
+        },
+    });
+
+    wxir::verify(&function).unwrap();
 }
 
 #[test]

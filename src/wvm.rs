@@ -8,7 +8,7 @@ use crate::profiler::Profile;
 use crate::structure_map::RegionId;
 use crate::value::Value;
 use crate::verifier::verify;
-use crate::wxir::build_region;
+use crate::wxir::{WxExitKind, build_region};
 
 /// Default interpreted header executions before synchronous tier-up.
 pub const DEFAULT_HOT_THRESHOLD: u64 = 1_000;
@@ -16,7 +16,7 @@ pub const DEFAULT_HOT_THRESHOLD: u64 = 1_000;
 pub struct Frame {
     pc: usize,
     registers: Vec<Value>,
-    skip_osr_once: bool,
+    suppress_osr_pc: Option<usize>,
 }
 
 pub struct Vm {
@@ -27,25 +27,61 @@ pub struct Vm {
 
 struct JitRuntime {
     regions: HashMap<RegionId, RegionState>,
+    region_by_header: Vec<Option<RegionId>>,
     compiler: CraneliftRegionCompiler,
 }
 
 enum RegionState {
-    Compiled {
-        region: Box<CompiledRegion>,
-        static_exit_count: usize,
-    },
-    Disabled,
+    Compiled { region: Box<CompiledRegion> },
+    Disabled { reason: String },
+}
+
+impl JitRuntime {
+    fn new(executable: &ExecutableFunction) -> Self {
+        let mut region_by_header = vec![None; executable.bytecode.code.len()];
+
+        for (index, region) in executable.structure_map.loops.iter().enumerate() {
+            region_by_header[region.header] = Some(RegionId(index));
+        }
+
+        Self {
+            regions: HashMap::new(),
+            region_by_header,
+            compiler: CraneliftRegionCompiler::new(),
+        }
+    }
+
+    fn region_at(&self, pc: usize) -> Option<RegionId> {
+        self.region_by_header.get(pc).copied().flatten()
+    }
+}
+
+/// Stage at which one region was disabled for the current execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JitFailureStage {
+    BuildWxir,
+    Compile,
+    Execute,
+}
+
+/// Preserved diagnostic for a failed synchronous tier-up operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JitFailure {
+    pub region_id: RegionId,
+    pub stage: JitFailureStage,
+    pub reason: String,
 }
 
 /// Observable tier-up activity for the latest execute invocation.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JitReport {
     pub compilation_attempts: u64,
     pub compiled_regions: u64,
     pub disabled_regions: u64,
     pub native_executions: u64,
     pub last_resume_pc: Option<usize>,
+    pub last_exit_kind: Option<WxExitKind>,
+    pub failures: Vec<JitFailure>,
 }
 
 pub struct ExecutionResult {
@@ -89,12 +125,9 @@ impl Vm {
         let mut frame = Frame {
             pc: 0,
             registers: vec![Value::Uninitialized; function.register_count],
-            skip_osr_once: false,
+            suppress_osr_pc: None,
         };
-        let mut jit = JitRuntime {
-            regions: HashMap::new(),
-            compiler: CraneliftRegionCompiler::new(),
-        };
+        let mut jit = JitRuntime::new(executable);
 
         self.profile = Some(Profile::new(function.code.len()));
 
@@ -162,20 +195,17 @@ impl Vm {
         frame: &mut Frame,
         jit: &mut JitRuntime,
     ) -> bool {
-        if frame.skip_osr_once {
-            frame.skip_osr_once = false;
+        if frame
+            .suppress_osr_pc
+            .take()
+            .is_some_and(|suppressed_pc| suppressed_pc == frame.pc)
+        {
             return false;
         }
 
-        let Some(region_index) = executable
-            .structure_map
-            .loops
-            .iter()
-            .position(|region| region.header == frame.pc)
-        else {
+        let Some(region_id) = jit.region_at(frame.pc) else {
             return false;
         };
-        let region_id = RegionId(region_index);
 
         if jit.regions.contains_key(&region_id) {
             return self.execute_cached_region(region_id, frame, jit);
@@ -193,33 +223,34 @@ impl Vm {
         };
 
         self.jit_report.compilation_attempts += 1;
-        let static_exit_count = plan.exits.len();
-        let compiled = build_region(executable, &plan)
-            .map_err(|error| error.to_string())
-            .and_then(|function| {
-                jit.compiler
-                    .compile(&function)
-                    .map_err(|error| error.to_string())
-            });
-
-        match compiled {
-            Ok(region) => {
-                self.jit_report.compiled_regions += 1;
-                jit.regions.insert(
+        let function = match build_region(executable, &plan) {
+            Ok(function) => function,
+            Err(error) => {
+                self.disable_region(
+                    jit,
                     region_id,
-                    RegionState::Compiled {
-                        region: Box::new(region),
-                        static_exit_count,
-                    },
+                    JitFailureStage::BuildWxir,
+                    error.to_string(),
                 );
-                self.execute_cached_region(region_id, frame, jit)
+                return false;
             }
-            Err(_) => {
-                self.jit_report.disabled_regions += 1;
-                jit.regions.insert(region_id, RegionState::Disabled);
-                false
+        };
+        let region = match jit.compiler.compile(&function) {
+            Ok(region) => region,
+            Err(error) => {
+                self.disable_region(jit, region_id, JitFailureStage::Compile, error.to_string());
+                return false;
             }
-        }
+        };
+
+        self.jit_report.compiled_regions += 1;
+        jit.regions.insert(
+            region_id,
+            RegionState::Compiled {
+                region: Box::new(region),
+            },
+        );
+        self.execute_cached_region(region_id, frame, jit)
     }
 
     fn execute_cached_region(
@@ -228,29 +259,52 @@ impl Vm {
         frame: &mut Frame,
         jit: &mut JitRuntime,
     ) -> bool {
-        let (execution, static_exit_count) = match jit.regions.get(&region_id) {
-            Some(RegionState::Compiled {
-                region,
-                static_exit_count,
-            }) => (region.execute(&mut frame.registers), *static_exit_count),
-            Some(RegionState::Disabled) | None => return false,
+        let execution = match jit.regions.get(&region_id) {
+            Some(RegionState::Compiled { region }) => region.execute(&mut frame.registers),
+            Some(RegionState::Disabled { reason }) => {
+                let _ = reason;
+                return false;
+            }
+            None => return false,
         };
 
         match execution {
             Ok(execution) => {
                 self.jit_report.native_executions += 1;
                 self.jit_report.last_resume_pc = Some(execution.resume_pc);
+                self.jit_report.last_exit_kind = Some(execution.kind);
                 frame.pc = execution.resume_pc;
-                frame.skip_osr_once =
-                    usize::try_from(execution.exit.0).is_ok_and(|exit| exit >= static_exit_count);
+                frame.suppress_osr_pc = match execution.kind {
+                    WxExitKind::ReplayInstruction => Some(execution.resume_pc),
+                    WxExitKind::RegionExit => None,
+                    // Deopt currently resumes interpretation directly. Future
+                    // speculation metadata may require richer reconstruction.
+                    WxExitKind::Deopt => None,
+                };
                 true
             }
-            Err(_) => {
-                self.jit_report.disabled_regions += 1;
-                jit.regions.insert(region_id, RegionState::Disabled);
+            Err(error) => {
+                self.disable_region(jit, region_id, JitFailureStage::Execute, error.to_string());
                 false
             }
         }
+    }
+
+    fn disable_region(
+        &mut self,
+        jit: &mut JitRuntime,
+        region_id: RegionId,
+        stage: JitFailureStage,
+        reason: String,
+    ) {
+        self.jit_report.disabled_regions += 1;
+        self.jit_report.failures.push(JitFailure {
+            region_id,
+            stage,
+            reason: reason.clone(),
+        });
+        jit.regions
+            .insert(region_id, RegionState::Disabled { reason });
     }
 }
 

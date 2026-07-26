@@ -30,9 +30,17 @@ pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
         }
     }
 
+    let mut loop_headers = HashSet::new();
     for (loop_index, region) in function.structure_map.loops.iter().enumerate() {
         verify_region_target(bytecode, region.header, loop_index, "header")?;
         verify_region_target(bytecode, region.backedge, loop_index, "backedge")?;
+
+        if !loop_headers.insert(region.header) {
+            return Err(format!(
+                "loop {loop_index} duplicates loop header {}",
+                region.header
+            ));
+        }
 
         if region.backedge < region.header {
             return Err(format!(
@@ -41,6 +49,7 @@ pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
             ));
         }
 
+        let mut exit_targets = HashSet::new();
         for (exit_id, exit) in region.exits.iter().enumerate() {
             verify_region_target(
                 bytecode,
@@ -48,6 +57,12 @@ pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
                 loop_index,
                 &format!("exit {exit_id}"),
             )?;
+            if !exit_targets.insert(exit.target) {
+                return Err(format!(
+                    "loop {loop_index} has duplicate exit target {}",
+                    exit.target
+                ));
+            }
         }
 
         match &bytecode.code[region.backedge] {

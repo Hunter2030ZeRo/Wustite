@@ -4,8 +4,8 @@ use wustite::planner::{JitPlan, select_hot_loop};
 use wustite::structure_map::{LiveSlot, LoopRegion, RegionExit, RegionId, SlotType, StructureMap};
 use wustite::wvm::Vm;
 use wustite::wxir::{
-    self, WxBuildError, WxGuardMode, WxInstKind, WxIntOverflowOp, WxScalarType, WxTerminator,
-    WxType, build_region,
+    self, WxBuildError, WxExitKind, WxGuardMode, WxInstKind, WxIntOverflowOp, WxScalarType,
+    WxTerminator, WxType, build_region,
 };
 
 fn sum_function() -> ExecutableFunction {
@@ -151,6 +151,7 @@ fn sum_region_lowers_to_verified_ssa() {
         .iter()
         .find(|side_exit| side_exit.resume_pc == 9)
         .unwrap();
+    assert_eq!(normal_exit.kind, WxExitKind::RegionExit);
     assert_eq!(
         normal_exit
             .state
@@ -165,6 +166,7 @@ fn sum_region_lowers_to_verified_ssa() {
             .iter()
             .find(|side_exit| side_exit.id == *exit)
             .unwrap();
+        assert_eq!(metadata.kind, WxExitKind::ReplayInstruction);
         assert_eq!(metadata.resume_pc, resume_pc);
         assert_eq!(
             metadata
@@ -195,7 +197,8 @@ fn sum_region_lowers_to_verified_ssa() {
     assert!(printed.contains("icmp.slt"));
     assert!(printed.contains("iadd.with_overflow"));
     assert!(printed.contains("guard.exit_when_true"));
-    assert!(printed.contains("side_exit x0 resume_pc=9"));
+    assert!(printed.contains("side_exit x0 kind=region resume_pc=9"));
+    assert!(printed.contains("kind=replay_instruction resume_pc=6"));
 }
 
 #[test]

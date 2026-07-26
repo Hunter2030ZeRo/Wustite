@@ -1,7 +1,7 @@
 use super::ir::{
-    WxBinaryOp, WxBlockTarget, WxCompareOp, WxConstant, WxFloatBinaryOp, WxFloatCompareOp,
-    WxFunction, WxGuardMode, WxInst, WxInstKind, WxIntBinaryOp, WxIntCompareOp, WxIntOverflowOp,
-    WxTerminator, WxValueId,
+    WxBinaryOp, WxBlockTarget, WxCompareOp, WxConstant, WxExitKind, WxFloatBinaryOp,
+    WxFloatCompareOp, WxFunction, WxGuardMode, WxInst, WxInstKind, WxIntBinaryOp, WxIntCompareOp,
+    WxIntOverflowOp, WxTerminator, WxValueId,
 };
 
 /// Renders a compact, human-readable WXIR listing for diagnostics and tests.
@@ -42,12 +42,22 @@ pub fn print_function(function: &WxFunction) -> String {
             .collect::<Vec<_>>()
             .join(", ");
         output.push_str(&format!(
-            "side_exit {} resume_pc={} [{state}]\n",
-            side_exit.id, side_exit.resume_pc
+            "side_exit {} kind={} resume_pc={} [{state}]\n",
+            side_exit.id,
+            print_exit_kind(side_exit.kind),
+            side_exit.resume_pc
         ));
     }
 
     output
+}
+
+fn print_exit_kind(kind: WxExitKind) -> &'static str {
+    match kind {
+        WxExitKind::RegionExit => "region",
+        WxExitKind::ReplayInstruction => "replay_instruction",
+        WxExitKind::Deopt => "deopt",
+    }
 }
 
 fn print_instruction(instruction: &WxInst) -> String {

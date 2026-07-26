@@ -9,7 +9,7 @@ use crate::structure_map::{LiveSlot, SlotType};
 use crate::verifier as wvm_verifier;
 
 use super::ir::{
-    WxBlock, WxBlockId, WxBlockParam, WxBlockTarget, WxCompareOp, WxExitId, WxFunction,
+    WxBlock, WxBlockId, WxBlockParam, WxBlockTarget, WxCompareOp, WxExitId, WxExitKind, WxFunction,
     WxGuardMode, WxInst, WxInstKind, WxInstResult, WxIntCompareOp, WxIntOverflowOp, WxRegionOrigin,
     WxSideExit, WxStateValue, WxTerminator, WxValueId,
 };
@@ -263,6 +263,7 @@ impl<'a> RegionBuilder<'a> {
             });
             side_exits.push(WxSideExit {
                 id: spec.exit,
+                kind: WxExitKind::RegionExit,
                 resume_pc: spec.resume_pc,
                 state,
             });
@@ -645,6 +646,7 @@ impl<'a> RegionBuilder<'a> {
             .collect::<Result<_, WxBuildError>>()?;
         self.synthetic_exits.push(WxSideExit {
             id: exit,
+            kind: WxExitKind::ReplayInstruction,
             resume_pc: pc,
             state,
         });
