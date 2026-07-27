@@ -11,8 +11,8 @@
 
 CPython is known to consume up to 75x more energy and run up to 76x slower 
 than native C code [[1](#1)]. Alternative runtimes have tried to close 
-this gap via JIT compilation — PyPy pioneered the approach but development 
-has largely stalled, while GraalPy remains active but suffers from poor 
+this gap via JIT compilation — however, either their development 
+has largely stalled, or remains active but suffers from poor 
 C extension compatibility (NumPy, pandas, etc.) due to its non-CPython 
 memory model.
 
