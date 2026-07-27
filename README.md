@@ -40,6 +40,20 @@ Python source → HIR → WVM → Structure Map and profiling
 The supported Python language surface is still intentionally restricted
 while the runtime architecture is being stabilized.
 
+## CLI prototype
+
+The current CLI executes one named, zero-argument function from the supported
+Python subset. It is not a drop-in replacement for the CPython command line.
+
+```text
+cargo run -- run examples/sum.py
+cargo run -- run examples/sum.py --repeat 2 --hot-threshold 10 --trace-jit
+cargo run -- run examples/sum.py --interpreter
+cargo run -- inspect examples/sum.py
+```
+
+Use `--function NAME` to select a function and `--json` for structured output.
+
 
 ## References 
 

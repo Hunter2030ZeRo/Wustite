@@ -70,6 +70,16 @@ pub enum JitFailureStage {
     Execute,
 }
 
+impl JitFailureStage {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BuildWxir => "build_wxir",
+            Self::Compile => "compile",
+            Self::Execute => "execute",
+        }
+    }
+}
+
 /// Preserved diagnostic for a failed synchronous tier-up operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JitFailure {
@@ -88,6 +98,17 @@ pub struct JitReport {
     pub last_resume_pc: Option<usize>,
     pub last_exit_kind: Option<WxExitKind>,
     pub failures: Vec<JitFailure>,
+}
+
+impl JitReport {
+    pub const fn last_exit_kind_name(&self) -> Option<&'static str> {
+        match self.last_exit_kind {
+            Some(WxExitKind::RegionExit) => Some("region_exit"),
+            Some(WxExitKind::ReplayInstruction) => Some("replay_instruction"),
+            Some(WxExitKind::Deopt) => Some("deopt"),
+            None => None,
+        }
+    }
 }
 
 pub struct ExecutionResult {
