@@ -70,6 +70,13 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
         tiered.jit_report().last_resume_pc,
         Some(region.exits[0].target)
     );
+
+    // The same VM retains the compiled region and profile for subsequent
+    // executions of the same executable object.
+    assert_eq!(tiered.execute(&executable).unwrap().value, Value::I64(5050));
+    assert_eq!(tiered.jit_report().compilation_attempts, 0);
+    assert_eq!(tiered.jit_report().compiled_regions, 0);
+    assert_eq!(tiered.jit_report().native_executions, 1);
 }
 
 #[test]
