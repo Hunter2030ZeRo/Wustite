@@ -1,7 +1,11 @@
 # Wustite 
 <img width="2172" height="724" alt="ChatGPT Image 2026년 7월 26일 오후 10_38_39" src="https://github.com/user-attachments/assets/3f824541-9591-494e-a7fd-b8e854c571f2" />
 
-**Wustite** is an end-to-end runtime for Python, based on register-based VM and pre-analysis augmented JIT compilation. 
+**Wustite** is an experimental end-to-end runtime prototype for Python under active development, based on register-based VM and pre-analysis augmented JIT compilation. 
+
+> [!NOTE]
+> Wustite is currently an early prototype. This README describes both
+> the implemented architecture and the intended production design.
 
 ## Why does Wustite matter?
 
@@ -25,6 +29,16 @@ sacrifice compatibility to get there.
 WVM compiles down to **Wustite eXtensive Intermediate Representation(WXIR)**, which is 
 Wustite's specific IR designed for backend-independent SSA optimization. Due to this, 
 Wustite can use various backends including Cranelift and LLVM.
+
+## Current prototype
+
+The current prototype already implements the core vertical pipeline:
+
+Python source → HIR → WVM → Structure Map and profiling
+→ WXIR → Cranelift → native region execution → WVM side exit
+
+The supported Python language surface is still intentionally restricted
+while the runtime architecture is being stabilized.
 
 
 ## References 
