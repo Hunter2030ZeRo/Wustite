@@ -9,8 +9,8 @@ use wustite::wxir::{
 };
 
 fn sum_function() -> ExecutableFunction {
-    ExecutableFunction {
-        bytecode: Function {
+    ExecutableFunction::new(
+        Function {
             register_count: 5,
             code: vec![
                 Instruction::ConstI64 { dst: 0, value: 0 },
@@ -41,7 +41,7 @@ fn sum_function() -> ExecutableFunction {
                 Instruction::Return { src: 0 },
             ],
         },
-        structure_map: StructureMap {
+        StructureMap {
             loops: vec![LoopRegion {
                 header: 4,
                 backedge: 8,
@@ -66,7 +66,7 @@ fn sum_function() -> ExecutableFunction {
                 ],
             }],
         },
-    }
+    )
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn sum_region_lowers_to_verified_ssa() {
     let executable = sum_function();
     let mut vm = Vm::new();
     vm.execute(&executable).unwrap();
-    let plan = select_hot_loop(&executable.structure_map, vm.profile().unwrap(), 50).unwrap();
+    let plan = select_hot_loop(executable.structure_map(), vm.profile().unwrap(), 50).unwrap();
 
     let function = build_region(&executable, &plan).unwrap();
     wxir::verify(&function).unwrap();
@@ -203,15 +203,15 @@ fn sum_region_lowers_to_verified_ssa() {
 
 #[test]
 fn return_inside_region_is_rejected_without_panicking() {
-    let executable = ExecutableFunction {
-        bytecode: Function {
+    let executable = ExecutableFunction::new(
+        Function {
             register_count: 1,
             code: vec![
                 Instruction::Return { src: 0 },
                 Instruction::Jump { target: 0 },
             ],
         },
-        structure_map: StructureMap {
+        StructureMap {
             loops: vec![LoopRegion {
                 header: 0,
                 backedge: 1,
@@ -222,13 +222,13 @@ fn return_inside_region_is_rejected_without_panicking() {
                 }],
             }],
         },
-    };
+    );
     let plan = JitPlan {
         region_id: RegionId(0),
         header: 0,
         backedge: 1,
         exits: vec![],
-        live_slots: executable.structure_map.loops[0].live_slots.clone(),
+        live_slots: executable.structure_map().loops[0].live_slots.clone(),
     };
 
     assert_eq!(

@@ -1,5 +1,6 @@
 pub type Register = u16;
 
+#[derive(Clone, PartialEq, Eq)]
 pub enum Instruction {
     ConstI64 {
         dst: Register,
@@ -32,6 +33,7 @@ pub enum Instruction {
     },
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct Function {
     pub code: Vec<Instruction>,
     pub register_count: usize,

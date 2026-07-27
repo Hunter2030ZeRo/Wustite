@@ -19,8 +19,8 @@ pub fn select_hot_loop(
         .loops
         .iter()
         .enumerate()
-        .filter(|(_, region)| profile.is_hot(region.header, threshold))
-        .max_by_key(|(_, region)| profile.count(region.header))
+        .filter(|(index, _)| profile.is_hot(RegionId(*index), threshold))
+        .max_by_key(|(index, _)| profile.entry_count(RegionId(*index)))
         .map(|(index, region)| JitPlan {
             region_id: RegionId(index),
             header: region.header,
@@ -38,7 +38,7 @@ pub fn plan_hot_region(
     region_id: RegionId,
 ) -> Option<JitPlan> {
     let region = structure_map.loops.get(region_id.0)?;
-    profile.is_hot(region.header, threshold).then(|| JitPlan {
+    profile.is_hot(region_id, threshold).then(|| JitPlan {
         region_id,
         header: region.header,
         backedge: region.backedge,

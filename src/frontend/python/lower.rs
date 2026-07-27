@@ -18,15 +18,15 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
     let mut lowerer = Lowerer::default();
     lowerer.lower_statements(&function.body, false)?;
 
-    let executable = ExecutableFunction {
-        bytecode: Function {
+    let executable = ExecutableFunction::new(
+        Function {
             code: lowerer.code,
             register_count: lowerer.next_register as usize,
         },
-        structure_map: StructureMap {
+        StructureMap {
             loops: lowerer.loops,
         },
-    };
+    );
     verifier::verify(&executable).map_err(|error| {
         PythonFrontendError::new(format!("generated invalid WVM: {error}"), None)
     })?;

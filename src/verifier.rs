@@ -4,7 +4,7 @@ use crate::bytecode::{Function, Instruction, Register};
 use crate::executable::ExecutableFunction;
 
 pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
-    let bytecode = &function.bytecode;
+    let bytecode = function.bytecode();
 
     for (pc, instruction) in bytecode.code.iter().enumerate() {
         match instruction {
@@ -35,7 +35,7 @@ pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
     }
 
     let mut loop_headers = HashSet::new();
-    for (loop_index, region) in function.structure_map.loops.iter().enumerate() {
+    for (loop_index, region) in function.structure_map().loops.iter().enumerate() {
         verify_region_target(bytecode, region.header, loop_index, "header")?;
         verify_region_target(bytecode, region.backedge, loop_index, "backedge")?;
 

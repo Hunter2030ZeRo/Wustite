@@ -63,6 +63,7 @@ pub struct CompiledRegion {
     layout: RegionLayout,
     entry_state: Vec<WxStateValue>,
     side_exits: Vec<WxSideExit>,
+    state_buffer: Vec<u64>,
 }
 
 impl CompiledRegion {
@@ -73,18 +74,20 @@ impl CompiledRegion {
         entry_state: Vec<WxStateValue>,
         side_exits: Vec<WxSideExit>,
     ) -> Self {
+        let state_buffer = vec![0_u64; layout.word_count().max(1)];
         Self {
             _module: module,
             entry,
             layout,
             entry_state,
             side_exits,
+            state_buffer,
         }
     }
 
     /// Marshals WVM registers, executes native code, and restores exit state.
-    pub fn execute(&self, registers: &mut [Value]) -> Result<RegionExecution, ExecuteError> {
-        let mut state_buffer = vec![0_u64; self.layout.word_count().max(1)];
+    pub fn execute(&mut self, registers: &mut [Value]) -> Result<RegionExecution, ExecuteError> {
+        self.state_buffer.fill(0);
         for state in &self.entry_state {
             let value = registers
                 .get(usize::from(state.register))
@@ -95,12 +98,12 @@ impl CompiledRegion {
                 .layout
                 .word_index(state.register)
                 .map_err(|error| ExecuteError::Layout(error.to_string()))?;
-            state_buffer[index] = word;
+            self.state_buffer[index] = word;
         }
 
         // SAFETY: `entry` is retained with its JITModule, and RegionLayout made
         // this aligned buffer large enough for every generated load and store.
-        let raw_exit = unsafe { (self.entry)(state_buffer.as_mut_ptr().cast::<u8>()) };
+        let raw_exit = unsafe { (self.entry)(self.state_buffer.as_mut_ptr().cast::<u8>()) };
         let exit = WxExitId(raw_exit);
         let metadata = self
             .side_exits
@@ -113,7 +116,7 @@ impl CompiledRegion {
                 .layout
                 .word_index(state.register)
                 .map_err(|error| ExecuteError::Layout(error.to_string()))?;
-            let value = word_to_value(state.ty, state_buffer[index]).ok_or(
+            let value = word_to_value(state.ty, self.state_buffer[index]).ok_or(
                 ExecuteError::InvalidRegisterType {
                     register: state.register,
                     expected: state.ty,

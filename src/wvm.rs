@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::bytecode::{Instruction, Register};
-use crate::executable::ExecutableFunction;
+use crate::executable::{ExecutableFunction, ExecutableId};
 use crate::jit::{CompiledRegion, CraneliftRegionCompiler, RegionCompiler};
 use crate::planner::plan_hot_region;
 use crate::profiler::Profile;
@@ -10,7 +10,7 @@ use crate::value::Value;
 use crate::verifier::verify;
 use crate::wxir::{WxExitKind, build_region};
 
-/// Default interpreted header executions before synchronous tier-up.
+/// Default observed region entries before synchronous tier-up.
 pub const DEFAULT_HOT_THRESHOLD: u64 = 1_000;
 
 pub struct Frame {
@@ -20,9 +20,15 @@ pub struct Frame {
 }
 
 pub struct Vm {
-    profile: Option<Profile>,
     hot_threshold: u64,
     jit_report: JitReport,
+    runtimes: HashMap<ExecutableId, FunctionRuntime>,
+    last_executed: Option<ExecutableId>,
+}
+
+struct FunctionRuntime {
+    profile: Profile,
+    jit: JitRuntime,
 }
 
 struct JitRuntime {
@@ -38,9 +44,9 @@ enum RegionState {
 
 impl JitRuntime {
     fn new(executable: &ExecutableFunction) -> Self {
-        let mut region_by_header = vec![None; executable.bytecode.code.len()];
+        let mut region_by_header = vec![None; executable.bytecode().code.len()];
 
-        for (index, region) in executable.structure_map.loops.iter().enumerate() {
+        for (index, region) in executable.structure_map().loops.iter().enumerate() {
             region_by_header[region.header] = Some(RegionId(index));
         }
 
@@ -93,12 +99,13 @@ impl Vm {
         Self::with_hot_threshold(DEFAULT_HOT_THRESHOLD)
     }
 
-    /// Creates a VM that tiers up after this many interpreted header executions.
+    /// Creates a VM that tiers up after this many observed region entries.
     pub fn with_hot_threshold(hot_threshold: u64) -> Self {
         Self {
-            profile: None,
             hot_threshold,
             jit_report: JitReport::default(),
+            runtimes: HashMap::new(),
+            last_executed: None,
         }
     }
 
@@ -107,8 +114,18 @@ impl Vm {
         self.hot_threshold = hot_threshold;
     }
 
+    /// Returns the profile for the most recently executed valid executable.
     pub fn profile(&self) -> Option<&Profile> {
-        self.profile.as_ref()
+        self.last_executed
+            .and_then(|id| self.runtimes.get(&id))
+            .map(|runtime| &runtime.profile)
+    }
+
+    /// Returns the cached profile for this executable identity, if present.
+    pub fn profile_for(&self, executable: &ExecutableFunction) -> Option<&Profile> {
+        self.runtimes
+            .get(&executable.id())
+            .map(|runtime| &runtime.profile)
     }
 
     /// Tier-up activity from the latest execute invocation, including failures.
@@ -117,29 +134,42 @@ impl Vm {
     }
 
     pub fn execute(&mut self, executable: &ExecutableFunction) -> Result<ExecutionResult, String> {
-        self.profile = None;
         self.jit_report = JitReport::default();
         verify(executable)?;
+        let id = executable.id();
+        let mut runtime = self
+            .runtimes
+            .remove(&id)
+            .unwrap_or_else(|| FunctionRuntime {
+                profile: Profile::new(executable.structure_map().loops.len()),
+                jit: JitRuntime::new(executable),
+            });
+        let result = self.execute_with_runtime(executable, &mut runtime);
+        self.runtimes.insert(id, runtime);
+        self.last_executed = Some(id);
+        result
+    }
 
-        let function = &executable.bytecode;
+    fn execute_with_runtime(
+        &mut self,
+        executable: &ExecutableFunction,
+        runtime: &mut FunctionRuntime,
+    ) -> Result<ExecutionResult, String> {
+        let function = executable.bytecode();
         let mut frame = Frame {
             pc: 0,
             registers: vec![Value::Uninitialized; function.register_count],
             suppress_osr_pc: None,
         };
-        let mut jit = JitRuntime::new(executable);
-
-        self.profile = Some(Profile::new(function.code.len()));
 
         while frame.pc < function.code.len() {
-            if self.try_execute_region(executable, &mut frame, &mut jit) {
-                continue;
+            if let Some(region_id) = runtime.jit.region_at(frame.pc) {
+                runtime.profile.record_entry(region_id);
             }
 
-            self.profile
-                .as_mut()
-                .ok_or_else(|| "profile is not initialized".to_string())?
-                .record(frame.pc);
+            if self.try_execute_region(executable, &mut frame, runtime) {
+                continue;
+            }
 
             match &function.code[frame.pc] {
                 Instruction::ConstI64 { dst, value } => {
@@ -199,29 +229,29 @@ impl Vm {
         &mut self,
         executable: &ExecutableFunction,
         frame: &mut Frame,
-        jit: &mut JitRuntime,
+        runtime: &mut FunctionRuntime,
     ) -> bool {
         if frame.suppress_osr_pc == Some(frame.pc) {
             frame.suppress_osr_pc = None;
             return false;
         }
 
-        let Some(region_id) = jit.region_at(frame.pc) else {
+        let Some(region_id) = runtime.jit.region_at(frame.pc) else {
             return false;
         };
 
-        if jit.regions.contains_key(&region_id) {
-            return self.execute_cached_region(region_id, frame, jit);
+        if runtime.jit.regions.contains_key(&region_id) {
+            return self.execute_cached_region(region_id, frame, &mut runtime.jit);
         }
 
-        let Some(plan) = self.profile.as_ref().and_then(|profile| {
-            plan_hot_region(
-                &executable.structure_map,
-                profile,
-                self.hot_threshold,
-                region_id,
-            )
-        }) else {
+        // TODO: Future tiering/eviction profiles may distinguish interpreted
+        // warm-up entries, native entries, and side exits or guard failures.
+        let Some(plan) = plan_hot_region(
+            executable.structure_map(),
+            &runtime.profile,
+            self.hot_threshold,
+            region_id,
+        ) else {
             return false;
         };
 
@@ -230,7 +260,7 @@ impl Vm {
             Ok(function) => function,
             Err(error) => {
                 self.disable_region(
-                    jit,
+                    &mut runtime.jit,
                     region_id,
                     JitFailureStage::BuildWxir,
                     error.to_string(),
@@ -238,22 +268,27 @@ impl Vm {
                 return false;
             }
         };
-        let region = match jit.compiler.compile(&function) {
+        let region = match runtime.jit.compiler.compile(&function) {
             Ok(region) => region,
             Err(error) => {
-                self.disable_region(jit, region_id, JitFailureStage::Compile, error.to_string());
+                self.disable_region(
+                    &mut runtime.jit,
+                    region_id,
+                    JitFailureStage::Compile,
+                    error.to_string(),
+                );
                 return false;
             }
         };
 
         self.jit_report.compiled_regions += 1;
-        jit.regions.insert(
+        runtime.jit.regions.insert(
             region_id,
             RegionState::Compiled {
                 region: Box::new(region),
             },
         );
-        self.execute_cached_region(region_id, frame, jit)
+        self.execute_cached_region(region_id, frame, &mut runtime.jit)
     }
 
     fn execute_cached_region(
@@ -262,7 +297,7 @@ impl Vm {
         frame: &mut Frame,
         jit: &mut JitRuntime,
     ) -> bool {
-        let execution = match jit.regions.get(&region_id) {
+        let execution = match jit.regions.get_mut(&region_id) {
             Some(RegionState::Compiled { region }) => region.execute(&mut frame.registers),
             Some(RegionState::Disabled { reason }) => {
                 let _ = reason;
