@@ -25,7 +25,7 @@ pub struct LoopRegion {
     pub live_slots: Vec<LiveSlot>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StructureMap {
     pub loops: Vec<LoopRegion>,
 }

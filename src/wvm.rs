@@ -24,7 +24,7 @@ pub struct Vm {
     hot_threshold: u64,
     jit_report: JitReport,
     jit: Option<JitRuntime>,
-    executable_identity: Option<usize>,
+    executable_snapshot: Option<ExecutableFunction>,
 }
 
 struct JitRuntime {
@@ -102,7 +102,7 @@ impl Vm {
             hot_threshold,
             jit_report: JitReport::default(),
             jit: None,
-            executable_identity: None,
+            executable_snapshot: None,
         }
     }
 
@@ -135,14 +135,13 @@ impl Vm {
     }
 
     fn prepare_runtime(&mut self, executable: &ExecutableFunction) {
-        let identity = executable as *const ExecutableFunction as usize;
-        if self.executable_identity == Some(identity) {
+        if self.executable_snapshot.as_ref() == Some(executable) {
             return;
         }
 
         self.profile = Some(Profile::new(executable.structure_map.loops.len()));
         self.jit = Some(JitRuntime::new(executable));
-        self.executable_identity = Some(identity);
+        self.executable_snapshot = Some(executable.clone());
     }
 
     fn execute_with_runtime(
