@@ -23,6 +23,8 @@ pub struct Vm {
     profile: Option<Profile>,
     hot_threshold: u64,
     jit_report: JitReport,
+    jit: Option<JitRuntime>,
+    executable_identity: Option<usize>,
 }
 
 struct JitRuntime {
@@ -99,6 +101,8 @@ impl Vm {
             profile: None,
             hot_threshold,
             jit_report: JitReport::default(),
+            jit: None,
+            executable_identity: None,
         }
     }
 
@@ -117,29 +121,53 @@ impl Vm {
     }
 
     pub fn execute(&mut self, executable: &ExecutableFunction) -> Result<ExecutionResult, String> {
-        self.profile = None;
         self.jit_report = JitReport::default();
         verify(executable)?;
+        self.prepare_runtime(executable);
 
+        let mut jit = self
+            .jit
+            .take()
+            .ok_or_else(|| "JIT runtime is not initialized".to_string())?;
+        let result = self.execute_with_runtime(executable, &mut jit);
+        self.jit = Some(jit);
+        result
+    }
+
+    fn prepare_runtime(&mut self, executable: &ExecutableFunction) {
+        let identity = executable as *const ExecutableFunction as usize;
+        if self.executable_identity == Some(identity) {
+            return;
+        }
+
+        self.profile = Some(Profile::new(executable.structure_map.loops.len()));
+        self.jit = Some(JitRuntime::new(executable));
+        self.executable_identity = Some(identity);
+    }
+
+    fn execute_with_runtime(
+        &mut self,
+        executable: &ExecutableFunction,
+        jit: &mut JitRuntime,
+    ) -> Result<ExecutionResult, String> {
         let function = &executable.bytecode;
         let mut frame = Frame {
             pc: 0,
             registers: vec![Value::Uninitialized; function.register_count],
             suppress_osr_pc: None,
         };
-        let mut jit = JitRuntime::new(executable);
-
-        self.profile = Some(Profile::new(function.code.len()));
 
         while frame.pc < function.code.len() {
-            if self.try_execute_region(executable, &mut frame, &mut jit) {
-                continue;
+            if let Some(region_id) = jit.region_at(frame.pc) {
+                self.profile
+                    .as_mut()
+                    .ok_or_else(|| "profile is not initialized".to_string())?
+                    .record(region_id);
             }
 
-            self.profile
-                .as_mut()
-                .ok_or_else(|| "profile is not initialized".to_string())?
-                .record(frame.pc);
+            if self.try_execute_region(executable, &mut frame, jit) {
+                continue;
+            }
 
             match &function.code[frame.pc] {
                 Instruction::ConstI64 { dst, value } => {
@@ -262,7 +290,7 @@ impl Vm {
         frame: &mut Frame,
         jit: &mut JitRuntime,
     ) -> bool {
-        let execution = match jit.regions.get(&region_id) {
+        let execution = match jit.regions.get_mut(&region_id) {
             Some(RegionState::Compiled { region }) => region.execute(&mut frame.registers),
             Some(RegionState::Disabled { reason }) => {
                 let _ = reason;
