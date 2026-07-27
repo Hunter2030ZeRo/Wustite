@@ -22,21 +22,21 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
     let executable = compile_python_function(SUM_SOURCE, "main").unwrap();
     verifier::verify(&executable).unwrap();
 
-    let region = &executable.structure_map.loops[0];
-    assert_eq!(executable.structure_map.loops.len(), 1);
+    let region = &executable.structure_map().loops[0];
+    assert_eq!(executable.structure_map().loops.len(), 1);
     assert_eq!((region.header, region.backedge), (8, 14));
     assert!(matches!(
-        executable.bytecode.code[region.header],
+        executable.bytecode().code[region.header],
         Instruction::LtI64 { .. }
     ));
     assert!(matches!(
-        executable.bytecode.code[region.backedge],
+        executable.bytecode().code[region.backedge],
         Instruction::Jump { target } if target == region.header
     ));
     assert_eq!(region.exits.len(), 1);
     assert_eq!(region.exits[0].target, 15);
     assert!(matches!(
-        executable.bytecode.code[region.exits[0].target],
+        executable.bytecode().code[region.exits[0].target],
         Instruction::Return { .. }
     ));
     assert_eq!(region.live_slots.len(), 4);
@@ -111,8 +111,8 @@ fn frontend_rejects_unsupported_or_unsafe_loop_syntax_with_locations() {
 
 #[test]
 fn move_copies_values_and_verifier_checks_both_registers() {
-    let executable = ExecutableFunction {
-        bytecode: Function {
+    let executable = ExecutableFunction::new(
+        Function {
             register_count: 2,
             code: vec![
                 Instruction::ConstI64 { dst: 0, value: 42 },
@@ -120,8 +120,8 @@ fn move_copies_values_and_verifier_checks_both_registers() {
                 Instruction::Return { src: 1 },
             ],
         },
-        structure_map: StructureMap::default(),
-    };
+        StructureMap::default(),
+    );
     assert_eq!(
         Vm::with_hot_threshold(u64::MAX)
             .execute(&executable)
@@ -134,13 +134,13 @@ fn move_copies_values_and_verifier_checks_both_registers() {
         Instruction::Move { dst: 2, src: 0 },
         Instruction::Move { dst: 0, src: 2 },
     ] {
-        let invalid = ExecutableFunction {
-            bytecode: Function {
+        let invalid = ExecutableFunction::new(
+            Function {
                 register_count: 1,
                 code: vec![instruction],
             },
-            structure_map: StructureMap::default(),
-        };
+            StructureMap::default(),
+        );
         assert!(verifier::verify(&invalid).is_err());
     }
 }

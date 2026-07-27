@@ -20,7 +20,7 @@ pub fn select_hot_loop(
         .iter()
         .enumerate()
         .filter(|(index, _)| profile.is_hot(RegionId(*index), threshold))
-        .max_by_key(|(index, _)| profile.count(RegionId(*index)))
+        .max_by_key(|(index, _)| profile.entry_count(RegionId(*index)))
         .map(|(index, region)| JitPlan {
             region_id: RegionId(index),
             header: region.header,
