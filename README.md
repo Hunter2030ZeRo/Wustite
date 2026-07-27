@@ -13,8 +13,8 @@ C extension compatibility (NumPy, pandas, etc.) due to its non-CPython
 memory model.
 
 Wustite takes a different approach. Instead of relying on runtime profiling 
-to warm up a JIT, Wustite builds a **structure map**, which is a metadata passed into the JIT compiler 
-that contains control flow, inferenced type, and estimated hot loops, et cetera, 
+to warm up a JIT, Wustite statically builds a **structure map** via bytecode lowering, which is a metadata passed into the JIT compiler 
+that contains control flow, inferred type, and estimated hot loops, et cetera, 
 ahead of time that lets the runtime skip the warm-up phase entirely and eliminates interpretation 
 overhead at execution. This is paired with **Wustite Virtual Machine(WVM)**, 
 a register-based bytecode virtual machine that is 
