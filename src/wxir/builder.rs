@@ -86,7 +86,7 @@ pub fn build_region(
 
 fn verify_plan(executable: &ExecutableFunction, plan: &JitPlan) -> Result<(), WxBuildError> {
     let region = executable
-        .structure_map
+        .structure_map()
         .loops
         .get(plan.region_id.0)
         .ok_or_else(|| {
@@ -157,7 +157,7 @@ impl<'a> RegionBuilder<'a> {
         }
 
         for pc in plan.header..=plan.backedge {
-            match &executable.bytecode.code[pc] {
+            match &executable.bytecode().code[pc] {
                 Instruction::Jump { target } => {
                     if (plan.header..=plan.backedge).contains(target) {
                         leaders.insert(*target);
@@ -340,7 +340,7 @@ impl<'a> RegionBuilder<'a> {
                 };
             }
 
-            match &self.executable.bytecode.code[pc] {
+            match &self.executable.bytecode().code[pc] {
                 Instruction::ConstI64 { dst, value } => {
                     let result = self.allocate_value()?;
                     let ty = WxType::Scalar(WxScalarType::I64);

@@ -1,8 +1,8 @@
 use wustite::{bytecode, executable, planner, structure_map, value, verifier, wvm};
 
 fn sum_function() -> executable::ExecutableFunction {
-    executable::ExecutableFunction {
-        bytecode: bytecode::Function {
+    executable::ExecutableFunction::new(
+        bytecode::Function {
             register_count: 5,
             code: vec![
                 bytecode::Instruction::ConstI64 { dst: 0, value: 0 },
@@ -33,7 +33,7 @@ fn sum_function() -> executable::ExecutableFunction {
                 bytecode::Instruction::Return { src: 0 },
             ],
         },
-        structure_map: structure_map::StructureMap {
+        structure_map::StructureMap {
             loops: vec![structure_map::LoopRegion {
                 header: 4,
                 backedge: 8,
@@ -58,7 +58,7 @@ fn sum_function() -> executable::ExecutableFunction {
                 ],
             }],
         },
-    }
+    )
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn sum_one_to_one_hundred() {
     let profile = vm.profile().unwrap();
 
     let hot_loop = function
-        .structure_map
+        .structure_map()
         .loops
         .iter()
         .enumerate()
@@ -78,23 +78,32 @@ fn sum_one_to_one_hundred() {
         .map(|(_, region)| region)
         .unwrap();
 
-    let plan = planner::select_hot_loop(&function.structure_map, profile, 50).unwrap();
+    let plan = planner::select_hot_loop(function.structure_map(), profile, 50).unwrap();
 
     assert_eq!(plan.header, 4);
     assert_eq!(plan.backedge, 8);
     assert_eq!(plan.exits, vec![structure_map::RegionExit { target: 9 }]);
-    assert_eq!(plan.live_slots, function.structure_map.loops[0].live_slots);
+    assert_eq!(
+        plan.live_slots,
+        function.structure_map().loops[0].live_slots
+    );
     assert_eq!(plan.region_id, structure_map::RegionId(0));
     assert_eq!(hot_loop.header, 4);
-    assert_eq!(profile.count(structure_map::RegionId(0)), 101);
+    assert_eq!(profile.entry_count(structure_map::RegionId(0)), 101);
     assert_eq!(result.value, value::Value::I64(5050));
-    assert_eq!(profile.count(structure_map::RegionId(0)), 101);
+    assert_eq!(profile.entry_count(structure_map::RegionId(0)), 101);
 }
 
 #[test]
-fn changing_an_executable_invalidates_cached_regions() {
-    let mut function = sum_function();
+fn executable_revisions_have_independent_identity_and_runtime_state() {
+    let function = sum_function();
+    let mut revised_bytecode = function.bytecode().clone();
+    revised_bytecode.code[6] = bytecode::Instruction::Move { dst: 0, src: 1 };
+    let revised =
+        executable::ExecutableFunction::new(revised_bytecode, function.structure_map().clone());
     let mut vm = wvm::Vm::with_hot_threshold(10);
+
+    assert_ne!(function.id(), revised.id());
 
     assert_eq!(
         vm.execute(&function).unwrap().value,
@@ -102,25 +111,86 @@ fn changing_an_executable_invalidates_cached_regions() {
     );
     assert_eq!(vm.jit_report().compiled_regions, 1);
 
-    function.bytecode.code[6] = bytecode::Instruction::Move { dst: 0, src: 1 };
-
-    assert_eq!(vm.execute(&function).unwrap().value, value::Value::I64(100));
+    assert_eq!(vm.execute(&revised).unwrap().value, value::Value::I64(100));
     assert_eq!(vm.jit_report().compilation_attempts, 1);
     assert_eq!(vm.jit_report().compiled_regions, 1);
+    assert_eq!(
+        vm.profile_for(&function)
+            .unwrap()
+            .entry_count(structure_map::RegionId(0)),
+        10
+    );
+    assert_eq!(
+        vm.profile_for(&revised)
+            .unwrap()
+            .entry_count(structure_map::RegionId(0)),
+        10
+    );
+}
+
+#[test]
+fn a_b_a_reuses_each_executables_compiled_runtime() {
+    let a = sum_function();
+    let b = sum_function();
+    let mut vm = wvm::Vm::with_hot_threshold(10);
+
+    vm.execute(&a).unwrap();
+    assert_eq!(vm.jit_report().compiled_regions, 1);
+    vm.execute(&b).unwrap();
+    assert_eq!(vm.jit_report().compiled_regions, 1);
+    assert!(vm.profile_for(&a).is_some());
+    assert!(vm.profile_for(&b).is_some());
+
+    vm.execute(&a).unwrap();
+    assert_eq!(vm.jit_report().compilation_attempts, 0);
+    assert_eq!(vm.jit_report().native_executions, 1);
+}
+
+#[test]
+fn clone_preserves_identity_and_reuses_runtime() {
+    let original = sum_function();
+    let cloned = original.clone();
+    let mut vm = wvm::Vm::with_hot_threshold(10);
+
+    assert_eq!(original.id(), cloned.id());
+    vm.execute(&original).unwrap();
+    vm.execute(&cloned).unwrap();
+    assert_eq!(vm.jit_report().compilation_attempts, 0);
+    assert_eq!(vm.jit_report().native_executions, 1);
+}
+
+#[test]
+fn invalid_executable_does_not_disturb_a_cached_runtime() {
+    let valid = sum_function();
+    let invalid = executable::ExecutableFunction::new(
+        bytecode::Function {
+            register_count: 0,
+            code: vec![bytecode::Instruction::Return { src: 0 }],
+        },
+        structure_map::StructureMap::default(),
+    );
+    let mut vm = wvm::Vm::with_hot_threshold(10);
+
+    vm.execute(&valid).unwrap();
+    assert!(vm.execute(&invalid).is_err());
+    assert!(vm.profile_for(&invalid).is_none());
+    vm.execute(&valid).unwrap();
+    assert_eq!(vm.jit_report().compilation_attempts, 0);
+    assert_eq!(vm.jit_report().native_executions, 1);
 }
 
 #[test]
 fn verifier_rejects_invalid_register() {
-    let function = executable::ExecutableFunction {
-        bytecode: bytecode::Function {
+    let function = executable::ExecutableFunction::new(
+        bytecode::Function {
             register_count: 1,
             code: vec![
                 bytecode::Instruction::ConstI64 { dst: 1, value: 0 },
                 bytecode::Instruction::Return { src: 0 },
             ],
         },
-        structure_map: structure_map::StructureMap::default(),
-    };
+        structure_map::StructureMap::default(),
+    );
 
     assert!(verifier::verify(&function).is_err());
 
@@ -131,28 +201,28 @@ fn verifier_rejects_invalid_register() {
 
 #[test]
 fn verifier_rejects_invalid_jump_target() {
-    let function = executable::ExecutableFunction {
-        bytecode: bytecode::Function {
+    let function = executable::ExecutableFunction::new(
+        bytecode::Function {
             register_count: 0,
             code: vec![bytecode::Instruction::Jump { target: 1 }],
         },
-        structure_map: structure_map::StructureMap::default(),
-    };
+        structure_map::StructureMap::default(),
+    );
 
     assert!(verifier::verify(&function).is_err());
 }
 
 #[test]
 fn verifier_rejects_invalid_loop_metadata() {
-    let function = executable::ExecutableFunction {
-        bytecode: bytecode::Function {
+    let function = executable::ExecutableFunction::new(
+        bytecode::Function {
             register_count: 1,
             code: vec![
                 bytecode::Instruction::Jump { target: 1 },
                 bytecode::Instruction::Return { src: 0 },
             ],
         },
-        structure_map: structure_map::StructureMap {
+        structure_map::StructureMap {
             loops: vec![structure_map::LoopRegion {
                 header: 0,
                 backedge: 0,
@@ -160,18 +230,17 @@ fn verifier_rejects_invalid_loop_metadata() {
                 live_slots: vec![],
             }],
         },
-    };
+    );
 
     assert!(verifier::verify(&function).is_err());
 }
 
 #[test]
 fn verifier_rejects_duplicate_loop_headers() {
-    let mut function = sum_function();
-    function
-        .structure_map
-        .loops
-        .push(function.structure_map.loops[0].clone());
+    let original = sum_function();
+    let mut structure_map = original.structure_map().clone();
+    structure_map.loops.push(structure_map.loops[0].clone());
+    let function = executable::ExecutableFunction::new(original.bytecode().clone(), structure_map);
 
     assert!(
         verifier::verify(&function)
@@ -182,10 +251,12 @@ fn verifier_rejects_duplicate_loop_headers() {
 
 #[test]
 fn verifier_rejects_duplicate_exit_targets() {
-    let mut function = sum_function();
-    function.structure_map.loops[0]
+    let original = sum_function();
+    let mut structure_map = original.structure_map().clone();
+    structure_map.loops[0]
         .exits
         .push(structure_map::RegionExit { target: 9 });
+    let function = executable::ExecutableFunction::new(original.bytecode().clone(), structure_map);
 
     assert!(
         verifier::verify(&function)
