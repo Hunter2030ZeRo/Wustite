@@ -73,7 +73,9 @@ fn sum_one_to_one_hundred() {
         .structure_map
         .loops
         .iter()
-        .find(|region| profile.is_hot(region.header, 50))
+        .enumerate()
+        .find(|(index, _)| profile.is_hot(structure_map::RegionId(*index), 50))
+        .map(|(_, region)| region)
         .unwrap();
 
     let plan = planner::select_hot_loop(&function.structure_map, profile, 50).unwrap();
@@ -84,9 +86,27 @@ fn sum_one_to_one_hundred() {
     assert_eq!(plan.live_slots, function.structure_map.loops[0].live_slots);
     assert_eq!(plan.region_id, structure_map::RegionId(0));
     assert_eq!(hot_loop.header, 4);
-    assert_eq!(profile.count(hot_loop.header), 101);
+    assert_eq!(profile.count(structure_map::RegionId(0)), 101);
     assert_eq!(result.value, value::Value::I64(5050));
-    assert_eq!(profile.count(4), 101);
+    assert_eq!(profile.count(structure_map::RegionId(0)), 101);
+}
+
+#[test]
+fn changing_an_executable_invalidates_cached_regions() {
+    let mut function = sum_function();
+    let mut vm = wvm::Vm::with_hot_threshold(10);
+
+    assert_eq!(
+        vm.execute(&function).unwrap().value,
+        value::Value::I64(5050)
+    );
+    assert_eq!(vm.jit_report().compiled_regions, 1);
+
+    function.bytecode.code[6] = bytecode::Instruction::Move { dst: 0, src: 1 };
+
+    assert_eq!(vm.execute(&function).unwrap().value, value::Value::I64(100));
+    assert_eq!(vm.jit_report().compilation_attempts, 1);
+    assert_eq!(vm.jit_report().compiled_regions, 1);
 }
 
 #[test]
