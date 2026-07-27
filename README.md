@@ -12,8 +12,13 @@ has largely stalled, while GraalPy remains active but suffers from poor
 C extension compatibility (NumPy, pandas, etc.) due to its non-CPython 
 memory model.
 
-Wustite takes a different approach: instead of JIT-compiling Python bytecode 
-at runtime, it accelerates the *compilation passes themselves* using GPGPU...
+Wustite takes a different approach. Instead of relying on runtime profiling 
+to warm up a JIT, Wustite builds a **structure map** ahead of time that lets 
+the runtime skip the warm-up phase entirely and eliminates interpretation 
+overhead at execution. This is paired with **WVM**, a CPython-compatible 
+virtual machine — so Wustite aims to deliver both the performance of 
+ahead-of-time compilation and the efficiency of a runtime that doesn't 
+sacrifice compatibility to get there.
 
 
 ## References 
