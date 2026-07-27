@@ -15,10 +15,13 @@ memory model.
 Wustite takes a different approach. Instead of relying on runtime profiling 
 to warm up a JIT, Wustite builds a **structure map** ahead of time that lets 
 the runtime skip the warm-up phase entirely and eliminates interpretation 
-overhead at execution. This is paired with **WVM**, a CPython-compatible 
-virtual machine — so Wustite aims to deliver both the performance of 
+overhead at execution. This is paired with **Wustite Virtual Machine(WVM)**, 
+a register-based bytecode virtual machine that is 
+CPython-compatible — so Wustite aims to deliver both the performance of 
 ahead-of-time compilation and the efficiency of a runtime that doesn't 
 sacrifice compatibility to get there.
+
+WVM uses **Wustite eXtensive Intermediate Representation(WXIR)**, an IR that 
 
 
 ## References 
