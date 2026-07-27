@@ -21,7 +21,9 @@ CPython-compatible — so Wustite aims to deliver both the performance of
 ahead-of-time compilation and the efficiency of a runtime that doesn't 
 sacrifice compatibility to get there.
 
-WVM uses **Wustite eXtensive Intermediate Representation(WXIR)**, an IR that 
+WVM uses **Wustite eXtensive Intermediate Representation(WXIR)**, which is 
+Wustite's specific IR designed for backend-independent SSA optimization. Due to this, 
+Wustite can use various backends including Cranelift and LLVM.
 
 
 ## References 
