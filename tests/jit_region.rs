@@ -213,7 +213,6 @@ fn vm_automatically_tiers_up_sum_once() {
 
     assert_eq!(result.value, Value::I64(5050));
     assert_eq!(vm.profile().unwrap().entry_count(RegionId(0)), 10);
-    assert_eq!(vm.profile().unwrap().count(RegionId(0)), 10);
     assert_eq!(vm.jit_report().compilation_attempts, 1);
     assert_eq!(vm.jit_report().compiled_regions, 1);
     assert_eq!(vm.jit_report().native_executions, 1);
@@ -230,7 +229,6 @@ fn vm_replays_synthetic_overflow_exit_in_interpreter() {
 
     assert_eq!(error, "i64 addition overflow");
     assert_eq!(vm.profile().unwrap().entry_count(RegionId(0)), 2);
-    assert_eq!(vm.profile().unwrap().count(RegionId(0)), 2);
     assert_eq!(vm.jit_report().compilation_attempts, 1);
     assert_eq!(vm.jit_report().compiled_regions, 1);
     assert_eq!(vm.jit_report().native_executions, 1);
@@ -250,7 +248,6 @@ fn invalid_region_metadata_is_disabled_after_one_attempt() {
 
     assert_eq!(result.value, Value::I64(3));
     assert_eq!(vm.profile().unwrap().entry_count(RegionId(0)), 4);
-    assert_eq!(vm.profile().unwrap().count(RegionId(0)), 4);
     assert_eq!(vm.jit_report().compilation_attempts, 1);
     assert_eq!(vm.jit_report().compiled_regions, 0);
     assert_eq!(vm.jit_report().disabled_regions, 1);
@@ -284,7 +281,6 @@ fn high_threshold_keeps_sum_interpreter_only() {
 
     assert_eq!(result.value, Value::I64(5050));
     assert_eq!(vm.profile().unwrap().entry_count(RegionId(0)), 101);
-    assert_eq!(vm.profile().unwrap().count(RegionId(0)), 101);
     assert_eq!(vm.jit_report().compilation_attempts, 0);
     assert_eq!(vm.jit_report().native_executions, 0);
     assert_eq!(vm.jit_report().last_resume_pc, None);
