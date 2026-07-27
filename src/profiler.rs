@@ -1,28 +1,33 @@
+use crate::structure_map::RegionId;
+
 #[derive(Debug)]
 pub struct Profile {
-    execution_counts: Vec<u64>,
+    region_execution_counts: Vec<u64>,
 }
 
 impl Profile {
-    pub fn new(instruction_count: usize) -> Self {
+    pub fn new(region_count: usize) -> Self {
         Self {
-            execution_counts: vec![0; instruction_count],
+            region_execution_counts: vec![0; region_count],
         }
     }
 
-    pub fn record(&mut self, pc: usize) {
-        if let Some(count) = self.execution_counts.get_mut(pc) {
+    pub fn record(&mut self, region_id: RegionId) {
+        if let Some(count) = self.region_execution_counts.get_mut(region_id.0) {
             *count = count.saturating_add(1);
         }
     }
 
-    pub fn count(&self, pc: usize) -> u64 {
-        self.execution_counts.get(pc).copied().unwrap_or(0)
+    pub fn count(&self, region_id: RegionId) -> u64 {
+        self.region_execution_counts
+            .get(region_id.0)
+            .copied()
+            .unwrap_or(0)
     }
 
-    pub fn is_hot(&self, pc: usize, threshold: u64) -> bool {
-        self.execution_counts
-            .get(pc)
+    pub fn is_hot(&self, region_id: RegionId, threshold: u64) -> bool {
+        self.region_execution_counts
+            .get(region_id.0)
             .is_some_and(|count| *count >= threshold)
     }
 }
