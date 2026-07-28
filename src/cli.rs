@@ -5,9 +5,13 @@ use std::fs;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
+use cranelift_jit::JITMemoryKind::Executable;
 use serde::Serialize;
+use wustite::ExecutionMode::AdaptiveJit;
+use wustite::executable;
 use wustite::structure_map::SlotType;
 use wustite::wvm::JitReport;
 use wustite::{ExecutableInfo, ExecutionMode, Runtime, RuntimeConfig, RuntimeValue};
@@ -29,6 +33,8 @@ enum Command {
     Run(RunArgs),
     /// Compile and inspect WVM metadata without executing it.
     Inspect(InspectArgs),
+    /// Compares interpreter and adaptive JIT execution.
+    Bench(BenchArgs),
 }
 
 #[derive(Args)]
@@ -75,6 +81,35 @@ struct InspectArgs {
     json: bool,
 }
 
+#[derive(Args)]
+struct BenchArgs {
+    /// Python source file to benchmark. 
+    path: PathBuf, 
+
+    /// Zero-argument function to execute.
+    #[arg(long, default_value = "main")]
+    function: String, 
+
+    /// Unmeasured stabilization runs before collecting warm samples.
+    #[arg(long, default_value_t = 10)]
+    warmup: usize,
+
+    /// Number of measured samples for each steady-state mode.
+    #[arg(long, default_value_t = NonZeroUsize::new(100).unwrap())]
+    iterations: NonZeroUsize,
+
+    /// Region-entry threshold for adaptive JIT compilation.
+    #[arg(long, default_value_t = 10)]
+    hot_threshold: u64,
+}
+
+struct DurationStats {
+    min: Duration, 
+    median: Duration, 
+    p95: Duration, 
+    max: Duration,
+}
+
 pub(crate) fn main_entry() -> ExitCode {
     match dispatch(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
@@ -89,6 +124,7 @@ fn dispatch(cli: Cli) -> Result<(), String> {
     match cli.command {
         Command::Run(args) => run(args),
         Command::Inspect(args) => inspect(args),
+        Command::Bench(args) => bench(args),
     }
 }
 
@@ -156,6 +192,175 @@ fn inspect(args: InspectArgs) -> Result<(), String> {
     Ok(())
 }
 
+fn bench(args: BenchArgs) -> Result<(), String> {
+    if cfg!(debug_assertions) {
+        eprintln!("warning: benchmark results from a debug build are not representative; \
+             use `cargo run --release -- bench ...`")
+    }
+
+    let source = read_source(&args.path)?;
+
+    let mut compiler = Runtime::new(RuntimeConfig::default());
+    let compilation = compiler
+        .compile_function_measured(&source, &args.function)
+        .map_err(|error| error.to_string())?;
+
+    let executable = compilation.executable;
+
+    let mut interpreter = Runtime::new(RuntimeConfig {
+        execution_mode: ExecutionMode::Interpreter, 
+        hot_threshold: args.hot_threshold,
+    });
+
+    for _ in 0..args.warmup {
+        interpreter
+            .execute(&executable)
+            .map_err(|error| error.to_string())?;
+    }
+    
+    let mut interpreter_samples = Vec::with_capacity(args.iterations.get());
+
+    for _ in 0..args.iterations.get() {
+        let execution = interpreter
+            .execute_measured(&executable)
+            .map_err(|error| error.to_string())?;
+
+        interpreter_samples.push(execution.metrics.total_time);
+    }
+
+    let interpreter_stats = summarize_durations(interpreter_samples);
+    
+    let mut adaptive = Runtime::new(RuntimeConfig {
+        execution_mode: ExecutionMode::AdaptiveJit, 
+        hot_threshold: args.hot_threshold,
+    });
+
+    // This includes profiling and synchronous compilation when tier-up occurs. 
+    let cold = adaptive
+        .execute_measured(&executable)
+        .map_err(|error| error.to_string())?;
+
+    
+
+    for _ in 0..args.warmup {
+        adaptive
+            .execute(&executable)
+            .map_err(|error| error.to_string())?;
+    }
+
+    let mut adaptive_samples = Vec::with_capacity(args.iterations.get());
+
+    for _ in 0..args.iterations.get() {
+        let execution = adaptive
+            .execute_measured(&executable)
+            .map_err(|error| error.to_string())?;
+
+        adaptive_samples.push(execution.metrics.total_time);
+    }
+
+    let adaptive_stats = summarize_durations(adaptive_samples);
+
+    print_benchmark(
+        &args,
+        compilation.metrics.frontend_time,
+        cold.metrics.total_time, 
+        &cold.jit_report, 
+        &interpreter_stats, 
+        &adaptive_stats,
+    );
+
+    Ok(())
+}
+
+fn print_benchmark(
+    args: &BenchArgs,
+    frontend_time: Duration,
+    cold_time: Duration,
+    cold_jit: &JitReport,
+    interpreter: &DurationStats,
+    adaptive: &DurationStats,
+) {
+    println!("Benchmark: {}", args.path.display());
+    println!("Function: {}", args.function);
+    println!("Warmup runs: {}", args.warmup);
+    println!("Measured iterations: {}", args.iterations);
+    println!("Hot threshold: {}", args.hot_threshold);
+    println!();
+
+    println!("Frontend compilation: {}", format_duration(frontend_time));
+    println!();
+
+    println!("Interpreter:");
+    print_duration_stats(interpreter);
+    println!();
+
+    println!("Adaptive JIT cold:");
+    println!("  Time: {}", format_duration(cold_time));
+    println!(
+        "  Compilation attempts: {}",
+        cold_jit.compilation_attempts
+    );
+    println!("  Compiled regions: {}", cold_jit.compiled_regions);
+    println!("  Native executions: {}", cold_jit.native_executions);
+    println!();
+
+    println!("Adaptive JIT warm:");
+    print_duration_stats(adaptive);
+
+    if let Some(speedup) = duration_ratio(interpreter.median, adaptive.median) {
+        println!();
+        println!("Warm speedup: {speedup:.2}x");
+    }
+
+    match estimated_break_even(cold_time, adaptive.median, interpreter.median) {
+        Some(invocations) => {
+            println!("Estimated break-even: {invocations} invocation(s)");
+        }
+        None => {
+            println!("Estimated break-even: not reached");
+        }
+    }
+}
+
+fn print_duration_stats(stats: &DurationStats) {
+    println!("  Median: {}", format_duration(stats.median));
+    println!("  P95:    {}", format_duration(stats.p95));
+    println!("  Min:    {}", format_duration(stats.min));
+    println!("  Max:    {}", format_duration(stats.max));
+}
+
+fn duration_ratio(numerator: Duration, denominator: Duration) -> Option<f64> {
+    let denominator = denominator.as_secs_f64();
+
+    if denominator == 0.0 {
+        None
+    } else {
+        Some(numerator.as_secs_f64() / denominator)
+    }
+}
+
+fn estimated_break_even(
+    cold: Duration,
+    warm: Duration,
+    interpreter: Duration,
+) -> Option<u64> {
+    let cold = cold.as_secs_f64();
+    let warm = warm.as_secs_f64();
+    let interpreter = interpreter.as_secs_f64();
+
+    // Native warm execution is not faster, so repeated execution cannot
+    // recover the cold-path cost under this model.
+    if warm >= interpreter {
+        return None;
+    }
+
+    let required = ((cold - warm).max(0.0) / (interpreter - warm))
+        .ceil()
+        .max(1.0);
+
+    Some(required as u64)
+}
+
 fn read_source(path: &Path) -> Result<String, String> {
     fs::read_to_string(path)
         .map_err(|error| format!("failed to read '{}': {error}", path.display()))
@@ -165,6 +370,41 @@ fn execution_mode_name(mode: ExecutionMode) -> &'static str {
     match mode {
         ExecutionMode::Interpreter => "interpreter",
         ExecutionMode::AdaptiveJit => "adaptive_jit",
+    }
+}
+
+fn summarize_durations(mut samples: Vec<Duration>) -> DurationStats {
+    assert!(!samples.is_empty());
+
+    samples.sort_unstable();
+
+    let len = samples.len();
+    let median = samples[len / 2];
+
+    // Nearest-rank p95.
+    let p95_index = ((len * 95).div_ceil(100))
+        .saturating_sub(1)
+        .min(len - 1);
+
+    DurationStats { 
+        min: samples[0], 
+        median, 
+        p95: samples[p95_index], 
+        max: samples[len - 1],
+    }
+}
+
+fn format_duration(duration: Duration) -> String {
+    let seconds = duration.as_secs_f64();
+
+    if seconds >= 1.0 {
+        format!("{seconds:.3} s")
+    } else if seconds >= 1e-3 {
+        format!("{:.3} ms", seconds * 1e3)
+    } else if seconds >= 1e-6 {
+        format!("{:.3} μs", seconds * 1e6)
+    } else {
+        format!("{:.3} ns", seconds * 1e9)
     }
 }
 
