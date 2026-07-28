@@ -1,8 +1,10 @@
 use std::error::Error;
 use std::fmt;
+use std::time::Instant;
 
 use crate::executable::{ExecutableFunction, ExecutableId};
 use crate::frontend::{PythonFrontendError, compile_python_function};
+use crate::metrics::{CompilationMetrics, ExecutionMetrics};
 use crate::profiler::Profile;
 use crate::structure_map::{LiveSlot, RegionId};
 use crate::value::Value;
@@ -144,6 +146,21 @@ impl Runtime {
         compile_python_function(source, function_name).map_err(RuntimeError::Frontend)
     }
 
+    pub fn compile_function_measured(
+        &mut self,
+        source: &str,
+        function_name: &str,
+    ) -> Result<MeasuredCompilation, RuntimeError> {
+        let started = Instant::now();
+        let executable = self.compile_function(source, function_name)?;
+        let frontend_time = started.elapsed();
+
+        Ok(MeasuredCompilation {
+            executable,
+            metrics: CompilationMetrics { frontend_time },
+        })
+    }
+
     pub fn execute(
         &mut self,
         executable: &ExecutableFunction,
@@ -154,6 +171,24 @@ impl Runtime {
             .execute(executable)
             .map_err(RuntimeError::Execution)?;
         RuntimeValue::try_from(result.value)
+    }
+
+    pub fn execute_measured(
+        &mut self,
+        executable: &ExecutableFunction,
+    ) -> Result<MeasuredExecution, RuntimeError> {
+        let started = Instant::now();
+
+        let value = self.execute(executable)?;
+
+        let total_time = started.elapsed();
+        let jit_report = self.last_jit_report().clone();
+
+        Ok(MeasuredExecution {
+            value,
+            metrics: ExecutionMetrics { total_time },
+            jit_report,
+        })
     }
 
     /// Convenience compile-and-run API.
@@ -201,4 +236,16 @@ impl Runtime {
     pub fn profile_for(&self, executable: &ExecutableFunction) -> Option<&Profile> {
         self.vm.profile_for(executable)
     }
+}
+
+pub struct MeasuredCompilation {
+    pub executable: ExecutableFunction,
+    pub metrics: CompilationMetrics,
+}
+
+#[derive(Debug, Clone)]
+pub struct MeasuredExecution {
+    pub value: RuntimeValue,
+    pub metrics: ExecutionMetrics,
+    pub jit_report: JitReport,
 }
