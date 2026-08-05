@@ -57,6 +57,7 @@ fn sum_function() -> executable::ExecutableFunction {
                     },
                 ],
             }],
+            operation_sites: vec![],
         },
     )
 }
@@ -229,6 +230,7 @@ fn verifier_rejects_invalid_loop_metadata() {
                 exits: vec![structure_map::RegionExit { target: 1 }],
                 live_slots: vec![],
             }],
+            operation_sites: vec![],
         },
     );
 

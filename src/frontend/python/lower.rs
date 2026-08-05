@@ -1,8 +1,13 @@
 use std::collections::HashMap;
 
-use crate::bytecode::{Function, Instruction, Register};
+use crate::bytecode::{
+    BinaryOperator, CompareOperator, Function, Instruction, Register,
+};
 use crate::executable::ExecutableFunction;
-use crate::structure_map::{LiveSlot, LoopRegion, RegionExit, SlotType, StructureMap};
+use crate::structure_map::{
+    LiveSlot, LoopRegion, OperationSite, OperationSiteId, RegionExit, SlotType, StructureMap,
+    TypeFact,
+};
 use crate::verifier;
 
 use super::error::PythonFrontendError;
@@ -25,6 +30,7 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
         },
         StructureMap {
             loops: lowerer.loops,
+            operation_sites: lowerer.operation_sites,
         },
     );
     verifier::verify(&executable).map_err(|error| {
@@ -37,6 +43,7 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
 struct Lowerer {
     code: Vec<Instruction>,
     loops: Vec<LoopRegion>,
+    operation_sites: Vec<OperationSite>,
     variables: HashMap<String, Variable>,
     variable_order: Vec<String>,
     next_register: u32,
@@ -198,7 +205,21 @@ impl Lowerer {
                 self.expect_type(lhs_ty, SlotType::I64, expression, "addition operand")?;
                 self.expect_type(rhs_ty, SlotType::I64, expression, "addition operand")?;
                 let dst = self.allocate_register(expression.location)?;
-                self.code.push(Instruction::AddI64 { dst, lhs, rhs });
+                let pc = self.code.len();
+                let site = self.record_operation_site(
+                    pc,
+                    lhs_ty,
+                    rhs_ty,
+                    SlotType::I64,
+                    expression,
+                )?;
+                self.code.push(Instruction::BinaryOp {
+                    dst,
+                    op: BinaryOperator::Add,
+                    lhs,
+                    rhs,
+                    site,
+                });
                 Ok((dst, SlotType::I64))
             }
             HirExpressionKind::SignedLt(lhs, rhs) => {
@@ -207,10 +228,47 @@ impl Lowerer {
                 self.expect_type(lhs_ty, SlotType::I64, expression, "comparison operand")?;
                 self.expect_type(rhs_ty, SlotType::I64, expression, "comparison operand")?;
                 let dst = self.allocate_register(expression.location)?;
-                self.code.push(Instruction::LtI64 { dst, lhs, rhs });
+                let pc = self.code.len();
+                let site = self.record_operation_site(
+                    pc,
+                    lhs_ty,
+                    rhs_ty,
+                    SlotType::Bool,
+                    expression,
+                )?;
+                self.code.push(Instruction::CompareOp {
+                    dst,
+                    op: CompareOperator::Lt,
+                    lhs,
+                    rhs,
+                    site,
+                });
                 Ok((dst, SlotType::Bool))
             }
         }
+    }
+
+    fn record_operation_site(
+        &mut self,
+        pc: usize,
+        lhs: SlotType,
+        rhs: SlotType,
+        result: SlotType,
+        expression: &HirExpression,
+    ) -> Result<OperationSiteId, PythonFrontendError> {
+        let raw_id = u32::try_from(self.operation_sites.len()).map_err(|_| {
+            PythonFrontendError::new(
+                "function contains too many semantic operation sites",
+                Some(expression.location),
+            )
+        })?;
+        self.operation_sites.push(OperationSite {
+            pc,
+            lhs: TypeFact::Exact(lhs),
+            rhs: TypeFact::Exact(rhs),
+            result: TypeFact::Exact(result),
+        });
+        Ok(OperationSiteId(raw_id))
     }
 
     fn expect_type(

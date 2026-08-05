@@ -2,14 +2,41 @@ use std::collections::HashSet;
 
 use crate::bytecode::{Function, Instruction, Register};
 use crate::executable::ExecutableFunction;
+use crate::structure_map::OperationSiteId;
 
 pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
     let bytecode = function.bytecode();
+    let mut used_operation_sites = HashSet::new();
 
     for (pc, instruction) in bytecode.code.iter().enumerate() {
         match instruction {
             Instruction::ConstI64 { dst, .. } => {
                 verify_register(bytecode, *dst, pc, "ConstI64 dst")?;
+            }
+            Instruction::BinaryOp {
+                dst,
+                lhs,
+                rhs,
+                site,
+                ..
+            }
+            | Instruction::CompareOp {
+                dst,
+                lhs,
+                rhs,
+                site,
+                ..
+            } => {
+                verify_register(bytecode, *dst, pc, "semantic operation dst")?;
+                verify_register(bytecode, *lhs, pc, "semantic operation lhs")?;
+                verify_register(bytecode, *rhs, pc, "semantic operation rhs")?;
+                verify_operation_site(function, *site, pc)?;
+                if !used_operation_sites.insert(*site) {
+                    return Err(format!(
+                        "operation site {} is referenced by more than one instruction",
+                        site.0
+                    ));
+                }
             }
             Instruction::AddI64 { dst, lhs, rhs } | Instruction::LtI64 { dst, lhs, rhs } => {
                 verify_register(bytecode, *dst, pc, "arithmetic dst")?;
@@ -31,6 +58,27 @@ pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
                 verify_register(bytecode, *dst, pc, "Move dst")?;
                 verify_register(bytecode, *src, pc, "Move src")?;
             }
+        }
+    }
+
+    for (index, site) in function
+        .structure_map()
+        .operation_sites
+        .iter()
+        .enumerate()
+    {
+        let id = OperationSiteId(
+            u32::try_from(index)
+                .map_err(|_| "StructureMap contains too many operation sites".to_string())?,
+        );
+        if site.pc >= bytecode.code.len() {
+            return Err(format!(
+                "operation site {} points outside bytecode at pc {}",
+                id.0, site.pc
+            ));
+        }
+        if !used_operation_sites.contains(&id) {
+            return Err(format!("operation site {} is not referenced by bytecode", id.0));
         }
     }
 
@@ -98,6 +146,24 @@ pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
         }
     }
 
+    Ok(())
+}
+
+fn verify_operation_site(
+    function: &ExecutableFunction,
+    site: OperationSiteId,
+    pc: usize,
+) -> Result<(), String> {
+    let metadata = function
+        .structure_map()
+        .operation_site(site)
+        .ok_or_else(|| format!("instruction {pc} references unknown operation site {}", site.0))?;
+    if metadata.pc != pc {
+        return Err(format!(
+            "operation site {} belongs to pc {}, not instruction {pc}",
+            site.0, metadata.pc
+        ));
+    }
     Ok(())
 }
 

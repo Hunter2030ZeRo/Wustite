@@ -2,10 +2,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error;
 use std::fmt;
 
-use crate::bytecode::{Instruction, Register};
+use crate::bytecode::{BinaryOperator, CompareOperator, Instruction, Register};
 use crate::executable::ExecutableFunction;
 use crate::planner::JitPlan;
-use crate::structure_map::{LiveSlot, SlotType};
+use crate::structure_map::{LiveSlot, OperationSiteId, SlotType, TypeFact};
 use crate::verifier as wvm_verifier;
 
 use super::ir::{
@@ -24,6 +24,10 @@ pub enum WxBuildError {
     UnsupportedInstruction {
         pc: usize,
         instruction: &'static str,
+    },
+    UnsupportedSpecialization {
+        pc: usize,
+        reason: String,
     },
     MissingRegister {
         pc: usize,
@@ -45,10 +49,10 @@ impl fmt::Display for WxBuildError {
             Self::InvalidExecutable(error) => write!(formatter, "invalid executable: {error}"),
             Self::InvalidPlan(error) => write!(formatter, "invalid JIT plan: {error}"),
             Self::UnsupportedInstruction { pc, instruction } => {
-                write!(
-                    formatter,
-                    "unsupported WVM instruction {instruction} at pc {pc}"
-                )
+                write!(formatter, "unsupported WVM instruction {instruction} at pc {pc}")
+            }
+            Self::UnsupportedSpecialization { pc, reason } => {
+                write!(formatter, "cannot specialize WVM operation at pc {pc}: {reason}")
             }
             Self::MissingRegister { pc, register } => {
                 write!(formatter, "r{register} has no WXIR value at pc {pc}")
@@ -193,8 +197,7 @@ impl<'a> RegionBuilder<'a> {
         };
 
         let entry_id = builder.allocate_block()?;
-        let live_slots = plan.live_slots.clone();
-        let parameters = builder.parameters_for_slots(&live_slots)?;
+        let parameters = builder.parameters_for_slots(&plan.live_slots)?;
         builder.block_specs.insert(
             plan.header,
             BlockSpec {
@@ -204,7 +207,6 @@ impl<'a> RegionBuilder<'a> {
             },
         );
         builder.queue.push_back(plan.header);
-
         Ok(builder)
     }
 
@@ -271,25 +273,19 @@ impl<'a> RegionBuilder<'a> {
         side_exits.append(&mut self.synthetic_exits);
         side_exits.sort_by_key(|side_exit| side_exit.id.0);
 
-        let entry = self
+        let entry_spec = self
             .block_specs
             .get(&self.plan.header)
-            .map(|spec| spec.id)
             .ok_or_else(|| WxBuildError::InvalidPlan("missing entry block".to_string()))?;
-        let entry_state = self
-            .block_specs
-            .get(&self.plan.header)
-            .map(|spec| {
-                spec.parameters
-                    .iter()
-                    .map(|(register, parameter)| WxStateValue {
-                        register: *register,
-                        value: parameter.id,
-                        ty: parameter.ty,
-                    })
-                    .collect()
+        let entry_state = entry_spec
+            .parameters
+            .iter()
+            .map(|(register, parameter)| WxStateValue {
+                register: *register,
+                value: parameter.id,
+                ty: parameter.ty,
             })
-            .ok_or_else(|| WxBuildError::InvalidPlan("missing entry state".to_string()))?;
+            .collect();
 
         Ok(WxFunction {
             origin: WxRegionOrigin {
@@ -297,7 +293,7 @@ impl<'a> RegionBuilder<'a> {
                 bytecode_header: self.plan.header,
                 bytecode_backedge: self.plan.backedge,
             },
-            entry,
+            entry: entry_spec.id,
             entry_state,
             blocks: std::mem::take(&mut self.blocks),
             returns: Vec::new(),
@@ -306,10 +302,11 @@ impl<'a> RegionBuilder<'a> {
     }
 
     fn build_block(&mut self, start_pc: usize) -> Result<(), WxBuildError> {
-        let spec =
-            self.block_specs.get(&start_pc).cloned().ok_or_else(|| {
-                WxBuildError::InvalidPlan(format!("missing block for pc {start_pc}"))
-            })?;
+        let spec = self
+            .block_specs
+            .get(&start_pc)
+            .cloned()
+            .ok_or_else(|| WxBuildError::InvalidPlan(format!("missing block for pc {start_pc}")))?;
         let mut environment: HashMap<Register, TypedValue> = spec
             .parameters
             .iter()
@@ -351,52 +348,74 @@ impl<'a> RegionBuilder<'a> {
                     environment.insert(*dst, TypedValue { id: result, ty });
                     pc += 1;
                 }
+                Instruction::BinaryOp {
+                    dst,
+                    op: BinaryOperator::Add,
+                    lhs,
+                    rhs,
+                    site,
+                } => {
+                    self.require_operation_facts(
+                        pc,
+                        *site,
+                        TypeFact::Exact(SlotType::I64),
+                        TypeFact::Exact(SlotType::I64),
+                        TypeFact::Exact(SlotType::I64),
+                    )?;
+                    self.emit_i64_add(
+                        &mut instructions,
+                        &mut environment,
+                        pc,
+                        *dst,
+                        *lhs,
+                        *rhs,
+                    )?;
+                    pc += 1;
+                }
+                Instruction::CompareOp {
+                    dst,
+                    op: CompareOperator::Lt,
+                    lhs,
+                    rhs,
+                    site,
+                } => {
+                    self.require_operation_facts(
+                        pc,
+                        *site,
+                        TypeFact::Exact(SlotType::I64),
+                        TypeFact::Exact(SlotType::I64),
+                        TypeFact::Exact(SlotType::Bool),
+                    )?;
+                    self.emit_i64_lt(
+                        &mut instructions,
+                        &mut environment,
+                        pc,
+                        *dst,
+                        *lhs,
+                        *rhs,
+                    )?;
+                    pc += 1;
+                }
                 Instruction::AddI64 { dst, lhs, rhs } => {
-                    let lhs = self.read_register(&environment, pc, *lhs, WxScalarType::I64)?;
-                    let rhs = self.read_register(&environment, pc, *rhs, WxScalarType::I64)?;
-                    let result = self.allocate_value()?;
-                    let overflow = self.allocate_value()?;
-                    let ty = WxType::Scalar(WxScalarType::I64);
-                    instructions.push(WxInst {
-                        results: vec![
-                            WxInstResult { id: result, ty },
-                            WxInstResult {
-                                id: overflow,
-                                ty: WxType::Scalar(WxScalarType::I1),
-                            },
-                        ],
-                        kind: WxInstKind::IntegerBinaryWithOverflow {
-                            op: WxIntOverflowOp::Add,
-                            lhs: lhs.id,
-                            rhs: rhs.id,
-                        },
-                    });
-                    let exit = self.create_overflow_exit(pc, &environment)?;
-                    instructions.push(WxInst {
-                        results: Vec::new(),
-                        kind: WxInstKind::Guard {
-                            condition: overflow,
-                            exit,
-                            mode: WxGuardMode::ExitWhenTrue,
-                        },
-                    });
-                    environment.insert(*dst, TypedValue { id: result, ty });
+                    self.emit_i64_add(
+                        &mut instructions,
+                        &mut environment,
+                        pc,
+                        *dst,
+                        *lhs,
+                        *rhs,
+                    )?;
                     pc += 1;
                 }
                 Instruction::LtI64 { dst, lhs, rhs } => {
-                    let lhs = self.read_register(&environment, pc, *lhs, WxScalarType::I64)?;
-                    let rhs = self.read_register(&environment, pc, *rhs, WxScalarType::I64)?;
-                    let result = self.allocate_value()?;
-                    let ty = WxType::Scalar(WxScalarType::I1);
-                    instructions.push(WxInst {
-                        results: vec![WxInstResult { id: result, ty }],
-                        kind: WxInstKind::Compare {
-                            op: WxCompareOp::Integer(WxIntCompareOp::SignedLt),
-                            lhs: lhs.id,
-                            rhs: rhs.id,
-                        },
-                    });
-                    environment.insert(*dst, TypedValue { id: result, ty });
+                    self.emit_i64_lt(
+                        &mut instructions,
+                        &mut environment,
+                        pc,
+                        *dst,
+                        *lhs,
+                        *rhs,
+                    )?;
                     pc += 1;
                 }
                 Instruction::Move { dst, src } => {
@@ -447,6 +466,100 @@ impl<'a> RegionBuilder<'a> {
         Ok(())
     }
 
+    fn require_operation_facts(
+        &self,
+        pc: usize,
+        site: OperationSiteId,
+        lhs: TypeFact,
+        rhs: TypeFact,
+        result: TypeFact,
+    ) -> Result<(), WxBuildError> {
+        let facts = self
+            .executable
+            .structure_map()
+            .operation_site(site)
+            .ok_or_else(|| WxBuildError::UnsupportedSpecialization {
+                pc,
+                reason: format!("missing operation site {}", site.0),
+            })?;
+        if facts.pc != pc || facts.lhs != lhs || facts.rhs != rhs || facts.result != result {
+            return Err(WxBuildError::UnsupportedSpecialization {
+                pc,
+                reason: format!(
+                    "operation site {} lacks the exact facts required by the typed WXIR path",
+                    site.0
+                ),
+            });
+        }
+        Ok(())
+    }
+
+    fn emit_i64_add(
+        &mut self,
+        instructions: &mut Vec<WxInst>,
+        environment: &mut HashMap<Register, TypedValue>,
+        pc: usize,
+        dst: Register,
+        lhs: Register,
+        rhs: Register,
+    ) -> Result<(), WxBuildError> {
+        let lhs = self.read_register(environment, pc, lhs, WxScalarType::I64)?;
+        let rhs = self.read_register(environment, pc, rhs, WxScalarType::I64)?;
+        let result = self.allocate_value()?;
+        let overflow = self.allocate_value()?;
+        let ty = WxType::Scalar(WxScalarType::I64);
+        instructions.push(WxInst {
+            results: vec![
+                WxInstResult { id: result, ty },
+                WxInstResult {
+                    id: overflow,
+                    ty: WxType::Scalar(WxScalarType::I1),
+                },
+            ],
+            kind: WxInstKind::IntegerBinaryWithOverflow {
+                op: WxIntOverflowOp::Add,
+                lhs: lhs.id,
+                rhs: rhs.id,
+            },
+        });
+        let exit = self.create_overflow_exit(pc, environment)?;
+        instructions.push(WxInst {
+            results: Vec::new(),
+            kind: WxInstKind::Guard {
+                condition: overflow,
+                exit,
+                mode: WxGuardMode::ExitWhenTrue,
+            },
+        });
+        environment.insert(dst, TypedValue { id: result, ty });
+        Ok(())
+    }
+
+    fn emit_i64_lt(
+        &mut self,
+        instructions: &mut Vec<WxInst>,
+        environment: &mut HashMap<Register, TypedValue>,
+        pc: usize,
+        dst: Register,
+        lhs: Register,
+        rhs: Register,
+    ) -> Result<(), WxBuildError> {
+        let lhs = self.read_register(environment, pc, lhs, WxScalarType::I64)?;
+        let rhs = self.read_register(environment, pc, rhs, WxScalarType::I64)?;
+        let result = self.allocate_value()?;
+        let ty = WxType::Scalar(WxScalarType::I1);
+        instructions.push(WxInst {
+            results: vec![WxInstResult { id: result, ty }],
+            kind: WxInstKind::Compare {
+                op: WxCompareOp::Integer(WxIntCompareOp::SignedLt),
+                lhs: lhs.id,
+                rhs: rhs.id,
+            },
+        });
+        environment.insert(dst, TypedValue { id: result, ty });
+        Ok(())
+    }
+
     fn control_target(
         &mut self,
         target: usize,
@@ -476,14 +589,13 @@ impl<'a> RegionBuilder<'a> {
             registers.sort_unstable();
             let mut parameters = Vec::with_capacity(registers.len());
             for register in registers {
-                let value =
-                    environment
-                        .get(&register)
-                        .copied()
-                        .ok_or(WxBuildError::MissingRegister {
-                            pc: target,
-                            register,
-                        })?;
+                let value = environment
+                    .get(&register)
+                    .copied()
+                    .ok_or(WxBuildError::MissingRegister {
+                        pc: target,
+                        register,
+                    })?;
                 parameters.push((
                     register,
                     WxBlockParam {
@@ -503,10 +615,11 @@ impl<'a> RegionBuilder<'a> {
             self.queue.push_back(target);
         }
 
-        let spec =
-            self.block_specs.get(&target).cloned().ok_or_else(|| {
-                WxBuildError::InvalidPlan(format!("missing block for pc {target}"))
-            })?;
+        let spec = self
+            .block_specs
+            .get(&target)
+            .cloned()
+            .ok_or_else(|| WxBuildError::InvalidPlan(format!("missing block for pc {target}")))?;
         let arguments = self.arguments_for(&spec.parameters, environment, target)?;
         Ok(WxBlockTarget {
             block: spec.id,
@@ -529,8 +642,7 @@ impl<'a> RegionBuilder<'a> {
                 u32::try_from(exit_index)
                     .map_err(|_| WxBuildError::IdSpaceExhausted("side-exit"))?,
             );
-            let live_slots = self.plan.live_slots.clone();
-            let parameters = self.parameters_for_slots(&live_slots)?;
+            let parameters = self.parameters_for_slots(&self.plan.live_slots)?;
             self.exit_specs.insert(
                 target,
                 ExitBlockSpec {
@@ -542,10 +654,11 @@ impl<'a> RegionBuilder<'a> {
             );
         }
 
-        let spec =
-            self.exit_specs.get(&target).cloned().ok_or_else(|| {
-                WxBuildError::InvalidPlan(format!("missing exit for pc {target}"))
-            })?;
+        let spec = self
+            .exit_specs
+            .get(&target)
+            .cloned()
+            .ok_or_else(|| WxBuildError::InvalidPlan(format!("missing exit for pc {target}")))?;
         let arguments = self.arguments_for(&spec.parameters, environment, target)?;
         Ok(WxBlockTarget {
             block: spec.id,
@@ -580,14 +693,13 @@ impl<'a> RegionBuilder<'a> {
         parameters
             .iter()
             .map(|(register, parameter)| {
-                let value =
-                    environment
-                        .get(register)
-                        .copied()
-                        .ok_or(WxBuildError::MissingRegister {
-                            pc,
-                            register: *register,
-                        })?;
+                let value = environment
+                    .get(register)
+                    .copied()
+                    .ok_or(WxBuildError::MissingRegister {
+                        pc,
+                        register: *register,
+                    })?;
                 if value.ty != parameter.ty {
                     return Err(WxBuildError::TypeMismatch {
                         pc,

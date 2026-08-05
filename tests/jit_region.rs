@@ -57,6 +57,7 @@ fn sum_function() -> ExecutableFunction {
                 exits: vec![RegionExit { target: 9 }],
                 live_slots: (0..4).map(i64_slot).collect(),
             }],
+            operation_sites: vec![],
         },
     )
 }
@@ -86,6 +87,7 @@ fn overflow_function() -> ExecutableFunction {
                 exits: vec![],
                 live_slots: vec![i64_slot(0), i64_slot(1)],
             }],
+            operation_sites: vec![],
         },
     )
 }
@@ -125,6 +127,7 @@ fn invalid_region_metadata_function() -> ExecutableFunction {
                 exits: vec![],
                 live_slots: vec![i64_slot(0), i64_slot(1), i64_slot(3)],
             }],
+            operation_sites: vec![],
         },
     )
 }
