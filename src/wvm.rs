@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::bytecode::{Instruction, Register};
+use crate::bytecode::{BinaryOperator, CompareOperator, Instruction, Register};
 use crate::executable::{ExecutableFunction, ExecutableId};
 use crate::jit::{CompiledRegion, CraneliftRegionCompiler, RegionCompiler};
 use crate::planner::plan_hot_region;
@@ -88,7 +88,7 @@ pub struct JitFailure {
     pub reason: String,
 }
 
-/// Observable tier-up activity for the latest execute invocation.
+/// Observable tier-up activity for the latest execute invocation, including failures.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JitReport {
     pub compilation_attempts: u64,
@@ -195,6 +195,26 @@ impl Vm {
             match &function.code[frame.pc] {
                 Instruction::ConstI64 { dst, value } => {
                     write_register(&mut frame, *dst, Value::I64(*value))?;
+                    frame.pc += 1;
+                }
+
+                Instruction::BinaryOp {
+                    dst, op, lhs, rhs, ..
+                } => {
+                    let lhs = read_register(&frame, *lhs)?;
+                    let rhs = read_register(&frame, *rhs)?;
+                    let result = execute_binary(*op, lhs, rhs)?;
+                    write_register(&mut frame, *dst, result)?;
+                    frame.pc += 1;
+                }
+
+                Instruction::CompareOp {
+                    dst, op, lhs, rhs, ..
+                } => {
+                    let lhs = read_register(&frame, *lhs)?;
+                    let rhs = read_register(&frame, *rhs)?;
+                    let result = execute_compare(*op, lhs, rhs)?;
+                    write_register(&mut frame, *dst, result)?;
                     frame.pc += 1;
                 }
 
@@ -370,6 +390,39 @@ impl Vm {
 impl Default for Vm {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn execute_binary(op: BinaryOperator, lhs: Value, rhs: Value) -> Result<Value, String> {
+    match (op, lhs, rhs) {
+        (BinaryOperator::Add, Value::I64(lhs), Value::I64(rhs)) => lhs
+            .checked_add(rhs)
+            .map(Value::I64)
+            .ok_or_else(|| "i64 addition overflow".to_string()),
+        (BinaryOperator::Add, lhs, rhs) => Err(format!(
+            "unsupported operands for semantic add: {} and {}",
+            value_name(lhs),
+            value_name(rhs)
+        )),
+    }
+}
+
+fn execute_compare(op: CompareOperator, lhs: Value, rhs: Value) -> Result<Value, String> {
+    match (op, lhs, rhs) {
+        (CompareOperator::Lt, Value::I64(lhs), Value::I64(rhs)) => Ok(Value::Bool(lhs < rhs)),
+        (CompareOperator::Lt, lhs, rhs) => Err(format!(
+            "unsupported operands for semantic comparison: {} and {}",
+            value_name(lhs),
+            value_name(rhs)
+        )),
+    }
+}
+
+fn value_name(value: Value) -> &'static str {
+    match value {
+        Value::I64(_) => "i64",
+        Value::Bool(_) => "bool",
+        Value::Uninitialized => "uninitialized",
     }
 }
 
