@@ -65,6 +65,7 @@ fn sum_function() -> ExecutableFunction {
                     },
                 ],
             }],
+            operation_sites: vec![],
         },
     )
 }
@@ -221,6 +222,7 @@ fn return_inside_region_is_rejected_without_panicking() {
                     ty: SlotType::I64,
                 }],
             }],
+            operation_sites: vec![],
         },
     );
     let plan = JitPlan {
