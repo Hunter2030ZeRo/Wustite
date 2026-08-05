@@ -1,7 +1,7 @@
-use wustite::bytecode::{Function, Instruction};
+use wustite::bytecode::{CompareOperator, Function, Instruction};
 use wustite::executable::ExecutableFunction;
 use wustite::frontend::python::compile_python_function;
-use wustite::structure_map::{SlotType, StructureMap};
+use wustite::structure_map::{SlotType, StructureMap, TypeFact};
 use wustite::value::Value;
 use wustite::verifier;
 use wustite::wvm::Vm;
@@ -27,7 +27,10 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
     assert_eq!((region.header, region.backedge), (8, 14));
     assert!(matches!(
         executable.bytecode().code[region.header],
-        Instruction::LtI64 { .. }
+        Instruction::CompareOp {
+            op: CompareOperator::Lt,
+            ..
+        }
     ));
     assert!(matches!(
         executable.bytecode().code[region.backedge],
@@ -53,6 +56,18 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
             (6, SlotType::I64),
         ]
     );
+
+    let operation_sites = &executable.structure_map().operation_sites;
+    assert_eq!(operation_sites.len(), 3);
+    assert_eq!(operation_sites[0].pc, region.header);
+    assert_eq!(operation_sites[0].lhs, TypeFact::Exact(SlotType::I64));
+    assert_eq!(operation_sites[0].rhs, TypeFact::Exact(SlotType::I64));
+    assert_eq!(operation_sites[0].result, TypeFact::Exact(SlotType::Bool));
+    assert!(operation_sites[1..].iter().all(|site| {
+        site.lhs == TypeFact::Exact(SlotType::I64)
+            && site.rhs == TypeFact::Exact(SlotType::I64)
+            && site.result == TypeFact::Exact(SlotType::I64)
+    }));
 
     let mut interpreter = Vm::with_hot_threshold(u64::MAX);
     assert_eq!(
