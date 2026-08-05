@@ -25,6 +25,7 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
         },
         StructureMap {
             loops: lowerer.loops,
+            operation_sites: Vec::new(),
         },
     );
     verifier::verify(&executable).map_err(|error| {
