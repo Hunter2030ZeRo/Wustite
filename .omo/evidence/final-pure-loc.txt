@@ -1,0 +1,19 @@
+Final static-quickening production pure-LOC measurement
+
+Method: compare each plan-owned production source file with its matching
+`.omo/evidence/baseline/` snapshot using a zero-context diff after removing
+blank lines, comment-only lines, and trailing `#[cfg(test)]` modules. Count
+only added lines.
+
+  11 src/wvm.rs
+   7 src/wvm/arithmetic.rs
+   4 src/wvm/callables.rs
+   7 src/wvm/interpreter.rs
+ 158 src/wvm/quickening.rs
+
+total_added_pure_loc: 187
+limit: 250
+result: PASS
+
+The earlier executor measurement of 143 preceded the exhaustive public-ISA
+match rewrite. This file records the final implementation.

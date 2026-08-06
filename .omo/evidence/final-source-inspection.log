@@ -1,0 +1,23 @@
+quick dispatch locations:
+7:use super::quickening::{QuickOutcome, execute_quick};
+36:            if self.try_execute_region(executable, &mut frame, runtime) {
+40:                && execute_quick(instruction, &mut frame, &mut self.object_heap)?
+checked add promotion locations:
+src/wvm/quickening.rs:50:        QuickInstruction::Add { .. } => ValueOps::new(heap).smallint_add(lhs, rhs)?,
+src/wvm/arithmetic.rs:101:            (Number::Small(lhs), Number::Small(rhs)) => self.smallint_add(lhs, rhs),
+src/wvm/arithmetic.rs:108:    pub(super) fn smallint_add(&mut self, lhs: i64, rhs: i64) -> Result<Value, String> {
+src/wvm/arithmetic.rs:109:        match lhs.checked_add(rhs) {
+src/wvm/arithmetic.rs:111:            None => self.allocate_big(BigInt::from(lhs) + rhs),
+src/wvm/arithmetic.rs:247:    fn smallint_add_returns_immediate_when_in_range() {
+src/wvm/arithmetic.rs:251:        assert_eq!(ops.smallint_add(40, 2).unwrap(), Value::SmallInt(42));
+src/wvm/arithmetic.rs:252:        assert_eq!(ops.smallint_add(-40, -2).unwrap(), Value::SmallInt(-42));
+src/wvm/arithmetic.rs:256:    fn smallint_add_promotes_both_overflow_directions() {
+src/wvm/arithmetic.rs:258:        let upper = ValueOps::new(&mut heap).smallint_add(i64::MAX, 1).unwrap();
+src/wvm/arithmetic.rs:259:        let lower = ValueOps::new(&mut heap).smallint_add(i64::MIN, -1).unwrap();
+recursive sharing:
+src/wvm/callables.rs:83:        let quick_code = Arc::clone(&runtime.quick_code);
+src/wvm/callables.rs:84:        let placeholder = FunctionRuntime::recursive_placeholder(caller, quick_code);
+src/wvm.rs:56:        Self::with_quick_code(executable, Arc::new(QuickCode::new(executable)))
+src/wvm.rs:59:    fn recursive_placeholder(executable: &ExecutableFunction, quick_code: Arc<QuickCode>) -> Self {
+src/wvm.rs:296:            FunctionRuntime::recursive_placeholder(&first, Arc::clone(&active.quick_code));
+forbidden production surface:

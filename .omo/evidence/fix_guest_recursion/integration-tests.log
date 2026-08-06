@@ -1,0 +1,45 @@
+    Blocking waiting for file lock on build directory
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.82s
+     Running tests/call_depth.rs (target/debug/deps/call_depth-d17fe2492ef3aea1)
+
+running 3 tests
+test finite_nested_guest_calls_succeed_after_a_depth_limit_error ... ok
+test direct_guest_recursion_returns_an_execution_error_at_the_call_depth_limit ... ok
+test same_function_nested_activations_preserve_runtime_profile_updates ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/python_rich_values.rs (target/debug/deps/python_rich_values-20f66da074700519)
+
+running 10 tests
+test boolean_not_and_and_return_a_boolean_in_interpreter_mode ... ok
+test integer_division_returns_float_and_records_float_result_metadata ... ok
+test float_arithmetic_returns_a_float_in_interpreter_mode ... ok
+test bigint_annotations_accept_heap_objects_through_the_execution_abi ... ok
+test dictionary_literals_support_indexing_through_typed_arguments_in_interpreter_mode ... ok
+test closureless_function_values_can_be_called_through_typed_arguments_in_interpreter_mode ... ok
+test integers_beyond_i64_return_a_big_integer_object_in_interpreter_mode ... ok
+test tuple_literals_support_indexing_in_interpreter_mode ... ok
+test string_values_round_trip_through_a_typed_argument_in_interpreter_mode ... ok
+test list_literals_support_len_through_typed_arguments_in_interpreter_mode ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/runtime_api.rs (target/debug/deps/runtime_api-6a013e4e3c292a80)
+
+running 11 tests
+test runtime_value_conversion_rejects_uninitialized_values ... ok
+test execution_abi_rejects_wrong_arity ... ok
+test run_function_with_args_accepts_boolean_parameters ... ok
+test execution_abi_rejects_wrong_argument_type ... ok
+test typed_positional_arguments_cross_the_execution_abi ... ok
+test inspect_is_deterministic_and_has_no_runtime_side_effects ... ok
+test function_arguments_remain_live_across_native_region_execution ... ok
+test errors_preserve_frontend_locations_and_cached_executables ... ok
+test repeated_execute_and_clone_reuse_native_region ... ok
+test run_function_and_interpreter_mode_return_sum ... ok
+test different_executables_keep_independent_persistent_runtimes ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

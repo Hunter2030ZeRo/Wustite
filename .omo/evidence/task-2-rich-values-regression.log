@@ -1,0 +1,38 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+warning: enum `QuickInstruction` is never used
+ --> src/wvm/quickening.rs:6:17
+  |
+6 | pub(super) enum QuickInstruction {
+  |                 ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `QuickCode` is never constructed
+  --> src/wvm/quickening.rs:19:19
+   |
+19 | pub(super) struct QuickCode(Box<[Option<QuickInstruction>]>);
+   |                   ^^^^^^^^^
+
+warning: associated items `new`, `len`, and `get` are never used
+  --> src/wvm/quickening.rs:22:19
+   |
+21 | impl QuickCode {
+   | -------------- associated items in this implementation
+22 |     pub(super) fn new(executable: &ExecutableFunction) -> Self {
+   |                   ^^^
+...
+69 |     pub(super) fn len(&self) -> usize {
+   |                   ^^^
+...
+73 |     pub(super) fn get(&self, pc: usize) -> Option<QuickInstruction> {
+   |                   ^^^
+
+warning: `wustite` (lib) generated 3 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.94s
+     Running tests/rich_values.rs (target/debug/deps/rich_values-9332076efa859e61)
+
+running 1 test
+test smallint_overflow_promotes_to_bigint_for_following_arithmetic ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+

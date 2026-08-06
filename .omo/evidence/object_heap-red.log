@@ -1,0 +1,68 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+error[E0432]: unresolved import `wustite::object`
+ --> tests/object_heap.rs:2:14
+  |
+2 | use wustite::object::{Object, ObjectError, ObjectHeap, ObjectKind};
+  |              ^^^^^^ could not find `object` in `wustite`
+
+error[E0432]: unresolved import `num_bigint`
+ --> tests/object_heap.rs:1:5
+  |
+1 | use num_bigint::BigInt;
+  |     ^^^^^^^^^^ use of unresolved module or unlinked crate `num_bigint`
+  |
+  = help: if you wanted to use a crate named `num_bigint`, use `cargo add num_bigint` to add it to your `Cargo.toml`
+
+error[E0599]: no variant, associated function, or constant named `Object` found for enum `Value` in the current scope
+  --> tests/object_heap.rs:68:20
+   |
+68 |             Value::Object(child),
+   |                    ^^^^^^ variant, associated function, or constant not found in `Value`
+
+error[E0599]: no variant, associated function, or constant named `SmallInt` found for enum `Value` in the current scope
+  --> tests/object_heap.rs:69:20
+   |
+69 |             Value::SmallInt(7),
+   |                    ^^^^^^^^ variant, associated function, or constant not found in `Value`
+
+error[E0599]: no variant, associated function, or constant named `Object` found for enum `Value` in the current scope
+  --> tests/object_heap.rs:73:44
+   |
+73 |         .allocate(Object::List(vec![Value::Object(child)]))
+   |                                            ^^^^^^ variant, associated function, or constant not found in `Value`
+
+error[E0599]: no variant, associated function, or constant named `Object` found for enum `Value` in the current scope
+  --> tests/object_heap.rs:77:20
+   |
+77 |             Value::Object(child),
+   |                    ^^^^^^ variant, associated function, or constant not found in `Value`
+
+error[E0599]: no variant, associated function, or constant named `Object` found for enum `Value` in the current scope
+  --> tests/object_heap.rs:92:79
+   |
+92 |         matches!(tuple_value, Object::Tuple(values) if values == &vec![Value::Object(child), Value::SmallInt(7)])
+   |                                                                               ^^^^^^ variant, associated function, or constant not found in `Value`
+
+error[E0599]: no variant, associated function, or constant named `SmallInt` found for enum `Value` in the current scope
+  --> tests/object_heap.rs:92:101
+   |
+92 |         matches!(tuple_value, Object::Tuple(values) if values == &vec![Value::Object(child), Value::SmallInt(7)])
+   |                                                                                                     ^^^^^^^^ variant, associated function, or constant not found in `Value`
+
+error[E0599]: no variant, associated function, or constant named `Object` found for enum `Value` in the current scope
+  --> tests/object_heap.rs:94:81
+   |
+94 |     assert!(matches!(list_value, Object::List(values) if values == &vec![Value::Object(child)]));
+   |                                                                                 ^^^^^^ variant, associated function, or constant not found in `Value`
+
+error[E0599]: no variant, associated function, or constant named `Object` found for enum `Value` in the current scope
+  --> tests/object_heap.rs:96:80
+   |
+96 |         matches!(dict_value, Object::Dict(entries) if entries == &vec![(Value::Object(child), Value::Bool(true))])
+   |                                                                                ^^^^^^ variant, associated function, or constant not found in `Value`
+
+Some errors have detailed explanations: E0432, E0599.
+For more information about an error, try `rustc --explain E0432`.
+error: could not compile `wustite` (test "object_heap") due to 10 previous errors
+
+EXIT_STATUS=101

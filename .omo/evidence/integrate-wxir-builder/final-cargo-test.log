@@ -1,0 +1,301 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `HirExpressionKind` in the current scope
+   --> src/frontend/python/lower.rs:198:32
+    |
+198 |             HirExpressionKind::I64(value) => {
+    |                                ^^^ variant, associated function, or constant not found in `HirExpressionKind`
+    |
+   ::: src/frontend/python/hir.rs:35:1
+    |
+ 35 | pub(crate) enum HirExpressionKind {
+    | --------------------------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `Add` found for enum `HirExpressionKind` in the current scope
+   --> src/frontend/python/lower.rs:218:32
+    |
+218 |             HirExpressionKind::Add(lhs, rhs) => {
+    |                                ^^^ variant, associated function, or constant not found in `HirExpressionKind`
+    |
+   ::: src/frontend/python/hir.rs:35:1
+    |
+ 35 | pub(crate) enum HirExpressionKind {
+    | --------------------------------- variant, associated function, or constant `Add` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `SignedLt` found for enum `HirExpressionKind` in the current scope
+   --> src/frontend/python/lower.rs:241:32
+    |
+241 |             HirExpressionKind::SignedLt(lhs, rhs) => {
+    |                                ^^^^^^^^ variant, associated function, or constant not found in `HirExpressionKind`
+    |
+   ::: src/frontend/python/hir.rs:35:1
+    |
+ 35 | pub(crate) enum HirExpressionKind {
+    | --------------------------------- variant, associated function, or constant `SignedLt` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `structure_map::SlotType` in the current scope
+   --> src/frontend/python/lower.rs:201:36
+    |
+201 |                 Ok((dst, SlotType::I64))
+    |                                    ^^^ variant, associated function, or constant not found in `structure_map::SlotType`
+    |
+   ::: src/structure_map.rs:5:1
+    |
+  5 | pub enum SlotType {
+    | ----------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `structure_map::SlotType` in the current scope
+   --> src/frontend/python/lower.rs:221:52
+    |
+221 |                 self.expect_type(lhs_ty, SlotType::I64, expression, "addition operand")?;
+    |                                                    ^^^ variant, associated function, or constant not found in `structure_map::SlotType`
+    |
+   ::: src/structure_map.rs:5:1
+    |
+  5 | pub enum SlotType {
+    | ----------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `structure_map::SlotType` in the current scope
+   --> src/frontend/python/lower.rs:222:52
+    |
+222 |                 self.expect_type(rhs_ty, SlotType::I64, expression, "addition operand")?;
+    |                                                    ^^^ variant, associated function, or constant not found in `structure_map::SlotType`
+    |
+   ::: src/structure_map.rs:5:1
+    |
+  5 | pub enum SlotType {
+    | ----------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `structure_map::SlotType` in the current scope
+   --> src/frontend/python/lower.rs:229:31
+    |
+229 |                     SlotType::I64,
+    |                               ^^^ variant, associated function, or constant not found in `structure_map::SlotType`
+    |
+   ::: src/structure_map.rs:5:1
+    |
+  5 | pub enum SlotType {
+    | ----------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `structure_map::SlotType` in the current scope
+   --> src/frontend/python/lower.rs:239:36
+    |
+239 |                 Ok((dst, SlotType::I64))
+    |                                    ^^^ variant, associated function, or constant not found in `structure_map::SlotType`
+    |
+   ::: src/structure_map.rs:5:1
+    |
+  5 | pub enum SlotType {
+    | ----------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `structure_map::SlotType` in the current scope
+   --> src/frontend/python/lower.rs:244:52
+    |
+244 |                 self.expect_type(lhs_ty, SlotType::I64, expression, "comparison operand")?;
+    |                                                    ^^^ variant, associated function, or constant not found in `structure_map::SlotType`
+    |
+   ::: src/structure_map.rs:5:1
+    |
+  5 | pub enum SlotType {
+    | ----------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `structure_map::SlotType` in the current scope
+   --> src/frontend/python/lower.rs:245:52
+    |
+245 |                 self.expect_type(rhs_ty, SlotType::I64, expression, "comparison operand")?;
+    |                                                    ^^^ variant, associated function, or constant not found in `structure_map::SlotType`
+    |
+   ::: src/structure_map.rs:5:1
+    |
+  5 | pub enum SlotType {
+    | ----------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/jit/compiled_region.rs:148:52
+    |
+148 |         (WxType::Scalar(WxScalarType::I64), Value::I64(value)) => Ok(value as u64),
+    |                                                    ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/jit/compiled_region.rs:160:58
+    |
+160 |         WxType::Scalar(WxScalarType::I64) => Some(Value::I64(word as i64)),
+    |                                                          ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/jit/compiled_region.rs:167:16
+    |
+167 |         Value::I64(_) => "i64",
+    |                ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no method named `allocate_object` found for struct `Vm` in the current scope
+   --> src/runtime.rs:138:14
+    |
+137 | /         self.vm
+138 | |             .allocate_object(object)
+    | |             -^^^^^^^^^^^^^^^ method not found in `Vm`
+    | |_____________|
+    |
+    |
+   ::: src/wvm.rs:24:1
+    |
+ 24 |   pub struct Vm {
+    |   ------------- method `allocate_object` not found for this struct
+
+error[E0599]: no method named `object` found for struct `Vm` in the current scope
+   --> src/runtime.rs:144:17
+    |
+144 |         self.vm.object(reference).map_err(RuntimeError::Object)
+    |                 ^^^^^^ method not found in `Vm`
+    |
+   ::: src/wvm.rs:24:1
+    |
+ 24 | pub struct Vm {
+    | ------------- method `object` not found for this struct
+
+error[E0599]: no method named `object_kind` found for struct `Vm` in the current scope
+   --> src/runtime.rs:149:17
+    |
+149 |         self.vm.object_kind(reference).map_err(RuntimeError::Object)
+    |                 ^^^^^^^^^^^ method not found in `Vm`
+    |
+   ::: src/wvm.rs:24:1
+    |
+ 24 | pub struct Vm {
+    | ------------- method `object_kind` not found for this struct
+
+error[E0061]: this function takes 3 arguments but 2 arguments were supplied
+   --> src/wvm.rs:170:25
+    |
+170 |         let registers = arguments::initialize_registers(executable, function_arguments)?;
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-------------------------------- argument #3 of type `&ObjectHeap` is missing
+    |
+note: function defined here
+   --> src/wvm/arguments.rs:6:15
+    |
+  6 | pub(crate) fn initialize_registers(
+    |               ^^^^^^^^^^^^^^^^^^^^
+...
+  9 |     heap: &ObjectHeap,
+    |     -----------------
+help: provide the argument
+    |
+170 |         let registers = arguments::initialize_registers(executable, function_arguments, /* &ObjectHeap */)?;
+    |                                                                                       +++++++++++++++++++
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:209:61
+    |
+209 |                     write_register(&mut frame, *dst, Value::I64(*value))?;
+    |                                                             ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:241:61
+    |
+241 |                     write_register(&mut frame, *dst, Value::I64(result))?;
+    |                                                             ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:410:38
+    |
+410 |         (BinaryOperator::Add, Value::I64(lhs), Value::I64(rhs)) => lhs
+    |                                      ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:410:55
+    |
+410 |         (BinaryOperator::Add, Value::I64(lhs), Value::I64(rhs)) => lhs
+    |                                                       ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:412:25
+    |
+412 |             .map(Value::I64)
+    |                         ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:424:38
+    |
+424 |         (CompareOperator::Lt, Value::I64(lhs), Value::I64(rhs)) => Ok(Value::Bool(lhs < rhs)),
+    |                                      ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:424:55
+    |
+424 |         (CompareOperator::Lt, Value::I64(lhs), Value::I64(rhs)) => Ok(Value::Bool(lhs < rhs)),
+    |                                                       ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:435:16
+    |
+435 |         Value::I64(_) => "i64",
+    |                ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+error[E0599]: no variant, associated function, or constant named `I64` found for enum `value::Value` in the current scope
+   --> src/wvm.rs:461:16
+    |
+461 |         Value::I64(value) => Ok(value),
+    |                ^^^ variant, associated function, or constant not found in `value::Value`
+    |
+   ::: src/value.rs:5:1
+    |
+  5 | pub enum Value {
+    | -------------- variant, associated function, or constant `I64` not found for this enum
+
+Some errors have detailed explanations: E0061, E0599.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `wustite` (lib) due to 26 previous errors

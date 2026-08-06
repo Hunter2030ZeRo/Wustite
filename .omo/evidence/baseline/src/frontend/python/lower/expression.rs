@@ -1,0 +1,235 @@
+use crate::bytecode::{Instruction, Register, UnaryOperator};
+use crate::executable::{ConstantId, ExecutableConstant};
+use crate::object::ObjectKind;
+use crate::structure_map::{OperationSite, OperationSiteId, SlotType, TypeFact};
+
+use super::Lowerer;
+use crate::frontend::python::PythonFrontendError;
+use crate::frontend::python::hir::{HirExpression, HirExpressionKind};
+
+impl Lowerer {
+    pub(super) fn lower_expression(
+        &mut self,
+        expression: &HirExpression,
+    ) -> Result<(Register, SlotType), PythonFrontendError> {
+        match &expression.kind {
+            HirExpressionKind::SmallInt(value) => {
+                let dst = self.allocate_register(expression.location)?;
+                self.code
+                    .push(Instruction::ConstSmallInt { dst, value: *value });
+                Ok((dst, SlotType::SmallInt))
+            }
+            HirExpressionKind::Float(value) => {
+                let dst = self.allocate_register(expression.location)?;
+                self.code
+                    .push(Instruction::ConstFloat { dst, value: *value });
+                Ok((dst, SlotType::Float))
+            }
+            HirExpressionKind::Bool(value) => {
+                let dst = self.allocate_register(expression.location)?;
+                self.code
+                    .push(Instruction::ConstBool { dst, value: *value });
+                Ok((dst, SlotType::Bool))
+            }
+            HirExpressionKind::String(value) => self.lower_constant(
+                ExecutableConstant::String(value.clone()),
+                SlotType::Object(ObjectKind::String),
+                expression,
+            ),
+            HirExpressionKind::BigInt(value) => self.lower_constant(
+                ExecutableConstant::BigInt(value.clone()),
+                SlotType::Object(ObjectKind::BigInt),
+                expression,
+            ),
+            HirExpressionKind::Function(function) => self.lower_constant(
+                ExecutableConstant::Function(function.clone()),
+                SlotType::Object(ObjectKind::Function),
+                expression,
+            ),
+            HirExpressionKind::CurrentFunction => {
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::LoadCurrentFunction { dst });
+                Ok((dst, SlotType::Object(ObjectKind::Function)))
+            }
+            HirExpressionKind::Name(name) => self.lower_name(name, expression),
+            HirExpressionKind::Unary { op, operand } => {
+                let (src, ty) = self.lower_expression(operand)?;
+                let result_ty = match op {
+                    UnaryOperator::Negate => ty,
+                    UnaryOperator::Not => {
+                        self.expect_type(ty, SlotType::Bool, operand, "not operand")?;
+                        SlotType::Bool
+                    }
+                };
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::UnaryOp { dst, op: *op, src });
+                Ok((dst, result_ty))
+            }
+            HirExpressionKind::Binary { op, lhs, rhs } => {
+                let (lhs_register, lhs_ty) = self.lower_expression(lhs)?;
+                let (rhs_register, rhs_ty) = self.lower_expression(rhs)?;
+                let result_ty = binary_result_type(*op, lhs_ty, rhs_ty);
+                let dst = self.allocate_register(expression.location)?;
+                let site = self.record_operation_site(lhs_ty, rhs_ty, result_ty, expression)?;
+                self.code.push(Instruction::BinaryOp {
+                    dst,
+                    op: *op,
+                    lhs: lhs_register,
+                    rhs: rhs_register,
+                    site,
+                });
+                Ok((dst, result_ty))
+            }
+            HirExpressionKind::Compare { op, lhs, rhs } => {
+                let (lhs_register, lhs_ty) = self.lower_expression(lhs)?;
+                let (rhs_register, rhs_ty) = self.lower_expression(rhs)?;
+                let dst = self.allocate_register(expression.location)?;
+                let site =
+                    self.record_operation_site(lhs_ty, rhs_ty, SlotType::Bool, expression)?;
+                self.code.push(Instruction::CompareOp {
+                    dst,
+                    op: *op,
+                    lhs: lhs_register,
+                    rhs: rhs_register,
+                    site,
+                });
+                Ok((dst, SlotType::Bool))
+            }
+            HirExpressionKind::Boolean { op, values } => {
+                self.lower_boolean(*op, values, expression)
+            }
+            HirExpressionKind::Tuple(items) => self.lower_collection(items, expression, true),
+            HirExpressionKind::List(items) => self.lower_collection(items, expression, false),
+            HirExpressionKind::Dict(entries) => self.lower_dict(entries, expression),
+            HirExpressionKind::GetItem { object, key } => {
+                let (object, _) = self.lower_expression(object)?;
+                let (key, _) = self.lower_expression(key)?;
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::GetItem { dst, object, key });
+                Ok((dst, SlotType::Any))
+            }
+            HirExpressionKind::Length(object) => {
+                let (object, _) = self.lower_expression(object)?;
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::Length { dst, object });
+                Ok((dst, SlotType::SmallInt))
+            }
+            HirExpressionKind::Call { callable, args } => {
+                let (callable, _) = self.lower_expression(callable)?;
+                let args = self.lower_registers(args)?;
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::Call {
+                    dst,
+                    callable,
+                    args,
+                });
+                Ok((dst, SlotType::Any))
+            }
+        }
+    }
+
+    fn lower_constant(
+        &mut self,
+        constant: ExecutableConstant,
+        ty: SlotType,
+        expression: &HirExpression,
+    ) -> Result<(Register, SlotType), PythonFrontendError> {
+        let constant_id = ConstantId(self.constants.len());
+        self.constants.push(constant);
+        let dst = self.allocate_register(expression.location)?;
+        self.code.push(Instruction::LoadConstant {
+            dst,
+            constant: constant_id,
+        });
+        Ok((dst, ty))
+    }
+
+    fn lower_name(
+        &self,
+        name: &str,
+        expression: &HirExpression,
+    ) -> Result<(Register, SlotType), PythonFrontendError> {
+        let variable = self.variables.get(name).copied().ok_or_else(|| {
+            PythonFrontendError::new(
+                format!("name `{name}` is not initialized"),
+                Some(expression.location),
+            )
+        })?;
+        let ty = variable.ty.ok_or_else(|| {
+            PythonFrontendError::new(
+                format!("name `{name}` is used before assignment"),
+                Some(expression.location),
+            )
+        })?;
+        Ok((variable.register, ty))
+    }
+
+    fn record_operation_site(
+        &mut self,
+        lhs: SlotType,
+        rhs: SlotType,
+        result: SlotType,
+        expression: &HirExpression,
+    ) -> Result<OperationSiteId, PythonFrontendError> {
+        let id = u32::try_from(self.operation_sites.len()).map_err(|_| {
+            PythonFrontendError::new(
+                "function contains too many semantic operation sites",
+                Some(expression.location),
+            )
+        })?;
+        self.operation_sites.push(OperationSite {
+            pc: self.code.len(),
+            lhs: type_fact(lhs),
+            rhs: type_fact(rhs),
+            result: type_fact(result),
+        });
+        Ok(OperationSiteId(id))
+    }
+}
+
+fn type_fact(ty: SlotType) -> TypeFact {
+    if ty == SlotType::Any {
+        TypeFact::Unknown
+    } else {
+        TypeFact::Exact(ty)
+    }
+}
+
+fn binary_result_type(
+    op: crate::bytecode::BinaryOperator,
+    lhs: SlotType,
+    rhs: SlotType,
+) -> SlotType {
+    if is_numeric(lhs) && is_numeric(rhs) {
+        if op == crate::bytecode::BinaryOperator::Divide
+            || lhs == SlotType::Float
+            || rhs == SlotType::Float
+        {
+            SlotType::Float
+        } else if lhs == SlotType::Object(ObjectKind::BigInt)
+            || rhs == SlotType::Object(ObjectKind::BigInt)
+        {
+            SlotType::Object(ObjectKind::BigInt)
+        } else {
+            SlotType::SmallInt
+        }
+    } else if op == crate::bytecode::BinaryOperator::Add && lhs == rhs && is_sequence(lhs) {
+        lhs
+    } else {
+        SlotType::Any
+    }
+}
+
+const fn is_numeric(ty: SlotType) -> bool {
+    matches!(
+        ty,
+        SlotType::SmallInt | SlotType::Float | SlotType::Object(ObjectKind::BigInt)
+    )
+}
+
+const fn is_sequence(ty: SlotType) -> bool {
+    matches!(
+        ty,
+        SlotType::Object(ObjectKind::String | ObjectKind::Tuple | ObjectKind::List)
+    )
+}

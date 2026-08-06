@@ -1,5 +1,5 @@
 use wustite::bytecode::{Function, Instruction};
-use wustite::executable::ExecutableFunction;
+use wustite::executable::{ExecutableFunction, ExecutableParameter};
 use wustite::planner::{JitPlan, select_hot_loop};
 use wustite::structure_map::{LiveSlot, LoopRegion, RegionExit, RegionId, SlotType, StructureMap};
 use wustite::wvm::Vm;
@@ -49,19 +49,19 @@ fn sum_function() -> ExecutableFunction {
                 live_slots: vec![
                     LiveSlot {
                         register: 0,
-                        ty: SlotType::I64,
+                        ty: SlotType::SmallInt,
                     },
                     LiveSlot {
                         register: 1,
-                        ty: SlotType::I64,
+                        ty: SlotType::SmallInt,
                     },
                     LiveSlot {
                         register: 2,
-                        ty: SlotType::I64,
+                        ty: SlotType::SmallInt,
                     },
                     LiveSlot {
                         register: 3,
-                        ty: SlotType::I64,
+                        ty: SlotType::SmallInt,
                     },
                 ],
             }],
@@ -204,7 +204,7 @@ fn sum_region_lowers_to_verified_ssa() {
 
 #[test]
 fn return_inside_region_is_rejected_without_panicking() {
-    let executable = ExecutableFunction::new(
+    let executable = ExecutableFunction::new_with_parameters(
         Function {
             register_count: 1,
             code: vec![
@@ -219,11 +219,16 @@ fn return_inside_region_is_rejected_without_panicking() {
                 exits: vec![],
                 live_slots: vec![LiveSlot {
                     register: 0,
-                    ty: SlotType::I64,
+                    ty: SlotType::SmallInt,
                 }],
             }],
             operation_sites: vec![],
         },
+        vec![ExecutableParameter {
+            name: "value".to_owned(),
+            register: 0,
+            ty: SlotType::SmallInt,
+        }],
     );
     let plan = JitPlan {
         region_id: RegionId(0),

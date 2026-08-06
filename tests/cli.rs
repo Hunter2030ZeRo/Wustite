@@ -31,6 +31,7 @@ fn help_describes_commands_and_options() {
     let run_help = stdout(&run);
     for option in [
         "--function",
+        "--arg",
         "--repeat",
         "--interpreter",
         "--hot-threshold",
@@ -45,6 +46,67 @@ fn help_describes_commands_and_options() {
     let inspect_help = stdout(&inspect);
     assert!(inspect_help.contains("--function"));
     assert!(inspect_help.contains("--json"));
+}
+
+#[test]
+fn run_passes_typed_arguments_to_the_selected_function() {
+    // Given: a Python function with two typed positional parameters.
+    // When: both values are supplied as repeatable CLI arguments.
+    let output = run_cli(&[
+        "run",
+        "examples/add.py",
+        "--function",
+        "add",
+        "--arg",
+        "20",
+        "--arg",
+        "22",
+    ]);
+
+    // Then: the process prints the value returned through the execution ABI.
+    assert!(output.status.success());
+    assert_eq!(stdout(&output).trim(), "42");
+    assert!(stderr(&output).is_empty());
+}
+
+#[test]
+fn run_parses_rich_scalar_and_object_arguments_from_function_metadata() {
+    // Given: functions annotated with each CLI-supported rich argument type.
+    let cases = [
+        ("float_echo", "2.5", "float", Some(serde_json::json!(2.5))),
+        ("bool_echo", "true", "bool", Some(serde_json::json!(true))),
+        ("string_echo", "wustite", "object", None),
+        ("bigint_echo", "9223372036854775808", "object", None),
+    ];
+
+    for (function, argument, expected_type, expected_value) in cases {
+        // When: the annotated value is supplied without a separate CLI type flag.
+        let output = run_cli(&[
+            "run",
+            "tests/fixtures/rich_arguments.py",
+            "--function",
+            function,
+            "--arg",
+            argument,
+            "--interpreter",
+            "--json",
+        ]);
+
+        // Then: metadata selects the parser and the result retains its runtime type.
+        assert!(output.status.success(), "{}", stderr(&output));
+        let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(document["runs"][0]["value"]["type"], expected_type);
+        if let Some(expected_value) = expected_value {
+            assert_eq!(document["runs"][0]["value"]["value"], expected_value);
+        } else {
+            let expected_kind = if function == "string_echo" {
+                "string"
+            } else {
+                "big_int"
+            };
+            assert_eq!(document["runs"][0]["value"]["value"]["kind"], expected_kind);
+        }
+    }
 }
 
 #[test]
@@ -108,7 +170,7 @@ fn json_run_is_one_typed_document_with_jit_snapshots() {
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(document["execution_mode"], "adaptive_jit");
     assert_eq!(document["runs"].as_array().unwrap().len(), 2);
-    assert_eq!(document["runs"][0]["value"]["type"], "i64");
+    assert_eq!(document["runs"][0]["value"]["type"], "small_int");
     assert_eq!(document["runs"][0]["value"]["value"], 5050);
     assert_eq!(document["runs"][1]["jit"]["compilation_attempts"], 0);
     assert_eq!(document["runs"][1]["jit"]["compiled_regions"], 0);
@@ -132,8 +194,8 @@ fn inspect_human_output_uses_runtime_metadata() {
         "Header: 8",
         "Backedge: 14",
         "Exits: 15",
-        "r0: i64",
-        "r6: i64",
+        "r0: small_int",
+        "r6: small_int",
     ] {
         assert!(text.contains(expected));
     }
@@ -154,7 +216,7 @@ fn inspect_json_contains_the_same_structured_metadata() {
     assert_eq!(document["regions"][0]["backedge"], 14);
     assert_eq!(document["regions"][0]["exits"][0], 15);
     assert_eq!(document["regions"][0]["live_slots"][0]["register"], 0);
-    assert_eq!(document["regions"][0]["live_slots"][0]["type"], "i64");
+    assert_eq!(document["regions"][0]["live_slots"][0]["type"], "small_int");
 }
 
 #[test]

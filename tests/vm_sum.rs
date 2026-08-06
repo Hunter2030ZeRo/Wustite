@@ -41,19 +41,19 @@ fn sum_function() -> executable::ExecutableFunction {
                 live_slots: vec![
                     structure_map::LiveSlot {
                         register: 0,
-                        ty: structure_map::SlotType::I64,
+                        ty: structure_map::SlotType::SmallInt,
                     },
                     structure_map::LiveSlot {
                         register: 1,
-                        ty: structure_map::SlotType::I64,
+                        ty: structure_map::SlotType::SmallInt,
                     },
                     structure_map::LiveSlot {
                         register: 2,
-                        ty: structure_map::SlotType::I64,
+                        ty: structure_map::SlotType::SmallInt,
                     },
                     structure_map::LiveSlot {
                         register: 3,
-                        ty: structure_map::SlotType::I64,
+                        ty: structure_map::SlotType::SmallInt,
                     },
                 ],
             }],
@@ -91,7 +91,7 @@ fn sum_one_to_one_hundred() {
     assert_eq!(plan.region_id, structure_map::RegionId(0));
     assert_eq!(hot_loop.header, 4);
     assert_eq!(profile.entry_count(structure_map::RegionId(0)), 101);
-    assert_eq!(result.value, value::Value::I64(5050));
+    assert_eq!(result.value, value::Value::SmallInt(5050));
     assert_eq!(profile.entry_count(structure_map::RegionId(0)), 101);
 }
 
@@ -108,11 +108,14 @@ fn executable_revisions_have_independent_identity_and_runtime_state() {
 
     assert_eq!(
         vm.execute(&function).unwrap().value,
-        value::Value::I64(5050)
+        value::Value::SmallInt(5050)
     );
     assert_eq!(vm.jit_report().compiled_regions, 1);
 
-    assert_eq!(vm.execute(&revised).unwrap().value, value::Value::I64(100));
+    assert_eq!(
+        vm.execute(&revised).unwrap().value,
+        value::Value::SmallInt(100)
+    );
     assert_eq!(vm.jit_report().compilation_attempts, 1);
     assert_eq!(vm.jit_report().compiled_regions, 1);
     assert_eq!(

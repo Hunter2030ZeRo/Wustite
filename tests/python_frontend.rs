@@ -50,34 +50,37 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
             .map(|slot| (slot.register, slot.ty))
             .collect::<Vec<_>>(),
         vec![
-            (0, SlotType::I64),
-            (2, SlotType::I64),
-            (4, SlotType::I64),
-            (6, SlotType::I64),
+            (0, SlotType::SmallInt),
+            (2, SlotType::SmallInt),
+            (4, SlotType::SmallInt),
+            (6, SlotType::SmallInt),
         ]
     );
 
     let operation_sites = &executable.structure_map().operation_sites;
     assert_eq!(operation_sites.len(), 3);
     assert_eq!(operation_sites[0].pc, region.header);
-    assert_eq!(operation_sites[0].lhs, TypeFact::Exact(SlotType::I64));
-    assert_eq!(operation_sites[0].rhs, TypeFact::Exact(SlotType::I64));
+    assert_eq!(operation_sites[0].lhs, TypeFact::Exact(SlotType::SmallInt));
+    assert_eq!(operation_sites[0].rhs, TypeFact::Exact(SlotType::SmallInt));
     assert_eq!(operation_sites[0].result, TypeFact::Exact(SlotType::Bool));
     assert!(operation_sites[1..].iter().all(|site| {
-        site.lhs == TypeFact::Exact(SlotType::I64)
-            && site.rhs == TypeFact::Exact(SlotType::I64)
-            && site.result == TypeFact::Exact(SlotType::I64)
+        site.lhs == TypeFact::Exact(SlotType::SmallInt)
+            && site.rhs == TypeFact::Exact(SlotType::SmallInt)
+            && site.result == TypeFact::Exact(SlotType::SmallInt)
     }));
 
     let mut interpreter = Vm::with_hot_threshold(u64::MAX);
     assert_eq!(
         interpreter.execute(&executable).unwrap().value,
-        Value::I64(5050)
+        Value::SmallInt(5050)
     );
     assert_eq!(interpreter.jit_report().compilation_attempts, 0);
 
     let mut tiered = Vm::with_hot_threshold(10);
-    assert_eq!(tiered.execute(&executable).unwrap().value, Value::I64(5050));
+    assert_eq!(
+        tiered.execute(&executable).unwrap().value,
+        Value::SmallInt(5050)
+    );
     assert_eq!(tiered.jit_report().compilation_attempts, 1);
     assert_eq!(tiered.jit_report().compiled_regions, 1);
     assert_eq!(tiered.jit_report().native_executions, 1);
@@ -88,7 +91,10 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
 
     // The same VM retains the compiled region and profile for subsequent
     // executions of the same executable object.
-    assert_eq!(tiered.execute(&executable).unwrap().value, Value::I64(5050));
+    assert_eq!(
+        tiered.execute(&executable).unwrap().value,
+        Value::SmallInt(5050)
+    );
     assert_eq!(tiered.jit_report().compilation_attempts, 0);
     assert_eq!(tiered.jit_report().compiled_regions, 0);
     assert_eq!(tiered.jit_report().native_executions, 1);
@@ -142,7 +148,7 @@ fn move_copies_values_and_verifier_checks_both_registers() {
             .execute(&executable)
             .unwrap()
             .value,
-        Value::I64(42)
+        Value::SmallInt(42)
     );
 
     for instruction in [

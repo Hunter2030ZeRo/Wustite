@@ -1,0 +1,114 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.97s
+     Running unittests src/lib.rs (target/debug/deps/wustite-3e2fb775a82db8bc)
+
+running 1 test
+test wvm::equality::tests::identical_stale_object_references_are_validated_before_equality ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/wustite-d151043baad48140)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/call_depth.rs (target/debug/deps/call_depth-d17fe2492ef3aea1)
+
+running 3 tests
+test direct_guest_recursion_returns_an_execution_error_at_the_call_depth_limit ... ok
+test finite_nested_guest_calls_succeed_after_a_depth_limit_error ... ok
+test same_function_nested_activations_preserve_runtime_profile_updates ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cli.rs (target/debug/deps/cli-113a2042a94dea91)
+
+running 9 tests
+test run_passes_typed_arguments_to_the_selected_function ... ok
+test inspect_json_contains_the_same_structured_metadata ... ok
+test interpreter_mode_never_tiers_up ... ok
+test inspect_human_output_uses_runtime_metadata ... ok
+test basic_run_prints_only_the_result ... ok
+test help_describes_commands_and_options ... ok
+test repeated_run_reuses_compiled_region_and_traces_to_stderr ... ok
+test json_run_is_one_typed_document_with_jit_snapshots ... ok
+test operational_and_usage_errors_use_the_expected_streams_and_codes ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/jit_add.rs (target/debug/deps/jit_add-ec6b78110b857757)
+
+running 1 test
+test jit_compiles_and_executes_add ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/jit_region.rs (target/debug/deps/jit_region-bada7b9857e513c2)
+
+running 8 tests
+test backend_rejects_unsupported_f64_state ... ok
+test high_threshold_keeps_sum_interpreter_only ... ok
+test invalid_region_metadata_is_disabled_after_one_attempt ... ok
+test compiled_overflow_exits_before_updating_destination ... ok
+test vm_suppresses_cached_region_for_object_entry_without_disabling_it ... ok
+test vm_replays_synthetic_overflow_exit_in_interpreter ... ok
+test compiled_sum_region_restores_live_state_and_resume_pc ... ok
+test vm_automatically_tiers_up_sum_once ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/metrics.rs (target/debug/deps/metrics-e651b16e4577dca9)
+
+running 1 test
+test measured_execution_preserves_jit_reuse ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/numeric_semantics.rs (target/debug/deps/numeric_semantics-f732bad7517c4d58)
+
+running 8 tests
+test huge_bigint_divided_by_one_returns_a_controlled_error ... ok
+test huge_bigint_plus_float_returns_a_controlled_error ... ok
+test huge_bigint_divided_by_itself_is_one ... ok
+test distinct_self_referential_dicts_compare_without_recursing_forever ... ok
+test distinct_self_referential_lists_compare_without_recursing_forever ... ok
+test mixed_bigint_and_float_equality_is_exact_beyond_f64_integer_precision ... ok
+test mixed_bigint_and_float_ordering_is_exact_beyond_f64_integer_precision ... ok
+test numerically_distinct_bigint_and_float_remain_distinct_dict_keys ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/object_heap.rs (target/debug/deps/object_heap-a4c32b12ce6004e9)
+
+running 4 tests
+test allocation_returns_a_readable_handle_and_kind ... ok
+test handles_cannot_be_used_with_a_different_heap ... ok
+test stale_handles_are_rejected_after_remove_and_slot_reuse ... ok
+test object_kinds_and_containers_preserve_nested_references ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/object_invariants.rs (target/debug/deps/object_invariants-0072316a9bab0e16)
+
+running 4 tests
+test containers_reject_uninitialized_values_and_unhashable_dictionary_keys ... ok
+test containers_reject_foreign_and_stale_nested_references ... ok
+test runtime_rejects_host_created_dictionaries_before_runtime_normalization ... ok
+test bigint_sequence_indices_support_negative_indexing_and_range_errors ... FAILED
+
+failures:
+
+---- bigint_sequence_indices_support_negative_indexing_and_range_errors stdout ----
+
+thread 'bigint_sequence_indices_support_negative_indexing_and_range_errors' (72341) panicked at tests/object_invariants.rs:135:31:
+called `Result::unwrap()` on an `Err` value: "sequence index must be a SmallInt"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    bigint_sequence_indices_support_negative_indexing_and_range_errors
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test object_invariants`

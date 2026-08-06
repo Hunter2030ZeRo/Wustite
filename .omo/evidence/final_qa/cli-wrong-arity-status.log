@@ -1,0 +1,2 @@
+error: function expects 2 positional argument(s), but 1 were provided
+exit=1

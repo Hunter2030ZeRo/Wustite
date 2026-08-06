@@ -1,0 +1,11 @@
+    Blocking waiting for file lock on build directory
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.08s
+     Running tests/call_depth.rs (target/debug/deps/call_depth-d17fe2492ef3aea1)
+
+running 2 tests
+test direct_guest_recursion_returns_an_execution_error_at_the_call_depth_limit ... ok
+test finite_nested_guest_calls_succeed_after_a_depth_limit_error ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,40 @@
+Invocation: taskset -c 1 cargo test --release --test static_quickening -- --nocapture
+Result: PASS (3 passed, 0 failed)
+  exact_add_and_lt_execute_without_mutating_semantic_bytecode ... ok
+  semantic_jit_replay_promotes_then_falls_back_for_bigint ... ok
+  unknown_unsupported_and_runtime_mismatch_use_semantic_behavior ... ok
+
+Invocation: taskset -c 1 cargo test --release quickening:: -- --nocapture
+Result: PASS (4 passed, 0 failed; quick-code construction and execution unit tests)
+  quick_code_builds_only_exact_add_and_lt ... ok
+  quick_code_preserves_unknown_mismatched_and_unsupported_sites ... ok
+  quick_execution_guard_miss_is_side_effect_free ... ok
+  quick_execution_handles_exact_smallints_and_aliases ... ok
+
+Invocation: taskset -c 1 cargo test --release --test rich_values smallint_overflow_promotes_to_bigint_for_following_arithmetic -- --nocapture
+Result: PASS (1 passed, 0 failed)
+  smallint_overflow_promotes_to_bigint_for_following_arithmetic ... ok
+
+Invocation: taskset -c 1 cargo test --release --test jit_region -- --nocapture
+Result: PASS (8 passed, 0 failed)
+  backend_rejects_unsupported_f64_state ... ok
+  compiled_overflow_exits_before_updating_destination ... ok
+  compiled_sum_region_restores_live_state_and_resume_pc ... ok
+  high_threshold_keeps_sum_interpreter_only ... ok
+  invalid_region_metadata_is_disabled_after_one_attempt ... ok
+  vm_automatically_tiers_up_sum_once ... ok
+  vm_replays_synthetic_overflow_exit_in_interpreter ... ok
+  vm_suppresses_cached_region_for_object_entry_without_disabling_it ... ok
+
+Invocation: taskset -c 1 cargo test --release --test jit_add -- --nocapture
+Result: PASS (1 passed, 0 failed)
+  jit_compiles_and_executes_add ... ok
+
+Invocation: taskset -c 1 target/release/wustite run examples/sum_large.py --interpreter --json
+Result: PASS; returned small_int 500000500000; JIT compilation_attempts=0, compiled_regions=0, native_executions=0.
+
+Invocation: taskset -c 1 target/release/wustite run examples/sum_large.py --hot-threshold 10 --repeat 2 --json
+Result: PASS; both runs returned small_int 500000500000; first run compiled/native-executed one region, second reused native region; no failures.
+
+Invocation: if nm -C target/release/wustite | rg 'execute_quick'; then echo present; else echo 'execute_quick symbol absent'; fi
+Result: PASS; output was `execute_quick symbol absent`.

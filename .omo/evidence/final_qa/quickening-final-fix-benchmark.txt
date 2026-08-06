@@ -1,0 +1,30 @@
+Surface: release CLI benchmark, CPU affinity pinned to CPU 1.
+Invocation: taskset -c 1 target/release/wustite bench examples/sum_large.py --warmup 50 --iterations 500 --hot-threshold 10
+
+Benchmark: examples/sum_large.py
+Function: main
+Warmup runs: 50
+Measured iterations: 500
+Hot threshold: 10
+Frontend compilation: 141.469 μs
+
+Interpreter:
+  Median: 38.723 ms
+  P95:    41.564 ms
+  Min:    37.478 ms
+  Max:    48.483 ms
+
+Adaptive JIT cold:
+  Time: 1.235 ms
+  Compilation attempts: 1
+  Compiled regions: 1
+  Native executions: 1
+
+Adaptive JIT warm:
+  Median: 724.335 μs
+  P95:    759.574 μs
+  Min:    650.889 μs
+  Max:    803.617 μs
+
+Warm speedup: 53.46x
+Estimated break-even: 1 invocation(s)

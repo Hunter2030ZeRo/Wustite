@@ -1,0 +1,58 @@
+warning: field `0` is never read
+  --> src/wvm/quickening.rs:24:29
+   |
+24 | pub(super) struct QuickCode(Box<[Option<QuickInstruction>]>);
+   |                   --------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                   |
+   |                   field in this struct
+   |
+   = help: consider removing this field
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `QuickOutcome` is never used
+  --> src/wvm/quickening.rs:27:17
+   |
+27 | pub(super) enum QuickOutcome {
+   |                 ^^^^^^^^^^^^
+
+warning: function `execute_quick` is never used
+  --> src/wvm/quickening.rs:32:15
+   |
+32 | pub(super) fn execute_quick(
+   |               ^^^^^^^^^^^^^
+
+warning: methods `len` and `get` are never used
+   --> src/wvm/quickening.rs:105:19
+    |
+ 57 | impl QuickCode {
+    | -------------- methods in this implementation
+...
+105 |     pub(super) fn len(&self) -> usize {
+    |                   ^^^
+...
+109 |     pub(super) fn get(&self, pc: usize) -> Option<QuickInstruction> {
+    |                   ^^^
+
+warning: `wustite` (lib) generated 4 warnings
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.89s
+     Running tests/static_quickening.rs (target/debug/deps/static_quickening-5ffc302fef93ba7d)
+
+running 1 test
+test exact_add_and_lt_execute_without_mutating_semantic_bytecode ... FAILED
+
+failures:
+
+---- exact_add_and_lt_execute_without_mutating_semantic_bytecode stdout ----
+
+thread 'exact_add_and_lt_execute_without_mutating_semantic_bytecode' (97) panicked at tests/static_quickening.rs:142:5:
+red-first sentinel: post-JIT quick dispatch is not wired yet
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    exact_add_and_lt_execute_without_mutating_semantic_bytecode
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test static_quickening`

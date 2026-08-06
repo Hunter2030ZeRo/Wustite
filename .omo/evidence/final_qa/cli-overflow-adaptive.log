@@ -1,0 +1,2 @@
+object(kind=big_int, heap_id=1, slot=0, generation=0)
+run 1: compilation_attempts=1 compiled_regions=1 disabled_regions=0 native_executions=1 last_resume_pc=8 last_exit_kind=replay_instruction

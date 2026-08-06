@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (target/debug/deps/wustite-3e2fb775a82db8bc)
+
+running 1 test
+test wvm::quickening::tests::quick_code_preserves_unknown_mismatched_and_unsupported_sites ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s
+

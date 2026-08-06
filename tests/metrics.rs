@@ -17,8 +17,8 @@ fn measured_execution_preserves_jit_reuse() {
 
     let second = runtime.execute_measured(&compilation.executable).unwrap();
 
-    assert_eq!(first.value, RuntimeValue::I64(5050));
-    assert_eq!(second.value, RuntimeValue::I64(5050));
+    assert_eq!(first.value, RuntimeValue::SmallInt(5050));
+    assert_eq!(second.value, RuntimeValue::SmallInt(5050));
 
     assert_eq!(first.jit_report.compilation_attempts, 1);
     assert_eq!(first.jit_report.compiled_regions, 1);

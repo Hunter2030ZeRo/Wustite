@@ -1,0 +1,12 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.39s
+     Running tests/call_depth.rs (target/debug/deps/call_depth-d17fe2492ef3aea1)
+
+running 1 test
+
+thread 'direct_guest_recursion_returns_an_execution_error_at_the_call_depth_limit' (62353) has overflowed its stack
+fatal runtime error: stack overflow, aborting
+error: test failed, to rerun pass `--test call_depth`
+
+Caused by:
+  process didn't exit successfully: `/home/entity27th/Wustite/target/debug/deps/call_depth-d17fe2492ef3aea1 direct_guest_recursion_returns_an_execution_error_at_the_call_depth_limit --exact --nocapture` (signal: 6, SIGABRT: process abort signal)

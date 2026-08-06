@@ -1,0 +1,47 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+error[E0599]: no method named `smallint_add` found for struct `arithmetic::ValueOps<'a>` in the current scope
+   --> src/wvm/arithmetic.rs:247:24
+    |
+ 15 | pub(super) struct ValueOps<'a> {
+    | ------------------------------ method `smallint_add` not found for this struct
+...
+247 |         assert_eq!(ops.smallint_add(40, 2).unwrap(), Value::SmallInt(42));
+    |                        ^^^^^^^^^^^^ method not found in `arithmetic::ValueOps<'_>`
+
+error[E0599]: no method named `smallint_add` found for struct `arithmetic::ValueOps<'a>` in the current scope
+   --> src/wvm/arithmetic.rs:248:24
+    |
+ 15 | pub(super) struct ValueOps<'a> {
+    | ------------------------------ method `smallint_add` not found for this struct
+...
+248 |         assert_eq!(ops.smallint_add(-40, -2).unwrap(), Value::SmallInt(-42));
+    |                        ^^^^^^^^^^^^ method not found in `arithmetic::ValueOps<'_>`
+
+error[E0599]: no method named `smallint_add` found for struct `arithmetic::ValueOps<'a>` in the current scope
+   --> src/wvm/arithmetic.rs:255:14
+    |
+ 15 |   pub(super) struct ValueOps<'a> {
+    |   ------------------------------ method `smallint_add` not found for this struct
+...
+254 |           let upper = ValueOps::new(&mut heap)
+    |  _____________________-
+255 | |             .smallint_add(i64::MAX, 1)
+    | |             -^^^^^^^^^^^^ method not found in `arithmetic::ValueOps<'_>`
+    | |_____________|
+    |
+
+error[E0599]: no method named `smallint_add` found for struct `arithmetic::ValueOps<'a>` in the current scope
+   --> src/wvm/arithmetic.rs:258:14
+    |
+ 15 |   pub(super) struct ValueOps<'a> {
+    |   ------------------------------ method `smallint_add` not found for this struct
+...
+257 |           let lower = ValueOps::new(&mut heap)
+    |  _____________________-
+258 | |             .smallint_add(i64::MIN, -1)
+    | |             -^^^^^^^^^^^^ method not found in `arithmetic::ValueOps<'_>`
+    | |_____________|
+    |
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `wustite` (lib test) due to 4 previous errors

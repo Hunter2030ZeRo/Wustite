@@ -1,0 +1,2 @@
+error: argument 0 `value` with value `maybe` is not a valid bool (true or false)
+exit=1

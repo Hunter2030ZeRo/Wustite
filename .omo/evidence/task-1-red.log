@@ -1,0 +1,11 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+error[E0432]: unresolved imports `super::QuickCode`, `super::QuickInstruction`
+ --> src/wvm/quickening.rs:7:17
+  |
+7 |     use super::{QuickCode, QuickInstruction};
+  |                 ^^^^^^^^^  ^^^^^^^^^^^^^^^^ no `QuickInstruction` in `wvm::quickening`
+  |                 |
+  |                 no `QuickCode` in `wvm::quickening`
+
+For more information about this error, try `rustc --explain E0432`.
+error: could not compile `wustite` (lib test) due to 1 previous error

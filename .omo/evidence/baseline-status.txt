@@ -1,0 +1,50 @@
+ M Cargo.lock
+ M Cargo.toml
+ M README.md
+ M src/bytecode.rs
+ M src/cli.rs
+ M src/executable.rs
+ M src/frontend/python/hir.rs
+ M src/frontend/python/lower.rs
+ M src/frontend/python/mod.rs
+ M src/jit/compiled_region.rs
+ M src/lib.rs
+ M src/runtime.rs
+ M src/structure_map.rs
+ M src/value.rs
+ M src/verifier.rs
+ M src/wvm.rs
+ M src/wxir/builder.rs
+ M tests/cli.rs
+ M tests/jit_region.rs
+ M tests/metrics.rs
+ M tests/python_frontend.rs
+ M tests/runtime_api.rs
+ M tests/vm_sum.rs
+ M tests/wxir_builder.rs
+?? .omo/
+?? .rtk/
+?? CLAUDE.md
+?? examples/add.py
+?? src/cli/
+?? src/frontend/python/expression.rs
+?? src/frontend/python/expression/
+?? src/frontend/python/lower/
+?? src/frontend/python/parameters.rs
+?? src/frontend/python/statements.rs
+?? src/object.rs
+?? src/object/
+?? src/runtime/
+?? src/verifier/
+?? src/wvm/
+?? src/wxir/builder/
+?? tests/call_depth.rs
+?? tests/fixtures/rich_arguments.py
+?? tests/numeric_semantics.rs
+?? tests/numeric_semantics/
+?? tests/object_heap.rs
+?? tests/object_invariants.rs
+?? tests/python_function_identity.rs
+?? tests/python_rich_values.rs
+?? tests/rich_values.rs
+?? tests/verifier_initialization.rs

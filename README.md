@@ -42,17 +42,62 @@ while the runtime architecture is being stabilized.
 
 ## CLI prototype
 
-The current CLI executes one named, zero-argument function from the supported
-Python subset. It is not a drop-in replacement for the CPython command line.
+The current CLI executes one named function from the supported Python subset.
+Values are passed with a repeatable `--arg` option and parsed from each
+parameter's annotation after the function is compiled. The CLI accepts `int`
+(`small_int`), `float`, `bool` (`true` or `false`), `str`, and arbitrary-size
+`BigInt` arguments. Tuple, list, dict, function, and `Any` parameters must be
+constructed through the Runtime API. It is not a drop-in replacement for the
+CPython command line.
 
 ```text
 cargo run -- run examples/sum.py
 cargo run -- run examples/sum.py --repeat 2 --hot-threshold 10 --trace-jit
 cargo run -- run examples/sum.py --interpreter
+cargo run -- run examples/add.py --function add --arg 20 --arg 22
 cargo run -- inspect examples/sum.py
 ```
 
 Use `--function NAME` to select a function and `--json` for structured output.
+
+## Runtime value model
+
+The public `RuntimeValue` boundary distinguishes three immediate scalar values
+from heap-backed objects:
+
+| Runtime value | WVM type | Representation |
+| --- | --- | --- |
+| `SmallInt(i64)` | `small_int` | Signed 64-bit immediate integer |
+| `Float(f64)` | `float` | IEEE-754 double-precision immediate |
+| `Bool(bool)` | `bool` | Boolean immediate |
+| `Object(ObjectRef)` | object kind | Runtime-owned heap handle |
+
+Object kinds currently include string, tuple, arbitrary-precision `BigInt`,
+list, dict, and closureless function objects. An `ObjectRef` contains a runtime
+heap ID, slot, and generation. It is meaningful only while its owning `Runtime`
+is alive, and handles from one runtime must never be passed to another runtime.
+Use `Runtime::object` or `Runtime::object_kind` while the owner is alive; CLI
+output snapshots the object kind and handle fields before the runtime is
+dropped.
+
+Small integers promote to a heap `BigInt` on overflow instead of wrapping.
+That promotion and other rich-value operations currently execute in the
+interpreter. Adaptive JIT regions side-exit to WVM so the operation can be
+replayed with Python semantics; rich values are not yet native-specialized.
+The public scalar variants formerly named `I64` are intentionally renamed to
+`SmallInt`; legacy `ConstI64`, `AddI64`, and `LtI64` bytecode opcodes remain
+available while hand-authored executables migrate to the semantic ISA.
+
+## Supported Python subset
+
+The prototype supports named, top-level closureless functions with typed positional
+parameters; integer, float, Boolean, string, tuple, list, and dict literals;
+local variables; selected arithmetic, comparison, Boolean, indexing, `len`,
+calls, returns, and structured control flow used by the examples and tests.
+Imports, modules, globals, classes, exceptions, generators, comprehensions,
+decorators, default/keyword/variadic parameters, and general CPython extension
+compatibility are not implemented yet. Some accepted rich-value operations are
+interpreter-only as described above.
 
 
 ## References 

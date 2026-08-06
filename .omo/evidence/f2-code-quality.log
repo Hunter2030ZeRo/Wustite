@@ -1,0 +1,7 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.14s
+clean whitespace: src/wvm.rs (diff status 1 accepted)
+clean whitespace: src/wvm/arithmetic.rs (diff status 1 accepted)
+clean whitespace: src/wvm/callables.rs (diff status 1 accepted)
+clean whitespace: src/wvm/interpreter.rs (diff status 1 accepted)
+clean whitespace: src/wvm/quickening.rs (diff status 1 accepted)
+clean whitespace: tests/static_quickening.rs (diff status 1 accepted)

@@ -1,29 +1,46 @@
+mod collections;
+mod expression;
+
 use std::collections::HashMap;
 
-use crate::bytecode::{
-    BinaryOperator, CompareOperator, Function, Instruction, Register,
-};
-use crate::executable::ExecutableFunction;
+use crate::bytecode::{Function, Instruction, Register};
+use crate::executable::{ExecutableConstant, ExecutableFunction, ExecutableParameter};
 use crate::structure_map::{
-    LiveSlot, LoopRegion, OperationSite, OperationSiteId, RegionExit, SlotType, StructureMap,
-    TypeFact,
+    LiveSlot, LoopRegion, OperationSite, RegionExit, SlotType, StructureMap,
 };
 use crate::verifier;
 
 use super::error::PythonFrontendError;
-use super::hir::{HirExpression, HirExpressionKind, HirFunction, HirStatement, HirStatementKind};
+use super::hir::{HirExpression, HirFunction, HirStatement, HirStatementKind};
 
-#[derive(Debug, Clone, Copy)]
-struct Variable {
-    register: Register,
-    ty: Option<SlotType>,
+#[derive(Clone, Copy)]
+pub(super) struct Variable {
+    pub register: Register,
+    pub ty: Option<SlotType>,
 }
 
 pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonFrontendError> {
     let mut lowerer = Lowerer::default();
+    let mut parameters = Vec::with_capacity(function.parameters.len());
+    for parameter in function.parameters {
+        let register = lowerer.allocate_register(parameter.location)?;
+        lowerer.variables.insert(
+            parameter.name.clone(),
+            Variable {
+                register,
+                ty: Some(parameter.ty),
+            },
+        );
+        lowerer.variable_order.push(parameter.name.clone());
+        parameters.push(ExecutableParameter {
+            name: parameter.name,
+            register,
+            ty: parameter.ty,
+        });
+    }
     lowerer.lower_statements(&function.body, false)?;
 
-    let executable = ExecutableFunction::new(
+    let executable = ExecutableFunction::new_with_abi(
         Function {
             code: lowerer.code,
             register_count: lowerer.next_register as usize,
@@ -32,6 +49,8 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
             loops: lowerer.loops,
             operation_sites: lowerer.operation_sites,
         },
+        parameters,
+        lowerer.constants,
     );
     verifier::verify(&executable).map_err(|error| {
         PythonFrontendError::new(format!("generated invalid WVM: {error}"), None)
@@ -40,13 +59,14 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
 }
 
 #[derive(Default)]
-struct Lowerer {
-    code: Vec<Instruction>,
-    loops: Vec<LoopRegion>,
-    operation_sites: Vec<OperationSite>,
-    variables: HashMap<String, Variable>,
-    variable_order: Vec<String>,
-    next_register: u32,
+pub(super) struct Lowerer {
+    pub code: Vec<Instruction>,
+    pub constants: Vec<ExecutableConstant>,
+    pub loops: Vec<LoopRegion>,
+    pub operation_sites: Vec<OperationSite>,
+    pub variables: HashMap<String, Variable>,
+    pub variable_order: Vec<String>,
+    pub next_register: u32,
 }
 
 impl Lowerer {
@@ -85,7 +105,6 @@ impl Lowerer {
                 Some(statement.location),
             ));
         }
-
         let variable = if let Some(variable) = self.variables.get(name).copied() {
             variable
         } else {
@@ -97,9 +116,10 @@ impl Lowerer {
             self.variable_order.push(name.to_string());
             variable
         };
-
         let (src, ty) = self.lower_expression(value)?;
         if let Some(previous) = variable.ty
+            && previous != SlotType::Any
+            && ty != SlotType::Any
             && previous != ty
         {
             return Err(PythonFrontendError::new(
@@ -107,7 +127,6 @@ impl Lowerer {
                 Some(statement.location),
             ));
         }
-
         self.code.push(Instruction::Move {
             dst: variable.register,
             src,
@@ -116,7 +135,7 @@ impl Lowerer {
             name.to_string(),
             Variable {
                 register: variable.register,
-                ty: Some(ty),
+                ty: Some(variable.ty.unwrap_or(ty)),
             },
         );
         Ok(())
@@ -139,11 +158,9 @@ impl Lowerer {
                 })
             })
             .collect();
-
         let header = self.code.len();
         let (cond, ty) = self.lower_expression(condition)?;
         self.expect_type(ty, SlotType::Bool, condition, "while condition")?;
-
         let branch_pc = self.code.len();
         self.code.push(Instruction::Branch {
             cond,
@@ -155,7 +172,6 @@ impl Lowerer {
         let backedge = self.code.len();
         self.code.push(Instruction::Jump { target: header });
         let exit = self.code.len();
-
         let Instruction::Branch { yes, no, .. } = &mut self.code[branch_pc] else {
             return Err(PythonFrontendError::new(
                 "internal error while patching while branch",
@@ -164,7 +180,6 @@ impl Lowerer {
         };
         *yes = body_pc;
         *no = exit;
-
         self.loops.push(LoopRegion {
             header,
             backedge,
@@ -174,104 +189,7 @@ impl Lowerer {
         Ok(())
     }
 
-    fn lower_expression(
-        &mut self,
-        expression: &HirExpression,
-    ) -> Result<(Register, SlotType), PythonFrontendError> {
-        match &expression.kind {
-            HirExpressionKind::I64(value) => {
-                let dst = self.allocate_register(expression.location)?;
-                self.code.push(Instruction::ConstI64 { dst, value: *value });
-                Ok((dst, SlotType::I64))
-            }
-            HirExpressionKind::Name(name) => {
-                let variable = self.variables.get(name).copied().ok_or_else(|| {
-                    PythonFrontendError::new(
-                        format!("name `{name}` is not initialized"),
-                        Some(expression.location),
-                    )
-                })?;
-                let ty = variable.ty.ok_or_else(|| {
-                    PythonFrontendError::new(
-                        format!("name `{name}` is used before assignment"),
-                        Some(expression.location),
-                    )
-                })?;
-                Ok((variable.register, ty))
-            }
-            HirExpressionKind::Add(lhs, rhs) => {
-                let (lhs, lhs_ty) = self.lower_expression(lhs)?;
-                let (rhs, rhs_ty) = self.lower_expression(rhs)?;
-                self.expect_type(lhs_ty, SlotType::I64, expression, "addition operand")?;
-                self.expect_type(rhs_ty, SlotType::I64, expression, "addition operand")?;
-                let dst = self.allocate_register(expression.location)?;
-                let pc = self.code.len();
-                let site = self.record_operation_site(
-                    pc,
-                    lhs_ty,
-                    rhs_ty,
-                    SlotType::I64,
-                    expression,
-                )?;
-                self.code.push(Instruction::BinaryOp {
-                    dst,
-                    op: BinaryOperator::Add,
-                    lhs,
-                    rhs,
-                    site,
-                });
-                Ok((dst, SlotType::I64))
-            }
-            HirExpressionKind::SignedLt(lhs, rhs) => {
-                let (lhs, lhs_ty) = self.lower_expression(lhs)?;
-                let (rhs, rhs_ty) = self.lower_expression(rhs)?;
-                self.expect_type(lhs_ty, SlotType::I64, expression, "comparison operand")?;
-                self.expect_type(rhs_ty, SlotType::I64, expression, "comparison operand")?;
-                let dst = self.allocate_register(expression.location)?;
-                let pc = self.code.len();
-                let site = self.record_operation_site(
-                    pc,
-                    lhs_ty,
-                    rhs_ty,
-                    SlotType::Bool,
-                    expression,
-                )?;
-                self.code.push(Instruction::CompareOp {
-                    dst,
-                    op: CompareOperator::Lt,
-                    lhs,
-                    rhs,
-                    site,
-                });
-                Ok((dst, SlotType::Bool))
-            }
-        }
-    }
-
-    fn record_operation_site(
-        &mut self,
-        pc: usize,
-        lhs: SlotType,
-        rhs: SlotType,
-        result: SlotType,
-        expression: &HirExpression,
-    ) -> Result<OperationSiteId, PythonFrontendError> {
-        let raw_id = u32::try_from(self.operation_sites.len()).map_err(|_| {
-            PythonFrontendError::new(
-                "function contains too many semantic operation sites",
-                Some(expression.location),
-            )
-        })?;
-        self.operation_sites.push(OperationSite {
-            pc,
-            lhs: TypeFact::Exact(lhs),
-            rhs: TypeFact::Exact(rhs),
-            result: TypeFact::Exact(result),
-        });
-        Ok(OperationSiteId(raw_id))
-    }
-
-    fn expect_type(
+    pub(super) fn expect_type(
         &self,
         actual: SlotType,
         expected: SlotType,
@@ -288,7 +206,7 @@ impl Lowerer {
         }
     }
 
-    fn allocate_register(
+    pub(super) fn allocate_register(
         &mut self,
         location: super::SourceLocation,
     ) -> Result<Register, PythonFrontendError> {

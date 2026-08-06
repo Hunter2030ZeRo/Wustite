@@ -1,0 +1,11 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+error[E0432]: unresolved imports `super::QuickOutcome`, `super::execute_quick`
+  --> src/wvm/quickening.rs:89:46
+   |
+89 |     use super::{QuickCode, QuickInstruction, QuickOutcome, execute_quick};
+   |                                              ^^^^^^^^^^^^  ^^^^^^^^^^^^^ no `execute_quick` in `wvm::quickening`
+   |                                              |
+   |                                              no `QuickOutcome` in `wvm::quickening`
+
+For more information about this error, try `rustc --explain E0432`.
+error: could not compile `wustite` (lib test) due to 1 previous error

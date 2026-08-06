@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running tests/static_quickening.rs (target/debug/deps/static_quickening-5ffc302fef93ba7d)
+
+running 3 tests
+test unknown_unsupported_and_runtime_mismatch_use_semantic_behavior ... ok
+test exact_add_and_lt_execute_without_mutating_semantic_bytecode ... ok
+test semantic_jit_replay_promotes_then_falls_back_for_bigint ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

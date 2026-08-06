@@ -1,0 +1,23 @@
+scenario: migrate public semantic test naming while retaining legacy bytecode/WXIR names
++ rustfmt --check tests/cli.rs tests/metrics.rs tests/python_frontend.rs tests/runtime_api.rs tests/vm_sum.rs tests/wxir_builder.rs
++ git diff --check -- tests/cli.rs tests/metrics.rs tests/python_frontend.rs tests/runtime_api.rs tests/vm_sum.rs tests/wxir_builder.rs
++ reject stale public semantic I64/i64 references
+PASS: no stale public semantic naming in assigned existing tests
++ retain legacy backend representation assertions
+tests/wxir_builder.rs:16:                Instruction::ConstI64 { dst: 0, value: 0 },
+tests/wxir_builder.rs:17:                Instruction::ConstI64 { dst: 1, value: 1 },
+tests/wxir_builder.rs:18:                Instruction::ConstI64 { dst: 2, value: 1 },
+tests/wxir_builder.rs:19:                Instruction::ConstI64 { dst: 3, value: 101 },
+tests/wxir_builder.rs:20:                Instruction::LtI64 {
+tests/wxir_builder.rs:30:                Instruction::AddI64 {
+tests/wxir_builder.rs:35:                Instruction::AddI64 {
+tests/wxir_builder.rs:92:        .all(|parameter| parameter.ty == WxType::Scalar(WxScalarType::I64)));
+tests/python_frontend.rs:139:                Instruction::ConstI64 { dst: 0, value: 42 },
+tests/vm_sum.rs:8:                bytecode::Instruction::ConstI64 { dst: 0, value: 0 },
+tests/vm_sum.rs:9:                bytecode::Instruction::ConstI64 { dst: 1, value: 1 },
+tests/vm_sum.rs:10:                bytecode::Instruction::ConstI64 { dst: 2, value: 1 },
+tests/vm_sum.rs:11:                bytecode::Instruction::ConstI64 { dst: 3, value: 101 },
+tests/vm_sum.rs:12:                bytecode::Instruction::LtI64 {
+tests/vm_sum.rs:22:                bytecode::Instruction::AddI64 {
+tests/vm_sum.rs:27:                bytecode::Instruction::AddI64 {
+tests/vm_sum.rs:192:                bytecode::Instruction::ConstI64 { dst: 1, value: 0 },

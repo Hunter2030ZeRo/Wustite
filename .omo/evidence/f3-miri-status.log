@@ -1,0 +1,23 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s
+     Running unittests src/lib.rs (target/miri/x86_64-unknown-linux-gnu/debug/build/wustite/d02afa48f7a7c91c/out/wustite-d02afa48f7a7c91c)
+
+running 4 tests
+test wvm::quickening::tests::quick_code_builds_only_exact_add_and_lt ... ok
+test wvm::quickening::tests::quick_code_preserves_unknown_mismatched_and_unsupported_sites ... ok
+test wvm::quickening::tests::quick_execution_guard_miss_is_side_effect_free ... ok
+test wvm::quickening::tests::quick_execution_handles_exact_smallints_and_aliases ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.71s
+
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.47s
+     Running tests/static_quickening.rs (target/miri/x86_64-unknown-linux-gnu/debug/build/wustite/951abf8a9563db01/out/static_quickening-951abf8a9563db01)
+
+running 3 tests
+test exact_add_and_lt_execute_without_mutating_semantic_bytecode ... ok
+test semantic_jit_replay_promotes_then_falls_back_for_bigint ... ignored
+test unknown_unsupported_and_runtime_mismatch_use_semantic_behavior ... ok
+
+test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.99s
+

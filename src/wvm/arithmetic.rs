@@ -1,0 +1,276 @@
+use std::cmp::Ordering;
+
+use num_bigint::BigInt;
+
+use crate::bytecode::{BinaryOperator, CompareOperator, UnaryOperator};
+use crate::object::{Object, ObjectHeap};
+use crate::value::Value;
+
+use super::equality;
+
+#[path = "numeric_semantics_core.rs"]
+pub(super) mod numeric_semantics;
+use numeric_semantics::{Number, compare_numbers, is_zero, number_to_big, number_to_f64};
+
+pub(super) struct ValueOps<'a> {
+    heap: &'a mut ObjectHeap,
+}
+
+impl<'a> ValueOps<'a> {
+    pub(super) const fn new(heap: &'a mut ObjectHeap) -> Self {
+        Self { heap }
+    }
+
+    pub(super) fn binary(
+        &mut self,
+        op: BinaryOperator,
+        lhs: Value,
+        rhs: Value,
+    ) -> Result<Value, String> {
+        if op == BinaryOperator::Add
+            && let Some(value) = self.sequence_add(lhs, rhs)?
+        {
+            return Ok(value);
+        }
+        let lhs_number = self.number(lhs)?;
+        let rhs_number = self.number(rhs)?;
+        match op {
+            BinaryOperator::Add => self.add(lhs_number, rhs_number),
+            BinaryOperator::Subtract => self.subtract(lhs_number, rhs_number),
+            BinaryOperator::Multiply => self.multiply(lhs_number, rhs_number),
+            BinaryOperator::Divide => self.divide(lhs_number, rhs_number),
+        }
+    }
+
+    pub(super) fn unary(&mut self, op: UnaryOperator, value: Value) -> Result<Value, String> {
+        match (op, value) {
+            (UnaryOperator::Not, Value::Bool(value)) => Ok(Value::Bool(!value)),
+            (UnaryOperator::Negate, Value::SmallInt(value)) => match value.checked_neg() {
+                Some(value) => Ok(Value::SmallInt(value)),
+                None => self.allocate_big(-BigInt::from(value)),
+            },
+            (UnaryOperator::Negate, Value::Float(value)) => Ok(Value::Float(-value)),
+            (UnaryOperator::Negate, Value::Object(reference)) => match self.heap.get(reference) {
+                Ok(Object::BigInt(value)) => self.allocate_big(-value.clone()),
+                Ok(object) => Err(format!("cannot negate {}", object_name(object))),
+                Err(error) => Err(error.to_string()),
+            },
+            (UnaryOperator::Negate, Value::Bool(_) | Value::Uninitialized) => {
+                Err(format!("cannot negate {}", value_name(self.heap, value)))
+            }
+            (UnaryOperator::Not, other) => Err(format!(
+                "cannot apply not to {}",
+                value_name(self.heap, other)
+            )),
+        }
+    }
+
+    pub(super) fn compare(
+        &self,
+        op: CompareOperator,
+        lhs: Value,
+        rhs: Value,
+    ) -> Result<Value, String> {
+        if matches!(op, CompareOperator::Eq | CompareOperator::NotEq) {
+            let equal = equality::values_equal(self.heap, lhs, rhs)?;
+            return Ok(Value::Bool(if op == CompareOperator::Eq {
+                equal
+            } else {
+                !equal
+            }));
+        }
+        let ordering = match (self.number_optional(lhs)?, self.number_optional(rhs)?) {
+            (Some(lhs), Some(rhs)) => compare_numbers(&lhs, &rhs)?,
+            (None, None) => self.compare_strings(lhs, rhs)?,
+            (Some(_), None) | (None, Some(_)) => {
+                return Err("comparison requires two numeric or two string values".to_string());
+            }
+        };
+        let result = match op {
+            CompareOperator::Lt => ordering.is_lt(),
+            CompareOperator::Le => ordering.is_le(),
+            CompareOperator::Gt => ordering.is_gt(),
+            CompareOperator::Ge => ordering.is_ge(),
+            CompareOperator::Eq | CompareOperator::NotEq => false,
+        };
+        Ok(Value::Bool(result))
+    }
+
+    fn add(&mut self, lhs: Number, rhs: Number) -> Result<Value, String> {
+        match (lhs, rhs) {
+            (Number::Small(lhs), Number::Small(rhs)) => self.smallint_add(lhs, rhs),
+            (Number::Float(lhs), rhs) => Ok(Value::Float(lhs + number_to_f64(&rhs)?)),
+            (lhs, Number::Float(rhs)) => Ok(Value::Float(number_to_f64(&lhs)? + rhs)),
+            (lhs, rhs) => self.allocate_big(number_to_big(lhs)? + number_to_big(rhs)?),
+        }
+    }
+
+    pub(super) fn smallint_add(&mut self, lhs: i64, rhs: i64) -> Result<Value, String> {
+        match lhs.checked_add(rhs) {
+            Some(value) => Ok(Value::SmallInt(value)),
+            None => self.allocate_big(BigInt::from(lhs) + rhs),
+        }
+    }
+
+    fn subtract(&mut self, lhs: Number, rhs: Number) -> Result<Value, String> {
+        match (lhs, rhs) {
+            (Number::Small(lhs), Number::Small(rhs)) => match lhs.checked_sub(rhs) {
+                Some(value) => Ok(Value::SmallInt(value)),
+                None => self.allocate_big(BigInt::from(lhs) - rhs),
+            },
+            (Number::Float(lhs), rhs) => Ok(Value::Float(lhs - number_to_f64(&rhs)?)),
+            (lhs, Number::Float(rhs)) => Ok(Value::Float(number_to_f64(&lhs)? - rhs)),
+            (lhs, rhs) => self.allocate_big(number_to_big(lhs)? - number_to_big(rhs)?),
+        }
+    }
+
+    fn multiply(&mut self, lhs: Number, rhs: Number) -> Result<Value, String> {
+        match (lhs, rhs) {
+            (Number::Small(lhs), Number::Small(rhs)) => match lhs.checked_mul(rhs) {
+                Some(value) => Ok(Value::SmallInt(value)),
+                None => self.allocate_big(BigInt::from(lhs) * rhs),
+            },
+            (Number::Float(lhs), rhs) => Ok(Value::Float(lhs * number_to_f64(&rhs)?)),
+            (lhs, Number::Float(rhs)) => Ok(Value::Float(number_to_f64(&lhs)? * rhs)),
+            (lhs, rhs) => self.allocate_big(number_to_big(lhs)? * number_to_big(rhs)?),
+        }
+    }
+
+    fn divide(&self, lhs: Number, rhs: Number) -> Result<Value, String> {
+        if is_zero(&rhs) {
+            return Err("division by zero".to_string());
+        }
+        let value = match (&lhs, &rhs) {
+            (Number::Float(_), _) | (_, Number::Float(_)) => {
+                number_to_f64(&lhs)? / number_to_f64(&rhs)?
+            }
+            _ => {
+                numeric_semantics::integer_ratio_to_f64(&number_to_big(lhs)?, &number_to_big(rhs)?)?
+            }
+        };
+        Ok(Value::Float(value))
+    }
+
+    fn number(&self, value: Value) -> Result<Number, String> {
+        self.number_optional(value)?.ok_or_else(|| {
+            format!(
+                "expected numeric value, found {}",
+                value_name(self.heap, value)
+            )
+        })
+    }
+
+    fn number_optional(&self, value: Value) -> Result<Option<Number>, String> {
+        match value {
+            Value::SmallInt(value) => Ok(Some(Number::Small(value))),
+            Value::Float(value) => Ok(Some(Number::Float(value))),
+            Value::Object(reference) => match self.heap.get(reference) {
+                Ok(Object::BigInt(value)) => Ok(Some(Number::Big(value.clone()))),
+                Ok(_) => Ok(None),
+                Err(error) => Err(error.to_string()),
+            },
+            Value::Bool(_) | Value::Uninitialized => Ok(None),
+        }
+    }
+
+    fn sequence_add(&mut self, lhs: Value, rhs: Value) -> Result<Option<Value>, String> {
+        let (Value::Object(lhs_ref), Value::Object(rhs_ref)) = (lhs, rhs) else {
+            return Ok(None);
+        };
+        let result = match (self.heap.get(lhs_ref), self.heap.get(rhs_ref)) {
+            (Ok(Object::String(lhs)), Ok(Object::String(rhs))) => {
+                Some(Object::String(format!("{lhs}{rhs}")))
+            }
+            (Ok(Object::Tuple(lhs)), Ok(Object::Tuple(rhs))) => {
+                Some(Object::Tuple(lhs.iter().chain(rhs).copied().collect()))
+            }
+            (Ok(Object::List(lhs)), Ok(Object::List(rhs))) => {
+                Some(Object::List(lhs.iter().chain(rhs).copied().collect()))
+            }
+            (Err(error), _) | (_, Err(error)) => return Err(error.to_string()),
+            _ => None,
+        };
+        result.map(|object| self.allocate(object)).transpose()
+    }
+
+    fn compare_strings(&self, lhs: Value, rhs: Value) -> Result<Ordering, String> {
+        match (lhs, rhs) {
+            (Value::Object(lhs), Value::Object(rhs)) => {
+                match (self.heap.get(lhs), self.heap.get(rhs)) {
+                    (Ok(Object::String(lhs)), Ok(Object::String(rhs))) => Ok(lhs.cmp(rhs)),
+                    (Err(error), _) | (_, Err(error)) => Err(error.to_string()),
+                    _ => Err("ordered comparison requires numeric or string values".to_string()),
+                }
+            }
+            _ => Err("ordered comparison requires numeric or string values".to_string()),
+        }
+    }
+
+    fn allocate_big(&mut self, value: BigInt) -> Result<Value, String> {
+        self.allocate(Object::BigInt(value))
+    }
+
+    fn allocate(&mut self, object: Object) -> Result<Value, String> {
+        self.heap
+            .allocate(object)
+            .map(Value::Object)
+            .map_err(|error| error.to_string())
+    }
+}
+
+pub(super) fn value_name(heap: &ObjectHeap, value: Value) -> &'static str {
+    match value {
+        Value::SmallInt(_) => "SmallInt",
+        Value::Float(_) => "float",
+        Value::Bool(_) => "bool",
+        Value::Object(reference) => heap.get(reference).map_or("invalid object", object_name),
+        Value::Uninitialized => "uninitialized",
+    }
+}
+
+const fn object_name(object: &Object) -> &'static str {
+    match object {
+        Object::String(_) => "string",
+        Object::Tuple(_) => "tuple",
+        Object::BigInt(_) => "BigInt",
+        Object::List(_) => "list",
+        Object::Dict(_) => "dict",
+        Object::Function(_) => "function",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smallint_add_returns_immediate_when_in_range() {
+        let mut heap = ObjectHeap::new();
+        let mut ops = ValueOps::new(&mut heap);
+
+        assert_eq!(ops.smallint_add(40, 2).unwrap(), Value::SmallInt(42));
+        assert_eq!(ops.smallint_add(-40, -2).unwrap(), Value::SmallInt(-42));
+    }
+
+    #[test]
+    fn smallint_add_promotes_both_overflow_directions() {
+        let mut heap = ObjectHeap::new();
+        let upper = ValueOps::new(&mut heap).smallint_add(i64::MAX, 1).unwrap();
+        let lower = ValueOps::new(&mut heap).smallint_add(i64::MIN, -1).unwrap();
+
+        let Value::Object(upper) = upper else {
+            panic!("upper overflow did not allocate a BigInt")
+        };
+        let Value::Object(lower) = lower else {
+            panic!("lower overflow did not allocate a BigInt")
+        };
+        assert_eq!(
+            heap.get(upper).unwrap(),
+            &Object::BigInt(BigInt::from(i64::MAX) + 1)
+        );
+        assert_eq!(
+            heap.get(lower).unwrap(),
+            &Object::BigInt(BigInt::from(i64::MIN) - 1)
+        );
+    }
+}

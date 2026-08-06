@@ -1,0 +1,24 @@
+{
+  "path": "/tmp/wustite_overflow_check.py",
+  "function": "main",
+  "execution_mode": "interpreter",
+  "hot_threshold": 1000,
+  "runs": [
+    {
+      "index": 1,
+      "value": {
+        "type": "bool",
+        "value": true
+      },
+      "jit": {
+        "compilation_attempts": 0,
+        "compiled_regions": 0,
+        "disabled_regions": 0,
+        "native_executions": 0,
+        "last_resume_pc": null,
+        "last_exit_kind": null,
+        "failures": []
+      }
+    }
+  ]
+}

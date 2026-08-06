@@ -1,0 +1,2 @@
+error: argument 0 `value` has unsupported CLI type tuple; construct this value through the Runtime API
+exit=1

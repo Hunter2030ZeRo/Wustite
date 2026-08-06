@@ -23,6 +23,11 @@ pub struct RegionExecution {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecuteError {
     MissingRegister(Register),
+    EntryTypeMismatch {
+        register: Register,
+        expected: WxType,
+        actual: &'static str,
+    },
     InvalidRegisterType {
         register: Register,
         expected: WxType,
@@ -38,7 +43,12 @@ impl fmt::Display for ExecuteError {
             Self::MissingRegister(register) => {
                 write!(formatter, "missing WVM register r{register}")
             }
-            Self::InvalidRegisterType {
+            Self::EntryTypeMismatch {
+                register,
+                expected,
+                actual,
+            }
+            | Self::InvalidRegisterType {
                 register,
                 expected,
                 actual,
@@ -101,8 +111,10 @@ impl CompiledRegion {
             self.state_buffer[index] = word;
         }
 
-        // SAFETY: `entry` is retained with its JITModule, and RegionLayout made
-        // this aligned buffer large enough for every generated load and store.
+        // SAFETY: [Categories 5, 6, 8, 10, and 14 — native ABI validity]
+        // `entry` was finalized with the declared `extern "C"` signature and is
+        // retained by its JITModule. RegionLayout bounds every generated access
+        // within this aligned `u64` buffer, and generated code cannot unwind.
         let raw_exit = unsafe { (self.entry)(self.state_buffer.as_mut_ptr().cast::<u8>()) };
         let exit = WxExitId(raw_exit);
         let metadata = self
@@ -145,8 +157,10 @@ impl CompiledRegion {
 fn value_to_word(register: Register, expected: WxType, value: Value) -> Result<u64, ExecuteError> {
     match (expected, value) {
         (WxType::Scalar(WxScalarType::I1), Value::Bool(value)) => Ok(u64::from(value)),
-        (WxType::Scalar(WxScalarType::I64), Value::I64(value)) => Ok(value as u64),
-        (_, value) => Err(ExecuteError::InvalidRegisterType {
+        (WxType::Scalar(WxScalarType::I64), Value::SmallInt(value)) => {
+            Ok(u64::from_ne_bytes(value.to_ne_bytes()))
+        }
+        (_, value) => Err(ExecuteError::EntryTypeMismatch {
             register,
             expected,
             actual: value_name(value),
@@ -157,14 +171,18 @@ fn value_to_word(register: Register, expected: WxType, value: Value) -> Result<u
 fn word_to_value(ty: WxType, word: u64) -> Option<Value> {
     match ty {
         WxType::Scalar(WxScalarType::I1) => Some(Value::Bool(word != 0)),
-        WxType::Scalar(WxScalarType::I64) => Some(Value::I64(word as i64)),
+        WxType::Scalar(WxScalarType::I64) => {
+            Some(Value::SmallInt(i64::from_ne_bytes(word.to_ne_bytes())))
+        }
         _ => None,
     }
 }
 
 fn value_name(value: Value) -> &'static str {
     match value {
-        Value::I64(_) => "i64",
+        Value::SmallInt(_) => "SmallInt",
+        Value::Float(_) => "float",
+        Value::Object(_) => "object",
         Value::Bool(_) => "bool",
         Value::Uninitialized => "uninitialized",
     }

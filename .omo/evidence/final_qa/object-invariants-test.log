@@ -1,0 +1,13 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running tests/object_invariants.rs (target/debug/deps/object_invariants-0072316a9bab0e16)
+
+running 6 tests
+test containers_reject_uninitialized_values_and_unhashable_dictionary_keys ... ok
+test host_dictionary_rejects_equivalent_string_object_keys ... ok
+test containers_reject_foreign_and_stale_nested_references ... ok
+test runtime_rejects_host_created_dictionaries_before_runtime_normalization ... ok
+test host_dictionary_handles_exact_mixed_numeric_keys ... ok
+test bigint_sequence_indices_support_negative_indexing_and_range_errors ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

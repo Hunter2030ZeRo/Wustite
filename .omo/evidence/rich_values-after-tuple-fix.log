@@ -1,0 +1,17 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.28s
+     Running tests/rich_values.rs (target/debug/deps/rich_values-9332076efa859e61)
+
+running 7 tests
+test list_mutation_and_length_are_visible_through_the_same_heap_object ... ok
+test dict_mutation_indexing_and_length_share_one_dictionary ... ok
+test float_arithmetic_and_negation_preserve_float_values ... ok
+test string_constants_are_heap_objects_with_a_length ... ok
+test boolean_and_comparison_operations_produce_boolean_values ... ok
+test tuple_construction_and_indexing_return_the_selected_item ... ok
+test smallint_overflow_promotes_to_bigint_for_following_arithmetic ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+COMMAND_EXIT_STATUS: 0

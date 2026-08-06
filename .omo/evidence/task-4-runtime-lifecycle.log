@@ -1,0 +1,187 @@
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.57s
+     Running unittests src/lib.rs (target/debug/deps/wustite-3e2fb775a82db8bc)
+
+running 1 test
+test wvm::tests::quick_code_runtime_identity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+warning: field `0` is never read
+  --> src/wvm/quickening.rs:24:29
+   |
+24 | pub(super) struct QuickCode(Box<[Option<QuickInstruction>]>);
+   |                   --------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                   |
+   |                   field in this struct
+   |
+   = help: consider removing this field
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `QuickOutcome` is never used
+  --> src/wvm/quickening.rs:27:17
+   |
+27 | pub(super) enum QuickOutcome {
+   |                 ^^^^^^^^^^^^
+
+warning: function `execute_quick` is never used
+  --> src/wvm/quickening.rs:32:15
+   |
+32 | pub(super) fn execute_quick(
+   |               ^^^^^^^^^^^^^
+
+warning: methods `len` and `get` are never used
+   --> src/wvm/quickening.rs:105:19
+    |
+ 57 | impl QuickCode {
+    | -------------- methods in this implementation
+...
+105 |     pub(super) fn len(&self) -> usize {
+    |                   ^^^
+...
+109 |     pub(super) fn get(&self, pc: usize) -> Option<QuickInstruction> {
+    |                   ^^^
+
+warning: `wustite` (lib) generated 4 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.46s
+     Running tests/vm_sum.rs (target/debug/deps/vm_sum-2ae220d94879054f)
+
+running 1 test
+test clone_preserves_identity_and_reuses_runtime ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s
+
+warning: field `0` is never read
+  --> src/wvm/quickening.rs:24:29
+   |
+24 | pub(super) struct QuickCode(Box<[Option<QuickInstruction>]>);
+   |                   --------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                   |
+   |                   field in this struct
+   |
+   = help: consider removing this field
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `QuickOutcome` is never used
+  --> src/wvm/quickening.rs:27:17
+   |
+27 | pub(super) enum QuickOutcome {
+   |                 ^^^^^^^^^^^^
+
+warning: function `execute_quick` is never used
+  --> src/wvm/quickening.rs:32:15
+   |
+32 | pub(super) fn execute_quick(
+   |               ^^^^^^^^^^^^^
+
+warning: methods `len` and `get` are never used
+   --> src/wvm/quickening.rs:105:19
+    |
+ 57 | impl QuickCode {
+    | -------------- methods in this implementation
+...
+105 |     pub(super) fn len(&self) -> usize {
+    |                   ^^^
+...
+109 |     pub(super) fn get(&self, pc: usize) -> Option<QuickInstruction> {
+    |                   ^^^
+
+warning: `wustite` (lib) generated 4 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running tests/vm_sum.rs (target/debug/deps/vm_sum-2ae220d94879054f)
+
+running 1 test
+test a_b_a_reuses_each_executables_compiled_runtime ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s
+
+warning: field `0` is never read
+  --> src/wvm/quickening.rs:24:29
+   |
+24 | pub(super) struct QuickCode(Box<[Option<QuickInstruction>]>);
+   |                   --------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                   |
+   |                   field in this struct
+   |
+   = help: consider removing this field
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `QuickOutcome` is never used
+  --> src/wvm/quickening.rs:27:17
+   |
+27 | pub(super) enum QuickOutcome {
+   |                 ^^^^^^^^^^^^
+
+warning: function `execute_quick` is never used
+  --> src/wvm/quickening.rs:32:15
+   |
+32 | pub(super) fn execute_quick(
+   |               ^^^^^^^^^^^^^
+
+warning: methods `len` and `get` are never used
+   --> src/wvm/quickening.rs:105:19
+    |
+ 57 | impl QuickCode {
+    | -------------- methods in this implementation
+...
+105 |     pub(super) fn len(&self) -> usize {
+    |                   ^^^
+...
+109 |     pub(super) fn get(&self, pc: usize) -> Option<QuickInstruction> {
+    |                   ^^^
+
+warning: `wustite` (lib) generated 4 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running tests/vm_sum.rs (target/debug/deps/vm_sum-2ae220d94879054f)
+
+running 1 test
+test executable_revisions_have_independent_identity_and_runtime_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s
+
+warning: field `0` is never read
+  --> src/wvm/quickening.rs:24:29
+   |
+24 | pub(super) struct QuickCode(Box<[Option<QuickInstruction>]>);
+   |                   --------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                   |
+   |                   field in this struct
+   |
+   = help: consider removing this field
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `QuickOutcome` is never used
+  --> src/wvm/quickening.rs:27:17
+   |
+27 | pub(super) enum QuickOutcome {
+   |                 ^^^^^^^^^^^^
+
+warning: function `execute_quick` is never used
+  --> src/wvm/quickening.rs:32:15
+   |
+32 | pub(super) fn execute_quick(
+   |               ^^^^^^^^^^^^^
+
+warning: methods `len` and `get` are never used
+   --> src/wvm/quickening.rs:105:19
+    |
+ 57 | impl QuickCode {
+    | -------------- methods in this implementation
+...
+105 |     pub(super) fn len(&self) -> usize {
+    |                   ^^^
+...
+109 |     pub(super) fn get(&self, pc: usize) -> Option<QuickInstruction> {
+    |                   ^^^
+
+warning: `wustite` (lib) generated 4 warnings
+   Compiling wustite v0.1.0 (/home/entity27th/Wustite)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.73s
+     Running tests/call_depth.rs (target/debug/deps/call_depth-d17fe2492ef3aea1)
+
+running 1 test
+test same_function_nested_activations_preserve_runtime_profile_updates ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
+
