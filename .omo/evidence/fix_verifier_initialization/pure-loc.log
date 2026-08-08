@@ -1,3 +1,0 @@
-src/verifier.rs pure_loc=209
-src/verifier/initialization.rs pure_loc=176
-tests/verifier_initialization.rs pure_loc=125

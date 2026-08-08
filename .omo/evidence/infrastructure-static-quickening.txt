@@ -1,3 +1,0 @@
-rtk: unavailable (command -v rtk exited 1)
-omo ulw-loop: unavailable (launcher failed because node is not installed)
-verification policy: run the equivalent cargo, git, and rg commands directly

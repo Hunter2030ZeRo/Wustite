@@ -1,4 +1,0 @@
-src/wvm.rs 201
-src/wvm/interpreter.rs 214
-src/wvm/callables.rs 85
-tests/call_depth.rs 65

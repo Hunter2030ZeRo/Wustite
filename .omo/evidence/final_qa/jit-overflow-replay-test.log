@@ -1,8 +1,0 @@
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
-     Running tests/jit_region.rs (target/debug/deps/jit_region-bada7b9857e513c2)
-
-running 1 test
-test vm_replays_synthetic_overflow_exit_in_interpreter ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
-

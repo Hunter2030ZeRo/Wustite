@@ -1,1 +1,0 @@
-PASS: rustfmt --check on owned files

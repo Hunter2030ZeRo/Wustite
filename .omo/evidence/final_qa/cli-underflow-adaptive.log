@@ -1,3 +1,0 @@
-object(kind=big_int, heap_id=1, slot=0, generation=0)
-run 1: compilation_attempts=1 compiled_regions=0 disabled_regions=1 native_executions=0
-run 1: failure region=0 stage=build_wxir reason=unsupported WVM instruction BinaryOp::Subtract at pc 8

@@ -1,6 +1,0 @@
-1:use crate::bytecode::{BinaryOperator, CompareOperator, Instruction, Register};
-19:pub(super) struct QuickCode(Box<[Option<QuickInstruction>]>);
-73:    pub(super) fn get(&self, pc: usize) -> Option<QuickInstruction> {
-80:    use crate::bytecode::{BinaryOperator, CompareOperator, Function, Instruction};
-84:    use super::{QuickCode, QuickInstruction};
-90:    fn executable(code: Vec<Instruction>, sites: Vec<OperationSite>) -> ExecutableFunction {

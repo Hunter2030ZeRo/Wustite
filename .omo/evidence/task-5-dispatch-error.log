@@ -1,8 +1,0 @@
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
-     Running tests/static_quickening.rs (target/debug/deps/static_quickening-5ffc302fef93ba7d)
-
-running 1 test
-test semantic_jit_replay_promotes_then_falls_back_for_bigint ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s
-
