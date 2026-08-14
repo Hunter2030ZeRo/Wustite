@@ -1,6 +1,7 @@
 mod compiled_region;
 mod cranelift;
 mod layout;
+#[cfg(feature = "inkwell")]
 mod llvm;
 
 use std::error::Error;
@@ -11,14 +12,13 @@ use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, default_libcall_names};
 
-use inkwell::OptimizationLevel;
-use inkwell::execution_engine::JitFunction;
-
 use crate::wxir::{WxFunction, WxType};
 
 pub use compiled_region::{CompiledRegion, ExecuteError, RegionExecution};
 pub use cranelift::CraneliftRegionCompiler;
 pub use layout::{RegionLayout, RegionSlot};
+#[cfg(feature = "inkwell")]
+pub use llvm::LlvmRegionCompiler;
 
 /// A recoverable WXIR compilation failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,7 +37,7 @@ impl fmt::Display for CompileError {
             Self::UnsupportedInstruction(instruction) => {
                 write!(formatter, "unsupported WXIR instruction {instruction}")
             }
-            Self::Backend(error) => write!(formatter, "Cranelift backend error: {error}"),
+            Self::Backend(error) => write!(formatter, "native backend error: {error}"),
         }
     }
 }

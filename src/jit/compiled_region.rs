@@ -11,6 +11,33 @@ use super::layout::RegionLayout;
 
 pub(crate) type NativeRegionEntry = unsafe extern "C" fn(*mut u8) -> u32;
 
+pub(crate) enum NativeRegionCode {
+    Cranelift(NativeRegionEntry),
+    #[cfg(feature = "inkwell")]
+    Llvm {
+        entry: inkwell::execution_engine::JitFunction<'static, NativeRegionEntry>,
+        _context: Box<inkwell::context::Context>,
+    },
+}
+
+impl NativeRegionCode {
+    unsafe fn call(&self, state: *mut u8) -> u32 {
+        match self {
+            Self::Cranelift(entry) => {
+                // SAFETY: [Categories 3, 5, 6, 8, 10, 14] The caller supplies
+                // the live RegionLayout-sized state buffer required by this ABI.
+                unsafe { entry(state) }
+            }
+            #[cfg(feature = "inkwell")]
+            Self::Llvm { entry, .. } => {
+                // SAFETY: [Categories 3, 5, 6, 8, 10, 14] JitFunction retains
+                // its LLVM execution engine and has the NativeRegionEntry ABI.
+                unsafe { entry.call(state) }
+            }
+        }
+    }
+}
+
 /// Successful native region exit translated back to WVM coordinates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RegionExecution {
@@ -68,7 +95,7 @@ impl Error for ExecuteError {}
 
 /// Finalized native entry plus its ABI layout and WVM state mappings.
 pub struct CompiledRegion {
-    entry: NativeRegionEntry,
+    code: NativeRegionCode,
     layout: RegionLayout,
     entry_state: Vec<WxStateValue>,
     side_exits: Vec<WxSideExit>,
@@ -76,14 +103,10 @@ pub struct CompiledRegion {
 }
 
 impl CompiledRegion {
-    pub(crate) fn new(
-        entry: NativeRegionEntry,
-        layout: RegionLayout,
-        function: &WxFunction,
-    ) -> Self {
+    pub(crate) fn new(code: NativeRegionCode, layout: RegionLayout, function: &WxFunction) -> Self {
         let state_buffer = vec![0_u64; layout.word_count().max(1)];
         Self {
-            entry,
+            code,
             layout,
             entry_state: function.entry_state.clone(),
             side_exits: function.side_exits.clone(),
@@ -107,11 +130,10 @@ impl CompiledRegion {
             self.state_buffer[index] = word;
         }
 
-        // The compiler retains its module; Cranelift's default provider also
-        // keeps published code mapped on drop, and `free_memory` is never called.
         // SAFETY: [Categories 3, 5, 6, 8, 10, 14] `entry` has the declared C ABI,
-        // RegionLayout bounds buffer accesses, and generated code cannot unwind.
-        let raw_exit = unsafe { (self.entry)(self.state_buffer.as_mut_ptr().cast::<u8>()) };
+        // NativeRegionCode retains backend code ownership, RegionLayout bounds
+        // buffer accesses, and generated code cannot unwind.
+        let raw_exit = unsafe { self.code.call(self.state_buffer.as_mut_ptr().cast::<u8>()) };
         let exit = WxExitId(raw_exit);
         let metadata = self
             .side_exits

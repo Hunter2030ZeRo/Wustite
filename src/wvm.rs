@@ -24,6 +24,7 @@ mod registers;
 
 /// Default observed region entries before synchronous tier-up.
 pub const DEFAULT_HOT_THRESHOLD: u64 = 1_000;
+pub const DEFAULT_TIER2_THRESHOLD: u64 = 10;
 
 const MAX_GUEST_CALL_DEPTH: usize = 128;
 
@@ -36,6 +37,7 @@ pub(super) struct Frame {
 
 pub struct Vm {
     hot_threshold: u64,
+    tier2_threshold: u64,
     jit_report: JitReport,
     runtimes: HashMap<ExecutableId, FunctionRuntime>,
     last_executed: Option<ExecutableId>,
@@ -76,6 +78,7 @@ impl FunctionRuntime {
 pub enum JitFailureStage {
     BuildWxir,
     Compile,
+    CompileTier2,
     Execute,
 }
 
@@ -84,6 +87,7 @@ impl JitFailureStage {
         match self {
             Self::BuildWxir => "build_wxir",
             Self::Compile => "compile",
+            Self::CompileTier2 => "compile_tier2",
             Self::Execute => "execute",
         }
     }
@@ -102,8 +106,11 @@ pub struct JitFailure {
 pub struct JitReport {
     pub compilation_attempts: u64,
     pub compiled_regions: u64,
+    pub tier2_compilation_attempts: u64,
+    pub tier2_compiled_regions: u64,
     pub disabled_regions: u64,
     pub native_executions: u64,
+    pub tier2_native_executions: u64,
     pub last_resume_pc: Option<usize>,
     pub last_exit_kind: Option<WxExitKind>,
     pub failures: Vec<JitFailure>,
@@ -131,8 +138,13 @@ impl Vm {
 
     /// Creates a VM that tiers up after this many observed region entries.
     pub fn with_hot_threshold(hot_threshold: u64) -> Self {
+        Self::with_tier_thresholds(hot_threshold, DEFAULT_TIER2_THRESHOLD)
+    }
+
+    pub fn with_tier_thresholds(hot_threshold: u64, tier2_threshold: u64) -> Self {
         Self {
             hot_threshold,
+            tier2_threshold,
             jit_report: JitReport::default(),
             runtimes: HashMap::new(),
             last_executed: None,
@@ -143,6 +155,10 @@ impl Vm {
 
     pub fn set_hot_threshold(&mut self, hot_threshold: u64) {
         self.hot_threshold = hot_threshold;
+    }
+
+    pub fn set_tier2_threshold(&mut self, tier2_threshold: u64) {
+        self.tier2_threshold = tier2_threshold;
     }
 
     pub fn profile(&self) -> Option<&Profile> {

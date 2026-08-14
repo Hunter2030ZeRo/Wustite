@@ -1,7 +1,7 @@
 mod helpers;
 mod instructions;
 mod lowering;
-mod symbols;
+pub(super) mod symbols;
 
 #[cfg(test)]
 mod tests;
@@ -16,7 +16,7 @@ use cranelift_module::{Linkage, Module, default_libcall_names};
 use crate::executable::ExecutableId;
 use crate::wxir::{VerifiedWxFunction, WxFunction};
 
-use super::compiled_region::{CompiledRegion, NativeRegionEntry};
+use super::compiled_region::{CompiledRegion, NativeRegionCode, NativeRegionEntry};
 use super::layout::RegionLayout;
 use super::{CompileError, RegionCompiler};
 
@@ -71,7 +71,11 @@ impl CraneliftRegionCompiler {
         self.module = Some(module);
         let entry = compilation?;
 
-        Ok(CompiledRegion::new(entry, layout, function))
+        Ok(CompiledRegion::new(
+            NativeRegionCode::Cranelift(entry),
+            layout,
+            function,
+        ))
     }
 }
 

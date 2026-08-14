@@ -9,20 +9,20 @@ use super::CompileError;
 struct VersionId(u64);
 
 #[derive(Debug)]
-pub(super) struct SymbolVersions {
+pub(in crate::jit) struct SymbolVersions {
     executable_id: ExecutableId,
     next_by_region: HashMap<RegionId, VersionId>,
 }
 
 impl SymbolVersions {
-    pub(super) fn new(executable_id: ExecutableId) -> Self {
+    pub(in crate::jit) fn new(executable_id: ExecutableId) -> Self {
         Self {
             executable_id,
             next_by_region: HashMap::new(),
         }
     }
 
-    pub(super) fn reserve(&mut self, region_id: RegionId) -> Result<String, CompileError> {
+    pub(in crate::jit) fn reserve(&mut self, region_id: RegionId) -> Result<String, CompileError> {
         let next = self.next_by_region.entry(region_id).or_insert(VersionId(0));
         let version = *next;
         next.0 = next.0.checked_add(1).ok_or_else(|| {

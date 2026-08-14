@@ -128,8 +128,11 @@ impl fmt::Display for ObjectOutput {
 struct JitOutput {
     compilation_attempts: u64,
     compiled_regions: u64,
+    tier2_compilation_attempts: u64,
+    tier2_compiled_regions: u64,
     disabled_regions: u64,
     native_executions: u64,
+    tier2_native_executions: u64,
     last_resume_pc: Option<usize>,
     last_exit_kind: Option<String>,
     failures: Vec<JitFailureOutput>,
@@ -140,8 +143,11 @@ impl JitOutput {
         Self {
             compilation_attempts: report.compilation_attempts,
             compiled_regions: report.compiled_regions,
+            tier2_compilation_attempts: report.tier2_compilation_attempts,
+            tier2_compiled_regions: report.tier2_compiled_regions,
             disabled_regions: report.disabled_regions,
             native_executions: report.native_executions,
+            tier2_native_executions: report.tier2_native_executions,
             last_resume_pc: report.last_resume_pc,
             last_exit_kind: report.last_exit_kind_name().map(str::to_string),
             failures: report
@@ -178,12 +184,15 @@ pub(super) fn print_jit_trace(runs: &[RunOutput]) {
     for run in runs {
         let jit = &run.jit;
         let mut line = format!(
-            "run {}: compilation_attempts={} compiled_regions={} disabled_regions={} native_executions={}",
+            "run {}: compilation_attempts={} compiled_regions={} tier2_compilation_attempts={} tier2_compiled_regions={} disabled_regions={} native_executions={} tier2_native_executions={}",
             run.index,
             jit.compilation_attempts,
             jit.compiled_regions,
+            jit.tier2_compilation_attempts,
+            jit.tier2_compiled_regions,
             jit.disabled_regions,
-            jit.native_executions
+            jit.native_executions,
+            jit.tier2_native_executions
         );
         if let Some(resume_pc) = jit.last_resume_pc {
             line.push_str(&format!(" last_resume_pc={resume_pc}"));
