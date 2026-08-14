@@ -1,6 +1,7 @@
 mod compiled_region;
 mod cranelift;
 mod layout;
+mod llvm;
 
 use std::error::Error;
 use std::fmt;
@@ -9,6 +10,9 @@ use cranelift_codegen::ir::{AbiParam, InstBuilder, UserFuncName, types};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, default_libcall_names};
+
+use inkwell::OptimizationLevel;
+use inkwell::execution_engine::JitFunction;
 
 use crate::wxir::{WxFunction, WxType};
 
@@ -40,7 +44,7 @@ impl fmt::Display for CompileError {
 
 impl Error for CompileError {}
 
-/// Compiles a verified WXIR region into an owned executable region.
+/// Compiles a verified WXIR region into an executable region handle.
 pub trait RegionCompiler {
     fn compile(&mut self, function: &WxFunction) -> Result<CompiledRegion, CompileError>;
 }

@@ -14,13 +14,13 @@ use crate::planner::JitPlan;
 use crate::structure_map::{LiveSlot, OperationSiteId, SlotType, TypeFact};
 use crate::verifier as wvm_verifier;
 
+use super::VerifiedWxFunction;
 use super::ir::{
     WxBlock, WxBlockId, WxBlockParam, WxBlockTarget, WxCompareOp, WxExitId, WxExitKind, WxFunction,
     WxGuardMode, WxInst, WxInstKind, WxInstResult, WxIntCompareOp, WxIntOverflowOp, WxRegionOrigin,
     WxSideExit, WxStateValue, WxTerminator, WxValueId,
 };
 use super::types::{WxScalarType, WxType};
-use super::verifier as wxir_verifier;
 
 /// A recoverable failure while translating WVM bytecode into WXIR.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,13 +91,19 @@ pub fn build_region(
     executable: &ExecutableFunction,
     plan: &JitPlan,
 ) -> Result<WxFunction, WxBuildError> {
+    build_verified_region(executable, plan).map(VerifiedWxFunction::into_function)
+}
+
+pub(crate) fn build_verified_region(
+    executable: &ExecutableFunction,
+    plan: &JitPlan,
+) -> Result<VerifiedWxFunction, WxBuildError> {
     wvm_verifier::verify(executable).map_err(WxBuildError::InvalidExecutable)?;
     verify_plan(executable, plan)?;
 
     let mut builder = RegionBuilder::new(executable, plan)?;
     let function = builder.build()?;
-    wxir_verifier::verify(&function).map_err(WxBuildError::InvalidWxir)?;
-    Ok(function)
+    VerifiedWxFunction::validate(function).map_err(WxBuildError::InvalidWxir)
 }
 
 fn verify_plan(executable: &ExecutableFunction, plan: &JitPlan) -> Result<(), WxBuildError> {

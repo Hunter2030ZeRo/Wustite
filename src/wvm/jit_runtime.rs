@@ -1,17 +1,17 @@
 use std::collections::HashMap;
 
 use crate::executable::ExecutableFunction;
-use crate::jit::{CompiledRegion, CraneliftRegionCompiler, ExecuteError, RegionCompiler};
+use crate::jit::{CompiledRegion, CraneliftRegionCompiler, ExecuteError};
 use crate::planner::plan_hot_region;
 use crate::structure_map::RegionId;
-use crate::wxir::{WxExitKind, build_region};
+use crate::wxir::{WxExitKind, build_verified_region};
 
 use super::{Frame, FunctionRuntime, JitFailure, JitFailureStage, Vm};
 
 pub(super) struct JitRuntime {
     regions: HashMap<RegionId, RegionState>,
     region_by_header: Vec<Option<RegionId>>,
-    compiler: CraneliftRegionCompiler,
+    compiler: Box<CraneliftRegionCompiler>,
 }
 
 enum RegionState {
@@ -28,7 +28,7 @@ impl JitRuntime {
         Self {
             regions: HashMap::new(),
             region_by_header,
-            compiler: CraneliftRegionCompiler::new(),
+            compiler: Box::new(CraneliftRegionCompiler::new(executable.id())),
         }
     }
 
@@ -66,7 +66,7 @@ impl Vm {
             return false;
         };
         self.jit_report.compilation_attempts += 1;
-        let function = match build_region(executable, &plan) {
+        let function = match build_verified_region(executable, &plan) {
             Ok(function) => function,
             Err(error) => {
                 self.disable_region(
@@ -80,7 +80,7 @@ impl Vm {
                 return false;
             }
         };
-        let region = match runtime.jit.compiler.compile(&function) {
+        let region = match runtime.jit.compiler.compile_verified(&function) {
             Ok(region) => region,
             Err(error) => {
                 self.disable_region(

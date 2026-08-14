@@ -3,12 +3,12 @@
 #
 # CANONICAL SOURCE: install.sh in the Wustite repository
 #
-# Usage: 
-# curl -fsSL https://github.com/Hunter2030ZeRo/wustite/install.sh | sh
+# Usage:
+# curl -fsSL https://raw.githubusercontent.com/Hunter2030ZeRo/Wustite/main/install.sh | sh
 
 
 
 
-set -e 
+set -e
 
 REPO=

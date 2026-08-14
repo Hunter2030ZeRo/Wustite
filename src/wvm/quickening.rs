@@ -29,6 +29,7 @@ pub(super) enum QuickOutcome {
     GuardMiss,
 }
 
+#[inline(always)]
 pub(super) fn execute_quick(
     instruction: QuickInstruction,
     frame: &mut Frame,

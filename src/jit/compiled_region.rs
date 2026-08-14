@@ -1,11 +1,11 @@
 use std::error::Error;
 use std::fmt;
 
-use cranelift_jit::JITModule;
-
 use crate::bytecode::Register;
 use crate::value::Value;
-use crate::wxir::{WxExitId, WxExitKind, WxScalarType, WxSideExit, WxStateValue, WxType};
+use crate::wxir::{
+    WxExitId, WxExitKind, WxFunction, WxScalarType, WxSideExit, WxStateValue, WxType,
+};
 
 use super::layout::RegionLayout;
 
@@ -66,9 +66,8 @@ impl fmt::Display for ExecuteError {
 
 impl Error for ExecuteError {}
 
-/// Owned machine code plus its ABI layout and WVM state mappings.
+/// Finalized native entry plus its ABI layout and WVM state mappings.
 pub struct CompiledRegion {
-    _module: JITModule,
     entry: NativeRegionEntry,
     layout: RegionLayout,
     entry_state: Vec<WxStateValue>,
@@ -78,19 +77,16 @@ pub struct CompiledRegion {
 
 impl CompiledRegion {
     pub(crate) fn new(
-        module: JITModule,
         entry: NativeRegionEntry,
         layout: RegionLayout,
-        entry_state: Vec<WxStateValue>,
-        side_exits: Vec<WxSideExit>,
+        function: &WxFunction,
     ) -> Self {
         let state_buffer = vec![0_u64; layout.word_count().max(1)];
         Self {
-            _module: module,
             entry,
             layout,
-            entry_state,
-            side_exits,
+            entry_state: function.entry_state.clone(),
+            side_exits: function.side_exits.clone(),
             state_buffer,
         }
     }
@@ -111,10 +107,10 @@ impl CompiledRegion {
             self.state_buffer[index] = word;
         }
 
-        // SAFETY: [Categories 5, 6, 8, 10, and 14 — native ABI validity]
-        // `entry` was finalized with the declared `extern "C"` signature and is
-        // retained by its JITModule. RegionLayout bounds every generated access
-        // within this aligned `u64` buffer, and generated code cannot unwind.
+        // The compiler retains its module; Cranelift's default provider also
+        // keeps published code mapped on drop, and `free_memory` is never called.
+        // SAFETY: [Categories 3, 5, 6, 8, 10, 14] `entry` has the declared C ABI,
+        // RegionLayout bounds buffer accesses, and generated code cannot unwind.
         let raw_exit = unsafe { (self.entry)(self.state_buffer.as_mut_ptr().cast::<u8>()) };
         let exit = WxExitId(raw_exit);
         let metadata = self

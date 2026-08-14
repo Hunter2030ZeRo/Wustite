@@ -10,8 +10,12 @@ cranelift-codegen = "0.134.2"
 cranelift-frontend = "0.134.2"
 cranelift-jit = "0.134.2"
 cranelift-module = "0.134.2"
+inkwell = { version = "0.10.0", optional = true, features = ["llvm22-1"] }
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
 rustpython-parser = { version = "0.4.0", default-features = false, features = ["num-bigint"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+
+[features]
+inkwell = ["dep:inkwell"]

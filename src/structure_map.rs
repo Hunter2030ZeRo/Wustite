@@ -56,6 +56,26 @@ pub struct LoopRegion {
     pub live_slots: Vec<LiveSlot>,
 }
 
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
+pub enum RegionKind {
+    #[default]
+    Loop,
+    StraightForward,
+    Branch,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Region {
+    pub kind: RegionKind,
+
+    pub entry: usize,
+
+    pub backedge: Option<usize>,
+
+    pub exits: Vec<RegionExit>,
+    pub live_slots: Vec<LiveSlot>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StructureMap {
     pub loops: Vec<LoopRegion>,

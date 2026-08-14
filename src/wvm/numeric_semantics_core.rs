@@ -3,7 +3,9 @@ use std::cmp::Ordering;
 use num_bigint::{BigInt, BigUint};
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
 
-#[derive(Clone)]
+use crate::wvm::Object;
+
+#[derive(Debug, Clone, PartialEq)]
 pub(super) enum Number {
     Small(i64),
     Big(BigInt),
@@ -13,7 +15,7 @@ pub(super) enum Number {
 pub(super) fn number_to_big(number: Number) -> Result<BigInt, String> {
     match number {
         Number::Small(value) => Ok(BigInt::from(value)),
-        Number::Big(value) => Ok(value),
+        Number::Big(value) => Ok(value.clone()),
         Number::Float(_) => Err("float cannot enter exact integer arithmetic".to_string()),
     }
 }

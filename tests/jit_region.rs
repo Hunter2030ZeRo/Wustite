@@ -4,7 +4,9 @@ use wustite::executable::{ExecutableFunction, ExecutableParameter};
 use wustite::jit::{CompileError, CraneliftRegionCompiler, RegionCompiler};
 use wustite::object::Object;
 use wustite::planner::{self, JitPlan};
-use wustite::structure_map::{LiveSlot, LoopRegion, RegionExit, RegionId, SlotType, StructureMap};
+use wustite::structure_map::{
+    LiveSlot, LoopRegion, RegionExit, RegionId, RegionKind, SlotType, StructureMap,
+};
 use wustite::value::Value;
 use wustite::wvm::{JitFailureStage, Vm};
 use wustite::wxir::{
@@ -235,7 +237,8 @@ fn compiled_sum_region_restores_live_state_and_resume_pc() {
     let plan =
         planner::select_hot_loop(executable.structure_map(), vm.profile().unwrap(), 50).unwrap();
     let wxir = build_region(&executable, &plan).unwrap();
-    let mut compiled = CraneliftRegionCompiler::new().compile(&wxir).unwrap();
+    let mut compiler = CraneliftRegionCompiler::new(executable.id());
+    let mut compiled = compiler.compile(&wxir).unwrap();
 
     let mut registers = vec![Value::Uninitialized; 5];
     registers[0] = Value::SmallInt(0);
@@ -261,7 +264,8 @@ fn compiled_overflow_exits_before_updating_destination() {
         live_slots: executable.structure_map().loops[0].live_slots.clone(),
     };
     let wxir = build_region(&executable, &plan).unwrap();
-    let mut compiled = CraneliftRegionCompiler::new().compile(&wxir).unwrap();
+    let mut compiler = CraneliftRegionCompiler::new(executable.id());
+    let mut compiled = compiler.compile(&wxir).unwrap();
     // Given a checked native SmallInt addition at the i64 boundary,
     // When the compiled region executes the overflowing instruction,
     // Then it exits for replay before mutating the destination register.
@@ -395,7 +399,8 @@ fn invalid_region_metadata_is_disabled_after_one_attempt() {
 
 #[test]
 fn backend_rejects_unsupported_f64_state() {
-    let error = CraneliftRegionCompiler::new()
+    let executable = sum_function();
+    let error = CraneliftRegionCompiler::new(executable.id())
         .compile(&unsupported_f64_wxir())
         .err()
         .unwrap();

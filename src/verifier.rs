@@ -1,6 +1,9 @@
 mod initialization;
 mod structure;
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::HashSet;
 
 use crate::bytecode::{Function, Instruction, Register};
@@ -9,7 +12,32 @@ use crate::structure_map::OperationSiteId;
 
 pub const MAX_REGISTER_COUNT: usize = 1usize << u16::BITS;
 
+#[cfg(test)]
+std::thread_local! {
+    static FULL_VERIFICATION_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_full_verification_count() {
+    FULL_VERIFICATION_COUNT.set(0);
+}
+
+#[cfg(test)]
+fn full_verification_count() -> usize {
+    FULL_VERIFICATION_COUNT.get()
+}
+
 pub fn verify(function: &ExecutableFunction) -> Result<(), String> {
+    function
+        .verification_cache()
+        .get_or_init(|| verify_uncached(function))
+        .clone()
+}
+
+fn verify_uncached(function: &ExecutableFunction) -> Result<(), String> {
+    #[cfg(test)]
+    FULL_VERIFICATION_COUNT.set(FULL_VERIFICATION_COUNT.get() + 1);
+
     if function.bytecode().register_count > MAX_REGISTER_COUNT {
         return Err(format!(
             "function register_count {} exceeds maximum {MAX_REGISTER_COUNT}",

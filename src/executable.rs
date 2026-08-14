@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use crate::bytecode::{Function, Register};
 use crate::structure_map::{SlotType, StructureMap};
@@ -11,6 +12,12 @@ static NEXT_EXECUTABLE_ID: AtomicU64 = AtomicU64::new(1);
 /// persistent or cross-process identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExecutableId(u64);
+
+impl ExecutableId {
+    pub(crate) const fn as_u64(self) -> u64 {
+        self.0
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ConstantId(pub usize);
@@ -37,6 +44,7 @@ pub struct ExecutableFunction {
     structure_map: StructureMap,
     parameters: Vec<ExecutableParameter>,
     constants: Vec<ExecutableConstant>,
+    verification: Arc<OnceLock<Result<(), String>>>,
 }
 
 impl ExecutableFunction {
@@ -73,6 +81,7 @@ impl ExecutableFunction {
             structure_map,
             parameters,
             constants,
+            verification: Arc::new(OnceLock::new()),
         }
     }
 
@@ -94,5 +103,36 @@ impl ExecutableFunction {
 
     pub fn constants(&self) -> &[ExecutableConstant] {
         &self.constants
+    }
+
+    pub(crate) fn verification_cache(&self) -> &OnceLock<Result<(), String>> {
+        &self.verification
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_id_is_clone_stable_and_revision_unique() {
+        let executable = ExecutableFunction::new(
+            Function {
+                code: Vec::new(),
+                register_count: 0,
+            },
+            StructureMap::default(),
+        );
+        let clone = executable.clone();
+        let revision = ExecutableFunction::new(
+            Function {
+                code: Vec::new(),
+                register_count: 0,
+            },
+            StructureMap::default(),
+        );
+
+        assert_eq!(executable.id().as_u64(), clone.id().as_u64());
+        assert_ne!(executable.id().as_u64(), revision.id().as_u64());
     }
 }

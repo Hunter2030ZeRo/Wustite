@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::bytecode::{Function, Instruction, Register};
 use crate::executable::{ExecutableConstant, ExecutableFunction, ExecutableParameter};
 use crate::structure_map::{
-    LiveSlot, LoopRegion, OperationSite, RegionExit, SlotType, StructureMap,
+    LiveSlot, LoopRegion, OperationSite, RegionExit, RegionKind, SlotType, StructureMap,
 };
 use crate::verifier;
 
@@ -60,6 +60,7 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
 
 #[derive(Default)]
 pub(super) struct Lowerer {
+    pub kind: Vec<RegionKind>,
     pub code: Vec<Instruction>,
     pub constants: Vec<ExecutableConstant>,
     pub loops: Vec<LoopRegion>,
