@@ -34,9 +34,10 @@ fn sum_function() -> executable::ExecutableFunction {
             ],
         },
         structure_map::StructureMap {
-            loops: vec![structure_map::LoopRegion {
-                header: 4,
-                backedge: 8,
+            regions: vec![structure_map::Region {
+                kind: structure_map::RegionKind::Loop,
+                entry: 4,
+                backedge: Some(8),
                 exits: vec![structure_map::RegionExit { target: 9 }],
                 live_slots: vec![
                     structure_map::LiveSlot {
@@ -72,7 +73,7 @@ fn sum_one_to_one_hundred() {
 
     let hot_loop = function
         .structure_map()
-        .loops
+        .regions
         .iter()
         .enumerate()
         .find(|(index, _)| profile.is_hot(structure_map::RegionId(*index), 50))
@@ -86,10 +87,11 @@ fn sum_one_to_one_hundred() {
     assert_eq!(plan.exits, vec![structure_map::RegionExit { target: 9 }]);
     assert_eq!(
         plan.live_slots,
-        function.structure_map().loops[0].live_slots
+        function.structure_map().regions[0].live_slots
     );
     assert_eq!(plan.region_id, structure_map::RegionId(0));
-    assert_eq!(hot_loop.header, 4);
+    assert_eq!(hot_loop.entry, 4);
+    assert_eq!(hot_loop.backedge, Some(8));
     assert_eq!(profile.entry_count(structure_map::RegionId(0)), 101);
     assert_eq!(result.value, value::Value::SmallInt(5050));
     assert_eq!(profile.entry_count(structure_map::RegionId(0)), 101);
@@ -227,9 +229,10 @@ fn verifier_rejects_invalid_loop_metadata() {
             ],
         },
         structure_map::StructureMap {
-            loops: vec![structure_map::LoopRegion {
-                header: 0,
-                backedge: 0,
+            regions: vec![structure_map::Region {
+                kind: structure_map::RegionKind::Loop,
+                entry: 0,
+                backedge: Some(0),
                 exits: vec![structure_map::RegionExit { target: 1 }],
                 live_slots: vec![],
             }],
@@ -244,7 +247,7 @@ fn verifier_rejects_invalid_loop_metadata() {
 fn verifier_rejects_duplicate_loop_headers() {
     let original = sum_function();
     let mut structure_map = original.structure_map().clone();
-    structure_map.loops.push(structure_map.loops[0].clone());
+    structure_map.regions.push(structure_map.regions[0].clone());
     let function = executable::ExecutableFunction::new(original.bytecode().clone(), structure_map);
 
     assert!(
@@ -258,7 +261,7 @@ fn verifier_rejects_duplicate_loop_headers() {
 fn verifier_rejects_duplicate_exit_targets() {
     let original = sum_function();
     let mut structure_map = original.structure_map().clone();
-    structure_map.loops[0]
+    structure_map.regions[0]
         .exits
         .push(structure_map::RegionExit { target: 9 });
     let function = executable::ExecutableFunction::new(original.bytecode().clone(), structure_map);

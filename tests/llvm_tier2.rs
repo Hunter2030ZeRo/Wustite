@@ -4,7 +4,7 @@ use wustite::bytecode::{Function, Instruction};
 use wustite::executable::ExecutableFunction;
 use wustite::jit::{LlvmRegionCompiler, RegionCompiler};
 use wustite::planner;
-use wustite::structure_map::{LiveSlot, LoopRegion, RegionExit, SlotType, StructureMap};
+use wustite::structure_map::{LiveSlot, Region, RegionExit, RegionKind, SlotType, StructureMap};
 use wustite::value::Value;
 use wustite::wvm::Vm;
 use wustite::wxir::{WxExitKind, build_region};
@@ -43,9 +43,10 @@ fn sum_function() -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: vec![LoopRegion {
-                header: 4,
-                backedge: 8,
+            regions: vec![Region {
+                kind: RegionKind::Loop,
+                entry: 4,
+                backedge: Some(8),
                 exits: vec![RegionExit { target: 9 }],
                 live_slots: (0..4)
                     .map(|register| LiveSlot {

@@ -109,14 +109,14 @@ pub(crate) fn build_verified_region(
 fn verify_plan(executable: &ExecutableFunction, plan: &JitPlan) -> Result<(), WxBuildError> {
     let region = executable
         .structure_map()
-        .loops
+        .regions
         .get(plan.region_id.0)
         .ok_or_else(|| {
             WxBuildError::InvalidPlan(format!("unknown region ID {}", plan.region_id.0))
         })?;
 
-    if region.header != plan.header
-        || region.backedge != plan.backedge
+    if region.entry != plan.header
+        || region.backedge != Some(plan.backedge)
         || region.exits != plan.exits
         || region.live_slots != plan.live_slots
     {

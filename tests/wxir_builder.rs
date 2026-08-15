@@ -1,7 +1,9 @@
 use wustite::bytecode::{Function, Instruction};
 use wustite::executable::{ExecutableFunction, ExecutableParameter};
 use wustite::planner::{JitPlan, select_hot_loop};
-use wustite::structure_map::{LiveSlot, LoopRegion, RegionExit, RegionId, SlotType, StructureMap};
+use wustite::structure_map::{
+    LiveSlot, Region, RegionExit, RegionId, RegionKind, SlotType, StructureMap,
+};
 use wustite::wvm::Vm;
 use wustite::wxir::{
     self, WxBuildError, WxExitKind, WxGuardMode, WxInstKind, WxIntOverflowOp, WxScalarType,
@@ -42,9 +44,10 @@ fn sum_function() -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: vec![LoopRegion {
-                header: 4,
-                backedge: 8,
+            regions: vec![Region {
+                kind: RegionKind::Loop,
+                entry: 4,
+                backedge: Some(8),
                 exits: vec![RegionExit { target: 9 }],
                 live_slots: vec![
                     LiveSlot {
@@ -213,9 +216,10 @@ fn return_inside_region_is_rejected_without_panicking() {
             ],
         },
         StructureMap {
-            loops: vec![LoopRegion {
-                header: 0,
-                backedge: 1,
+            regions: vec![Region {
+                kind: RegionKind::Loop,
+                entry: 0,
+                backedge: Some(1),
                 exits: vec![],
                 live_slots: vec![LiveSlot {
                     register: 0,
@@ -235,7 +239,7 @@ fn return_inside_region_is_rejected_without_panicking() {
         header: 0,
         backedge: 1,
         exits: vec![],
-        live_slots: executable.structure_map().loops[0].live_slots.clone(),
+        live_slots: executable.structure_map().regions[0].live_slots.clone(),
     };
 
     assert_eq!(

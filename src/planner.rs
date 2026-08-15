@@ -16,15 +16,15 @@ pub fn select_hot_loop(
     threshold: u64,
 ) -> Option<JitPlan> {
     structure_map
-        .loops
+        .regions
         .iter()
         .enumerate()
         .filter(|(index, _)| profile.is_hot(RegionId(*index), threshold))
         .max_by_key(|(index, _)| profile.entry_count(RegionId(*index)))
         .map(|(index, region)| JitPlan {
             region_id: RegionId(index),
-            header: region.header,
-            backedge: region.backedge,
+            header: region.entry,
+            backedge: region.backedge.unwrap_or(0),
             exits: region.exits.clone(),
             live_slots: region.live_slots.clone(),
         })
@@ -37,11 +37,11 @@ pub fn plan_hot_region(
     threshold: u64,
     region_id: RegionId,
 ) -> Option<JitPlan> {
-    let region = structure_map.loops.get(region_id.0)?;
+    let region = structure_map.regions.get(region_id.0)?;
     profile.is_hot(region_id, threshold).then(|| JitPlan {
         region_id,
-        header: region.header,
-        backedge: region.backedge,
+        header: region.entry,
+        backedge: region.backedge.unwrap_or(0),
         exits: region.exits.clone(),
         live_slots: region.live_slots.clone(),
     })

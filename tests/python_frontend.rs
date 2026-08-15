@@ -22,19 +22,19 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
     let executable = compile_python_function(SUM_SOURCE, "main").unwrap();
     verifier::verify(&executable).unwrap();
 
-    let region = &executable.structure_map().loops[0];
-    assert_eq!(executable.structure_map().loops.len(), 1);
-    assert_eq!((region.header, region.backedge), (8, 14));
+    let region = &executable.structure_map().regions[0];
+    assert_eq!(executable.structure_map().regions.len(), 1);
+    assert_eq!((region.entry, region.backedge), (8, Some(14)));
     assert!(matches!(
-        executable.bytecode().code[region.header],
+        executable.bytecode().code[region.entry],
         Instruction::CompareOp {
             op: CompareOperator::Lt,
             ..
         }
     ));
     assert!(matches!(
-        executable.bytecode().code[region.backedge],
-        Instruction::Jump { target } if target == region.header
+        executable.bytecode().code[region.backedge.unwrap_or(0)],
+        Instruction::Jump { target } if target == region.entry
     ));
     assert_eq!(region.exits.len(), 1);
     assert_eq!(region.exits[0].target, 15);
@@ -59,7 +59,7 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
 
     let operation_sites = &executable.structure_map().operation_sites;
     assert_eq!(operation_sites.len(), 3);
-    assert_eq!(operation_sites[0].pc, region.header);
+    assert_eq!(operation_sites[0].pc, region.entry);
     assert_eq!(operation_sites[0].lhs, TypeFact::Exact(SlotType::SmallInt));
     assert_eq!(operation_sites[0].rhs, TypeFact::Exact(SlotType::SmallInt));
     assert_eq!(operation_sites[0].result, TypeFact::Exact(SlotType::Bool));

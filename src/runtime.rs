@@ -250,13 +250,13 @@ impl Runtime {
         let bytecode = executable.bytecode();
         let regions = executable
             .structure_map()
-            .loops
+            .regions
             .iter()
             .enumerate()
             .map(|(index, region)| RegionInfo {
                 id: RegionId(index),
-                header: region.header,
-                backedge: region.backedge,
+                header: region.entry,
+                backedge: region.backedge.unwrap_or(0),
                 exits: region.exits.iter().map(|exit| exit.target).collect(),
                 live_slots: region.live_slots.clone(),
             })

@@ -31,19 +31,25 @@ pub(super) fn verify_structure_map(
     }
 
     let mut loop_headers = HashSet::new();
-    for (loop_index, region) in function.structure_map().loops.iter().enumerate() {
-        verify_region_target(function, region.header, loop_index, "header")?;
-        verify_region_target(function, region.backedge, loop_index, "backedge")?;
-        if !loop_headers.insert(region.header) {
+    for (loop_index, region) in function.structure_map().regions.iter().enumerate() {
+        verify_region_target(function, region.entry, loop_index, "header")?;
+        verify_region_target(
+            function,
+            region.backedge.unwrap_or(0),
+            loop_index,
+            "backedge",
+        )?;
+        if !loop_headers.insert(region.entry) {
             return Err(format!(
                 "loop {loop_index} duplicates loop header {}",
-                region.header
+                region.entry
             ));
         }
-        if region.backedge < region.header {
+        if region.backedge < Some(region.entry) {
             return Err(format!(
                 "loop {loop_index} backedge {} precedes header {}",
-                region.backedge, region.header
+                region.backedge.unwrap_or(0),
+                region.entry
             ));
         }
 
@@ -63,25 +69,26 @@ pub(super) fn verify_structure_map(
             }
         }
 
-        match bytecode.code.get(region.backedge) {
-            Some(Instruction::Jump { target }) if *target == region.header => {}
+        match bytecode.code.get(region.backedge.unwrap_or(0)) {
+            Some(Instruction::Jump { target }) if *target == region.entry => {}
             Some(Instruction::Jump { target }) => {
                 return Err(format!(
                     "loop {loop_index} backedge {} jumps to {target}, not header {}",
-                    region.backedge, region.header
+                    region.backedge.unwrap_or(0),
+                    region.entry
                 ));
             }
             Some(_) | None => {
                 return Err(format!(
                     "loop {loop_index} backedge {} is not a Jump",
-                    region.backedge
+                    region.backedge.unwrap_or(0)
                 ));
             }
         }
 
         let mut live_registers = HashSet::new();
         for slot in &region.live_slots {
-            verify_register(bytecode, slot.register, region.header, "loop live slot")?;
+            verify_register(bytecode, slot.register, region.entry, "loop live slot")?;
             if !live_registers.insert(slot.register) {
                 return Err(format!(
                     "loop {loop_index} has duplicate live slot for r{}",

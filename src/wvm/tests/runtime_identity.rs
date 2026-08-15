@@ -24,7 +24,7 @@ fn exact_add(site_pc: usize) -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: Vec::new(),
+            regions: Vec::new(),
             operation_sites: vec![OperationSite {
                 pc: site_pc,
                 lhs: TypeFact::Exact(SlotType::SmallInt),

@@ -3,8 +3,8 @@ use wustite::bytecode::{BinaryOperator, CompareOperator, Function, Instruction};
 use wustite::executable::ExecutableFunction;
 use wustite::object::Object;
 use wustite::structure_map::{
-    LiveSlot, LoopRegion, OperationSite, OperationSiteId, RegionExit, SlotType, StructureMap,
-    TypeFact,
+    LiveSlot, OperationSite, OperationSiteId, Region, RegionExit, RegionKind, SlotType,
+    StructureMap, TypeFact,
 };
 use wustite::value::Value;
 use wustite::wvm::Vm;
@@ -49,7 +49,7 @@ fn exact_add_lt() -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: Vec::new(),
+            regions: Vec::new(),
             operation_sites: vec![
                 site(
                     2,
@@ -107,9 +107,10 @@ fn semantic_overflow_loop() -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: vec![LoopRegion {
-                header: 3,
-                backedge: 6,
+            regions: vec![Region {
+                kind: RegionKind::Loop,
+                entry: 3,
+                backedge: Some(6),
                 exits: vec![RegionExit { target: 7 }],
                 live_slots: vec![
                     LiveSlot {
@@ -174,7 +175,7 @@ fn unknown_unsupported_and_runtime_mismatch_use_semantic_behavior() {
             ],
         },
         StructureMap {
-            loops: Vec::new(),
+            regions: Vec::new(),
             operation_sites: vec![
                 site(
                     2,

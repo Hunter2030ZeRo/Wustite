@@ -15,7 +15,7 @@ fn executable(code: Vec<Instruction>, sites: Vec<OperationSite>) -> ExecutableFu
             code,
         },
         StructureMap {
-            loops: Vec::new(),
+            regions: Vec::new(),
             operation_sites: sites,
         },
     )

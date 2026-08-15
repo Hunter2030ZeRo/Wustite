@@ -64,7 +64,7 @@ impl FunctionRuntime {
 
     fn with_quick_code(executable: &ExecutableFunction, quick_code: Arc<QuickCode>) -> Self {
         Self {
-            profile: Profile::new(executable.structure_map().loops.len()),
+            profile: Profile::new(executable.structure_map().regions.len()),
             jit: jit_runtime::JitRuntime::new(executable),
             constants: vec![None; executable.constants().len()],
             current_function: None,

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::bytecode::{Function, Instruction, Register};
 use crate::executable::{ExecutableConstant, ExecutableFunction, ExecutableParameter};
 use crate::structure_map::{
-    LiveSlot, LoopRegion, OperationSite, RegionExit, RegionKind, SlotType, StructureMap,
+    LiveSlot, OperationSite, Region, RegionExit, RegionKind, SlotType, StructureMap,
 };
 use crate::verifier;
 
@@ -46,7 +46,7 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
             register_count: lowerer.next_register as usize,
         },
         StructureMap {
-            loops: lowerer.loops,
+            regions: lowerer.regions,
             operation_sites: lowerer.operation_sites,
         },
         parameters,
@@ -63,7 +63,7 @@ pub(super) struct Lowerer {
     pub kind: Vec<RegionKind>,
     pub code: Vec<Instruction>,
     pub constants: Vec<ExecutableConstant>,
-    pub loops: Vec<LoopRegion>,
+    pub regions: Vec<Region>,
     pub operation_sites: Vec<OperationSite>,
     pub variables: HashMap<String, Variable>,
     pub variable_order: Vec<String>,
@@ -181,11 +181,12 @@ impl Lowerer {
         };
         *yes = body_pc;
         *no = exit;
-        self.loops.push(LoopRegion {
-            header,
-            backedge,
+        self.regions.push(Region {
+            kind: RegionKind::Loop,
+            entry: header,
+            backedge: Some(backedge),
             exits: vec![RegionExit { target: exit }],
-            live_slots,
+            live_slots: live_slots,
         });
         Ok(())
     }

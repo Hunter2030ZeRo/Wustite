@@ -5,7 +5,7 @@ use wustite::jit::{CompileError, CraneliftRegionCompiler, RegionCompiler};
 use wustite::object::Object;
 use wustite::planner::{self, JitPlan};
 use wustite::structure_map::{
-    LiveSlot, LoopRegion, RegionExit, RegionId, RegionKind, SlotType, StructureMap,
+    LiveSlot, Region, RegionExit, RegionId, RegionKind, SlotType, StructureMap,
 };
 use wustite::value::Value;
 use wustite::wvm::{JitFailureStage, Vm};
@@ -62,9 +62,10 @@ fn sum_function() -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: vec![LoopRegion {
-                header: 4,
-                backedge: 8,
+            regions: vec![Region {
+                kind: RegionKind::Loop,
+                entry: 4,
+                backedge: Some(8),
                 exits: vec![RegionExit { target: 9 }],
                 live_slots: (0..4).map(i64_slot).collect(),
             }],
@@ -103,9 +104,10 @@ fn overflow_function() -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: vec![LoopRegion {
-                header: 3,
-                backedge: 5,
+            regions: vec![Region {
+                kind: RegionKind::Loop,
+                entry: 3,
+                backedge: Some(5),
                 exits: vec![RegionExit { target: 6 }],
                 live_slots: vec![i64_slot(0), i64_slot(1), bool_slot(3)],
             }],
@@ -142,9 +144,10 @@ fn cached_entry_type_mismatch_function() -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: vec![LoopRegion {
-                header: 3,
-                backedge: 6,
+            regions: vec![Region {
+                kind: RegionKind::Loop,
+                entry: 3,
+                backedge: Some(6),
                 exits: vec![RegionExit { target: 7 }],
                 live_slots: vec![i64_slot(0), i64_slot(1), i64_slot(2), i64_slot(3)],
             }],
@@ -187,9 +190,10 @@ fn invalid_region_metadata_function() -> ExecutableFunction {
             ],
         },
         StructureMap {
-            loops: vec![LoopRegion {
-                header: 3,
-                backedge: 7,
+            regions: vec![Region {
+                kind: RegionKind::Loop,
+                entry: 3,
+                backedge: Some(7),
                 exits: vec![],
                 live_slots: vec![i64_slot(0), i64_slot(1), i64_slot(3)],
             }],
@@ -261,7 +265,7 @@ fn compiled_overflow_exits_before_updating_destination() {
         header: 3,
         backedge: 5,
         exits: vec![RegionExit { target: 6 }],
-        live_slots: executable.structure_map().loops[0].live_slots.clone(),
+        live_slots: executable.structure_map().regions[0].live_slots.clone(),
     };
     let wxir = build_region(&executable, &plan).unwrap();
     let mut compiler = CraneliftRegionCompiler::new(executable.id());

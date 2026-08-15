@@ -2,9 +2,6 @@ use std::cmp::Ordering;
 
 use num_bigint::{BigInt, BigUint};
 use num_traits::{FromPrimitive, ToPrimitive, Zero};
-
-use crate::wvm::Object;
-
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Number {
     Small(i64),

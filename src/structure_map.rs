@@ -56,11 +56,35 @@ pub struct LoopRegion {
     pub live_slots: Vec<LiveSlot>,
 }
 
+pub struct BlockEdge {
+    pub target: BlockId,
+    pub kind: EdgeKind,
+}
+
+pub enum EdgeKind {
+    Fallthrough,
+    Jump,
+    BranchTrue,
+    BranchFalse,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockId(pub u32);
+
+pub struct BasicBlock {
+    pub id: BlockId,
+
+    pub start_pc: usize,
+    pub end_pc: usize,
+
+    pub successors: Vec<BlockEdge>,
+    pub predecessors: Vec<BlockId>,
+}
+
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
 pub enum RegionKind {
     #[default]
     Loop,
-    StraightForward,
     Branch,
 }
 
@@ -78,11 +102,27 @@ pub struct Region {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StructureMap {
-    pub loops: Vec<LoopRegion>,
+    pub regions: Vec<Region>,
     pub operation_sites: Vec<OperationSite>,
 }
 
 impl StructureMap {
+    pub fn region(&self, id: RegionId) -> Option<&Region> {
+        self.regions.get(id.0)
+    }
+
+    pub fn regions(&self) -> &[Region] {
+        &self.regions
+    }
+
+    pub fn loop_regions(&self) -> impl Iterator<Item = (RegionId, &Region)> {
+        self.regions
+            .iter()
+            .enumerate()
+            .filter(|(_, region)| region.kind == RegionKind::Loop)
+            .map(|(id, region)| (RegionId(id), region))
+    }
+
     pub fn operation_site(&self, id: OperationSiteId) -> Option<&OperationSite> {
         self.operation_sites.get(id.0 as usize)
     }

@@ -31,7 +31,7 @@ fn executable(
             register_count,
         },
         StructureMap {
-            loops: Vec::new(),
+            regions: Vec::new(),
             operation_sites,
         },
         Vec::new(),

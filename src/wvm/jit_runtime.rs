@@ -42,8 +42,8 @@ enum RegionState {
 impl JitRuntime {
     pub(super) fn new(executable: &ExecutableFunction) -> Self {
         let mut region_by_header = vec![None; executable.bytecode().code.len()];
-        for (index, region) in executable.structure_map().loops.iter().enumerate() {
-            region_by_header[region.header] = Some(RegionId(index));
+        for (index, region) in executable.structure_map().regions.iter().enumerate() {
+            region_by_header[region.entry] = Some(RegionId(index));
         }
         Self {
             regions: HashMap::new(),
