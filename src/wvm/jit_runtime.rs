@@ -1,38 +1,36 @@
 use std::collections::HashMap;
 
 use crate::executable::ExecutableFunction;
-#[cfg(feature = "inkwell")]
-use crate::jit::LlvmRegionCompiler;
-use crate::jit::{CompiledRegion, CraneliftRegionCompiler, ExecuteError};
+use crate::jit::{CompilerBackend, ExecuteError};
 use crate::planner::plan_hot_region;
 use crate::structure_map::RegionId;
-#[cfg(feature = "inkwell")]
-use crate::wxir::VerifiedWxFunction;
 use crate::wxir::{WxExitKind, build_verified_region};
 
 use super::{Frame, FunctionRuntime, JitFailure, JitFailureStage, Vm};
 
+mod backend;
+
+use self::backend::{BackendCompiler, InitialRegion};
+
 pub(super) struct JitRuntime {
     regions: HashMap<RegionId, RegionState>,
-    region_by_header: Vec<Option<RegionId>>,
-    tier1_compiler: Box<CraneliftRegionCompiler>,
-    #[cfg(feature = "inkwell")]
-    tier2_compiler: Box<LlvmRegionCompiler>,
+    compiler: BackendCompiler,
 }
 
 enum RegionState {
+    Cranelift {
+        region: Box<crate::jit::CompiledRegion>,
+    },
+    #[cfg(feature = "inkwell")]
     Tier1 {
-        region: Box<CompiledRegion>,
-        #[cfg(feature = "inkwell")]
-        function: Box<VerifiedWxFunction>,
-        #[cfg(feature = "inkwell")]
+        region: Box<crate::jit::CompiledRegion>,
+        function: Box<crate::wxir::VerifiedWxFunction>,
         native_executions: u64,
-        #[cfg(feature = "inkwell")]
         tier2_available: bool,
     },
     #[cfg(feature = "inkwell")]
-    Tier2 {
-        region: Box<CompiledRegion>,
+    Llvm {
+        region: Box<crate::jit::CompiledRegion>,
     },
     Disabled {
         reason: String,
@@ -40,22 +38,11 @@ enum RegionState {
 }
 
 impl JitRuntime {
-    pub(super) fn new(executable: &ExecutableFunction) -> Self {
-        let mut region_by_header = vec![None; executable.bytecode().code.len()];
-        for (index, region) in executable.structure_map().regions.iter().enumerate() {
-            region_by_header[region.entry] = Some(RegionId(index));
-        }
+    pub(super) fn new(executable: &ExecutableFunction, backend: CompilerBackend) -> Self {
         Self {
             regions: HashMap::new(),
-            region_by_header,
-            tier1_compiler: Box::new(CraneliftRegionCompiler::new(executable.id())),
-            #[cfg(feature = "inkwell")]
-            tier2_compiler: Box::new(LlvmRegionCompiler::new(executable.id())),
+            compiler: BackendCompiler::new(executable.id(), backend),
         }
-    }
-
-    pub(super) fn region_at(&self, pc: usize) -> Option<RegionId> {
-        self.region_by_header.get(pc).copied().flatten()
     }
 }
 
@@ -66,18 +53,21 @@ impl Vm {
         frame: &mut Frame,
         runtime: &mut FunctionRuntime,
     ) -> bool {
+        let Some(jit) = runtime.jit.as_mut() else {
+            return false;
+        };
         if frame.suppress_osr_pc == Some(frame.pc) {
             frame.suppress_osr_pc = None;
             return false;
         }
-        let Some(region_id) = runtime.jit.region_at(frame.pc) else {
+        let Some(region_id) = executable.structure_map().region_by_entry_pc(frame.pc) else {
             return false;
         };
         if frame.suppressed_regions.contains(&region_id) {
             return false;
         }
-        if runtime.jit.regions.contains_key(&region_id) {
-            return self.execute_cached_region(region_id, frame, &mut runtime.jit);
+        if jit.regions.contains_key(&region_id) {
+            return self.execute_cached_region(region_id, frame, jit);
         }
         let Some(plan) = plan_hot_region(
             executable.structure_map(),
@@ -92,7 +82,7 @@ impl Vm {
             Ok(function) => function,
             Err(error) => {
                 self.disable_region(
-                    &mut runtime.jit,
+                    jit,
                     JitFailure {
                         region_id,
                         stage: JitFailureStage::BuildWxir,
@@ -102,14 +92,22 @@ impl Vm {
                 return false;
             }
         };
-        let region = match runtime.jit.tier1_compiler.compile_verified(&function) {
+        let initial_tier_is_llvm = jit.compiler.initial_tier_is_llvm();
+        if initial_tier_is_llvm {
+            self.jit_report.tier2_compilation_attempts += 1;
+        }
+        let region = match jit.compiler.compile_initial(function) {
             Ok(region) => region,
             Err(error) => {
                 self.disable_region(
-                    &mut runtime.jit,
+                    jit,
                     JitFailure {
                         region_id,
-                        stage: JitFailureStage::Compile,
+                        stage: if initial_tier_is_llvm {
+                            JitFailureStage::CompileTier2
+                        } else {
+                            JitFailureStage::Compile
+                        },
                         reason: error.to_string(),
                     },
                 );
@@ -117,19 +115,23 @@ impl Vm {
             }
         };
         self.jit_report.compiled_regions += 1;
-        runtime.jit.regions.insert(
-            region_id,
-            RegionState::Tier1 {
-                region: Box::new(region),
-                #[cfg(feature = "inkwell")]
-                function: Box::new(function),
-                #[cfg(feature = "inkwell")]
+        if initial_tier_is_llvm {
+            self.jit_report.tier2_compiled_regions += 1;
+        }
+        let state = match region {
+            InitialRegion::Cranelift(region) => RegionState::Cranelift { region },
+            #[cfg(feature = "inkwell")]
+            InitialRegion::Tier1 { region, function } => RegionState::Tier1 {
+                region,
+                function,
                 native_executions: 0,
-                #[cfg(feature = "inkwell")]
-                tier2_available: cfg!(feature = "inkwell"),
+                tier2_available: true,
             },
-        );
-        self.execute_cached_region(region_id, frame, &mut runtime.jit)
+            #[cfg(feature = "inkwell")]
+            InitialRegion::Llvm(region) => RegionState::Llvm { region },
+        };
+        jit.regions.insert(region_id, state);
+        self.execute_cached_region(region_id, frame, jit)
     }
 
     fn execute_cached_region(
@@ -142,24 +144,24 @@ impl Vm {
         self.promote_region_if_ready(region_id, jit);
 
         let (execution, tier2) = match jit.regions.get_mut(&region_id) {
+            Some(RegionState::Cranelift { region }) => {
+                (region.execute(&mut frame.registers), false)
+            }
+            #[cfg(feature = "inkwell")]
             Some(RegionState::Tier1 {
                 region,
-                #[cfg(feature = "inkwell")]
-                    function: _,
-                #[cfg(feature = "inkwell")]
+                function: _,
                 native_executions,
-                #[cfg(feature = "inkwell")]
-                    tier2_available: _,
+                tier2_available: _,
             }) => {
                 let execution = region.execute(&mut frame.registers);
-                #[cfg(feature = "inkwell")]
                 if execution.is_ok() {
                     *native_executions = native_executions.saturating_add(1);
                 }
                 (execution, false)
             }
             #[cfg(feature = "inkwell")]
-            Some(RegionState::Tier2 { region }) => (region.execute(&mut frame.registers), true),
+            Some(RegionState::Llvm { region }) => (region.execute(&mut frame.registers), true),
             Some(RegionState::Disabled { reason }) => {
                 let _ = reason;
                 return false;
@@ -201,7 +203,7 @@ impl Vm {
 
     #[cfg(feature = "inkwell")]
     fn promote_region_if_ready(&mut self, region_id: RegionId, jit: &mut JitRuntime) {
-        let (regions, compiler) = (&mut jit.regions, &mut jit.tier2_compiler);
+        let (regions, compiler) = (&mut jit.regions, &mut jit.compiler);
         let Some(state) = regions.get_mut(&region_id) else {
             return;
         };
@@ -218,10 +220,13 @@ impl Vm {
             return;
         }
 
+        let Some(compilation) = compiler.compile_tier2(function) else {
+            return;
+        };
         self.jit_report.tier2_compilation_attempts += 1;
-        match compiler.compile_verified(function) {
+        match compilation {
             Ok(region) => {
-                *state = RegionState::Tier2 {
+                *state = RegionState::Llvm {
                     region: Box::new(region),
                 };
                 self.jit_report.tier2_compiled_regions += 1;

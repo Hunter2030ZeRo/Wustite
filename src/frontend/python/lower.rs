@@ -5,9 +5,7 @@ use std::collections::HashMap;
 
 use crate::bytecode::{Function, Instruction, Register};
 use crate::executable::{ExecutableConstant, ExecutableFunction, ExecutableParameter};
-use crate::structure_map::{
-    LiveSlot, OperationSite, Region, RegionExit, RegionKind, SlotType, StructureMap,
-};
+use crate::structure_map::{RegionExit, RegionKind, SlotType, StateSlot, StructureMapBuilder};
 use crate::verifier;
 
 use super::error::PythonFrontendError;
@@ -40,18 +38,16 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
     }
     lowerer.lower_statements(&function.body, false)?;
 
-    let executable = ExecutableFunction::new_with_abi(
-        Function {
-            code: lowerer.code,
-            register_count: lowerer.next_register as usize,
-        },
-        StructureMap {
-            regions: lowerer.regions,
-            operation_sites: lowerer.operation_sites,
-        },
-        parameters,
-        lowerer.constants,
-    );
+    let function = Function {
+        code: lowerer.code,
+        register_count: lowerer.next_register as usize,
+    };
+    let structure_map = lowerer
+        .map_builder
+        .finish(&function.code, function.register_count)
+        .map_err(|error| PythonFrontendError::new(error, None))?;
+    let executable =
+        ExecutableFunction::new_with_abi(function, structure_map, parameters, lowerer.constants);
     verifier::verify(&executable).map_err(|error| {
         PythonFrontendError::new(format!("generated invalid WVM: {error}"), None)
     })?;
@@ -60,14 +56,12 @@ pub(crate) fn lower(function: HirFunction) -> Result<ExecutableFunction, PythonF
 
 #[derive(Default)]
 pub(super) struct Lowerer {
-    pub kind: Vec<RegionKind>,
     pub code: Vec<Instruction>,
     pub constants: Vec<ExecutableConstant>,
-    pub regions: Vec<Region>,
-    pub operation_sites: Vec<OperationSite>,
     pub variables: HashMap<String, Variable>,
     pub variable_order: Vec<String>,
     pub next_register: u32,
+    pub map_builder: StructureMapBuilder,
 }
 
 impl Lowerer {
@@ -153,13 +147,14 @@ impl Lowerer {
             .iter()
             .filter_map(|name| {
                 let variable = self.variables.get(name)?;
-                Some(LiveSlot {
+                Some(StateSlot {
                     register: variable.register,
                     ty: variable.ty?,
                 })
             })
             .collect();
         let header = self.code.len();
+        let region = self.map_builder.begin_region(header, live_slots);
         let (cond, ty) = self.lower_expression(condition)?;
         self.expect_type(ty, SlotType::Bool, condition, "while condition")?;
         let branch_pc = self.code.len();
@@ -181,13 +176,13 @@ impl Lowerer {
         };
         *yes = body_pc;
         *no = exit;
-        self.regions.push(Region {
-            kind: RegionKind::Loop,
-            entry: header,
-            backedge: Some(backedge),
-            exits: vec![RegionExit { target: exit }],
-            live_slots: live_slots,
-        });
+        self.map_builder
+            .finish_region(
+                region,
+                RegionKind::Loop { backedge },
+                vec![RegionExit { target: exit }],
+            )
+            .map_err(|error| PythonFrontendError::new(error, Some(statement.location)))?;
         Ok(())
     }
 

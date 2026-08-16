@@ -1,4 +1,4 @@
-use crate::bytecode::Register;
+use crate::bytecode::{Instruction, Register};
 use crate::object::ObjectKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,7 +38,7 @@ pub struct OperationSite {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LiveSlot {
+pub struct StateSlot {
     pub register: Register,
     pub ty: SlotType,
 }
@@ -48,19 +48,13 @@ pub struct RegionExit {
     pub target: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LoopRegion {
-    pub header: usize,
-    pub backedge: usize,
-    pub exits: Vec<RegionExit>,
-    pub live_slots: Vec<LiveSlot>,
-}
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlockEdge {
     pub target: BlockId,
     pub kind: EdgeKind,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EdgeKind {
     Fallthrough,
     Jump,
@@ -68,9 +62,10 @@ pub enum EdgeKind {
     BranchFalse,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BlockId(pub u32);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BasicBlock {
     pub id: BlockId,
 
@@ -81,32 +76,52 @@ pub struct BasicBlock {
     pub predecessors: Vec<BlockId>,
 }
 
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegionKind {
-    #[default]
-    Loop,
+    Loop { backedge: usize },
     Branch,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RegionSummary {
+    pub instruction_count: usize,
+    pub block_count: usize,
+    pub operation_count: usize,
+    pub call_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Region {
     pub kind: RegionKind,
 
     pub entry: usize,
-
-    pub backedge: Option<usize>,
+    pub blocks: Vec<BlockId>,
 
     pub exits: Vec<RegionExit>,
-    pub live_slots: Vec<LiveSlot>,
+
+    pub entry_summary: Vec<StateSlot>,
+    pub summary: RegionSummary,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StructureMap {
-    pub regions: Vec<Region>,
-    pub operation_sites: Vec<OperationSite>,
+    blocks: Vec<BasicBlock>,
+    regions: Vec<Region>,
+    operation_sites: Vec<OperationSite>,
+
+    block_by_pc: Vec<BlockId>,
+    region_by_entry_pc: Vec<Option<RegionId>>,
 }
 
 impl StructureMap {
+    pub fn blocks(&self) -> &[BasicBlock] {
+        &self.blocks
+    }
+
+    pub fn block(&self, id: BlockId) -> Option<&BasicBlock> {
+        self.blocks.get(id.0 as usize)
+    }
+
     pub fn region(&self, id: RegionId) -> Option<&Region> {
         self.regions.get(id.0)
     }
@@ -115,19 +130,108 @@ impl StructureMap {
         &self.regions
     }
 
+    pub fn operation_site(&self, id: OperationSiteId) -> Option<&OperationSite> {
+        self.operation_sites.get(id.0 as usize)
+    }
+
+    pub fn operation_sites(&self) -> &[OperationSite] {
+        &self.operation_sites
+    }
+
+    pub fn block_by_pc(&self, pc: usize) -> Option<&BasicBlock> {
+        self.block_by_pc.get(pc).and_then(|id| self.block(*id))
+    }
+
+    pub fn region_by_entry_pc(&self, pc: usize) -> Option<RegionId> {
+        self.region_by_entry_pc.get(pc).copied().flatten()
+    }
+
     pub fn loop_regions(&self) -> impl Iterator<Item = (RegionId, &Region)> {
         self.regions
             .iter()
             .enumerate()
-            .filter(|(_, region)| region.kind == RegionKind::Loop)
+            .filter(|(_, region)| matches!(region.kind, RegionKind::Loop { .. }))
             .map(|(id, region)| (RegionId(id), region))
-    }
-
-    pub fn operation_site(&self, id: OperationSiteId) -> Option<&OperationSite> {
-        self.operation_sites.get(id.0 as usize)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// Stable identifier for a WVM region in a StructureMap.
 pub struct RegionId(pub usize);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RegionDraft {
+    entry: usize,
+    entry_summary: Vec<StateSlot>,
+    completion: Option<(RegionKind, Vec<RegionExit>)>,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct StructureMapBuilder {
+    operation_sites: Vec<OperationSite>,
+    regions: Vec<RegionDraft>,
+}
+
+impl StructureMapBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn record_operation(
+        &mut self,
+        pc: usize,
+        lhs: TypeFact,
+        rhs: TypeFact,
+        result: TypeFact,
+    ) -> Result<OperationSiteId, String> {
+        let id = u32::try_from(self.operation_sites.len())
+            .map_err(|_| "StructureMap contains too many operation sites".to_string())?;
+        self.operation_sites.push(OperationSite {
+            pc,
+            lhs,
+            rhs,
+            result,
+        });
+        Ok(OperationSiteId(id))
+    }
+
+    pub fn begin_region(&mut self, entry: usize, entry_summary: Vec<StateSlot>) -> RegionId {
+        let id = RegionId(self.regions.len());
+        self.regions.push(RegionDraft {
+            entry,
+            entry_summary,
+            completion: None,
+        });
+        id
+    }
+
+    pub fn finish_region(
+        &mut self,
+        id: RegionId,
+        kind: RegionKind,
+        exits: Vec<RegionExit>,
+    ) -> Result<(), String> {
+        let draft = self
+            .regions
+            .get_mut(id.0)
+            .ok_or_else(|| format!("unknown region {}", id.0))?;
+        if draft.completion.is_some() {
+            return Err(format!("region {} is already finished", id.0));
+        }
+        draft.completion = Some((kind, exits));
+        Ok(())
+    }
+
+    pub fn finish(
+        self,
+        code: &[Instruction],
+        register_count: usize,
+    ) -> Result<StructureMap, String> {
+        builder::finish(self, code, register_count)
+    }
+}
+
+mod builder;
+
+#[cfg(test)]
+mod tests;

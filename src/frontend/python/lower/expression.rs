@@ -1,7 +1,7 @@
 use crate::bytecode::{Instruction, Register, UnaryOperator};
 use crate::executable::{ConstantId, ExecutableConstant};
 use crate::object::ObjectKind;
-use crate::structure_map::{OperationSite, OperationSiteId, SlotType, TypeFact};
+use crate::structure_map::{SlotType, TypeFact};
 
 use super::Lowerer;
 use crate::frontend::python::PythonFrontendError;
@@ -70,7 +70,15 @@ impl Lowerer {
                 let (rhs_register, rhs_ty) = self.lower_expression(rhs)?;
                 let result_ty = binary_result_type(*op, lhs_ty, rhs_ty);
                 let dst = self.allocate_register(expression.location)?;
-                let site = self.record_operation_site(lhs_ty, rhs_ty, result_ty, expression)?;
+                let site = self
+                    .map_builder
+                    .record_operation(
+                        self.code.len(),
+                        type_fact(lhs_ty),
+                        type_fact(rhs_ty),
+                        type_fact(result_ty),
+                    )
+                    .map_err(|error| PythonFrontendError::new(error, Some(expression.location)))?;
                 self.code.push(Instruction::BinaryOp {
                     dst,
                     op: *op,
@@ -84,8 +92,15 @@ impl Lowerer {
                 let (lhs_register, lhs_ty) = self.lower_expression(lhs)?;
                 let (rhs_register, rhs_ty) = self.lower_expression(rhs)?;
                 let dst = self.allocate_register(expression.location)?;
-                let site =
-                    self.record_operation_site(lhs_ty, rhs_ty, SlotType::Bool, expression)?;
+                let site = self
+                    .map_builder
+                    .record_operation(
+                        self.code.len(),
+                        type_fact(lhs_ty),
+                        type_fact(rhs_ty),
+                        TypeFact::Exact(SlotType::Bool),
+                    )
+                    .map_err(|error| PythonFrontendError::new(error, Some(expression.location)))?;
                 self.code.push(Instruction::CompareOp {
                     dst,
                     op: *op,
@@ -162,28 +177,6 @@ impl Lowerer {
             )
         })?;
         Ok((variable.register, ty))
-    }
-
-    fn record_operation_site(
-        &mut self,
-        lhs: SlotType,
-        rhs: SlotType,
-        result: SlotType,
-        expression: &HirExpression,
-    ) -> Result<OperationSiteId, PythonFrontendError> {
-        let id = u32::try_from(self.operation_sites.len()).map_err(|_| {
-            PythonFrontendError::new(
-                "function contains too many semantic operation sites",
-                Some(expression.location),
-            )
-        })?;
-        self.operation_sites.push(OperationSite {
-            pc: self.code.len(),
-            lhs: type_fact(lhs),
-            rhs: type_fact(rhs),
-            result: type_fact(result),
-        });
-        Ok(OperationSiteId(id))
     }
 }
 

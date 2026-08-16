@@ -4,10 +4,11 @@ use std::time::Instant;
 
 use crate::executable::{ExecutableFunction, ExecutableId, ExecutableParameter};
 use crate::frontend::{PythonFrontendError, compile_python_function};
+use crate::jit::CompilerBackend;
 use crate::metrics::{CompilationMetrics, ExecutionMetrics};
 use crate::object::{Object, ObjectError, ObjectKind, ObjectRef};
 use crate::profiler::Profile;
-use crate::structure_map::{LiveSlot, RegionId};
+use crate::structure_map::{RegionId, RegionKind, StateSlot};
 use crate::value::Value;
 use crate::wvm::{DEFAULT_HOT_THRESHOLD, JitReport, Vm};
 
@@ -15,11 +16,12 @@ mod value;
 
 pub use value::RuntimeValue;
 
-/// Selects interpreter-only execution or adaptive synchronous tier-up.
+/// Selects interpreter-only execution or a specific native compilation policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutionMode {
     Interpreter,
     AdaptiveJit,
+    Jit(CompilerBackend),
 }
 
 /// Configuration fixed for one long-lived [`Runtime`].
@@ -32,7 +34,7 @@ pub struct RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            execution_mode: ExecutionMode::AdaptiveJit,
+            execution_mode: ExecutionMode::Jit(CompilerBackend::Tiered),
             hot_threshold: DEFAULT_HOT_THRESHOLD,
         }
     }
@@ -89,7 +91,7 @@ pub struct RegionInfo {
     pub header: usize,
     pub backedge: usize,
     pub exits: Vec<usize>,
-    pub live_slots: Vec<LiveSlot>,
+    pub live_slots: Vec<StateSlot>,
 }
 
 /// Read-only metadata for an immutable executable revision.
@@ -118,14 +120,20 @@ pub struct Runtime {
 
 impl Runtime {
     pub fn new(config: RuntimeConfig) -> Self {
-        let threshold = match config.execution_mode {
-            ExecutionMode::Interpreter => u64::MAX,
-            ExecutionMode::AdaptiveJit => config.hot_threshold,
+        let vm = match config.execution_mode {
+            ExecutionMode::Interpreter => Vm::interpreter(),
+            ExecutionMode::AdaptiveJit => Vm::with_compiler_backend(
+                config.hot_threshold,
+                crate::wvm::DEFAULT_TIER2_THRESHOLD,
+                CompilerBackend::Tiered,
+            ),
+            ExecutionMode::Jit(backend) => Vm::with_compiler_backend(
+                config.hot_threshold,
+                crate::wvm::DEFAULT_TIER2_THRESHOLD,
+                backend,
+            ),
         };
-        Self {
-            vm: Vm::with_hot_threshold(threshold),
-            config,
-        }
+        Self { vm, config }
     }
 
     pub fn config(&self) -> &RuntimeConfig {
@@ -250,15 +258,20 @@ impl Runtime {
         let bytecode = executable.bytecode();
         let regions = executable
             .structure_map()
-            .regions
+            .regions()
             .iter()
             .enumerate()
-            .map(|(index, region)| RegionInfo {
-                id: RegionId(index),
-                header: region.entry,
-                backedge: region.backedge.unwrap_or(0),
-                exits: region.exits.iter().map(|exit| exit.target).collect(),
-                live_slots: region.live_slots.clone(),
+            .filter_map(|(index, region)| {
+                let RegionKind::Loop { backedge } = region.kind else {
+                    return None;
+                };
+                Some(RegionInfo {
+                    id: RegionId(index),
+                    header: region.entry,
+                    backedge,
+                    exits: region.exits.iter().map(|exit| exit.target).collect(),
+                    live_slots: region.entry_summary.clone(),
+                })
             })
             .collect();
 

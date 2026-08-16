@@ -11,7 +11,7 @@ use std::fmt;
 use crate::bytecode::{BinaryOperator, CompareOperator, Instruction, Register};
 use crate::executable::ExecutableFunction;
 use crate::planner::JitPlan;
-use crate::structure_map::{LiveSlot, OperationSiteId, SlotType, TypeFact};
+use crate::structure_map::{OperationSiteId, RegionKind, SlotType, StateSlot, TypeFact};
 use crate::verifier as wvm_verifier;
 
 use super::VerifiedWxFunction;
@@ -109,16 +109,23 @@ pub(crate) fn build_verified_region(
 fn verify_plan(executable: &ExecutableFunction, plan: &JitPlan) -> Result<(), WxBuildError> {
     let region = executable
         .structure_map()
-        .regions
-        .get(plan.region_id.0)
+        .region(plan.region_id)
         .ok_or_else(|| {
             WxBuildError::InvalidPlan(format!("unknown region ID {}", plan.region_id.0))
         })?;
 
-    if region.entry != plan.header
-        || region.backedge != Some(plan.backedge)
+    let RegionKind::Loop { backedge } = region.kind else {
+        return Err(WxBuildError::InvalidPlan(
+            "JIT plan must reference a loop region".to_string(),
+        ));
+    };
+
+    if backedge != plan.backedge
+        || region.entry != plan.header
         || region.exits != plan.exits
-        || region.live_slots != plan.live_slots
+        || region.entry_summary != plan.live_slots
+        || region.blocks != plan.blocks
+        || region.summary != plan.summary
     {
         return Err(WxBuildError::InvalidPlan(
             "plan metadata does not match its StructureMap region".to_string(),

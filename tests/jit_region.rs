@@ -5,7 +5,7 @@ use wustite::jit::{CompileError, CraneliftRegionCompiler, RegionCompiler};
 use wustite::object::Object;
 use wustite::planner::{self, JitPlan};
 use wustite::structure_map::{
-    LiveSlot, Region, RegionExit, RegionId, RegionKind, SlotType, StructureMap,
+    RegionExit, RegionId, RegionKind, SlotType, StateSlot, StructureMap, StructureMapBuilder,
 };
 use wustite::value::Value;
 use wustite::wvm::{JitFailureStage, Vm};
@@ -14,145 +14,153 @@ use wustite::wxir::{
     WxStateValue, WxTerminator, WxType, WxValueId, build_region,
 };
 
-fn i64_slot(register: u16) -> LiveSlot {
-    LiveSlot {
+fn i64_slot(register: u16) -> StateSlot {
+    StateSlot {
         register,
         ty: SlotType::SmallInt,
     }
 }
 
-fn bool_slot(register: u16) -> LiveSlot {
-    LiveSlot {
+fn bool_slot(register: u16) -> StateSlot {
+    StateSlot {
         register,
         ty: SlotType::Bool,
     }
 }
 
+fn structure_map_with_loop(
+    function: &Function,
+    entry: usize,
+    backedge: usize,
+    exits: Vec<RegionExit>,
+    entry_summary: Vec<StateSlot>,
+) -> StructureMap {
+    let mut builder = StructureMapBuilder::new();
+    let region = builder.begin_region(entry, entry_summary);
+    builder
+        .finish_region(region, RegionKind::Loop { backedge }, exits)
+        .unwrap();
+    builder
+        .finish(&function.code, function.register_count)
+        .unwrap()
+}
+
 fn sum_function() -> ExecutableFunction {
-    ExecutableFunction::new(
-        Function {
-            register_count: 5,
-            code: vec![
-                Instruction::ConstI64 { dst: 0, value: 0 },
-                Instruction::ConstI64 { dst: 1, value: 1 },
-                Instruction::ConstI64 { dst: 2, value: 1 },
-                Instruction::ConstI64 { dst: 3, value: 101 },
-                Instruction::LtI64 {
-                    dst: 4,
-                    lhs: 1,
-                    rhs: 3,
-                },
-                Instruction::Branch {
-                    cond: 4,
-                    yes: 6,
-                    no: 9,
-                },
-                Instruction::AddI64 {
-                    dst: 0,
-                    lhs: 0,
-                    rhs: 1,
-                },
-                Instruction::AddI64 {
-                    dst: 1,
-                    lhs: 1,
-                    rhs: 2,
-                },
-                Instruction::Jump { target: 4 },
-                Instruction::Return { src: 0 },
-            ],
-        },
-        StructureMap {
-            regions: vec![Region {
-                kind: RegionKind::Loop,
-                entry: 4,
-                backedge: Some(8),
-                exits: vec![RegionExit { target: 9 }],
-                live_slots: (0..4).map(i64_slot).collect(),
-            }],
-            operation_sites: vec![],
-        },
-    )
+    let function = Function {
+        register_count: 5,
+        code: vec![
+            Instruction::ConstI64 { dst: 0, value: 0 },
+            Instruction::ConstI64 { dst: 1, value: 1 },
+            Instruction::ConstI64 { dst: 2, value: 1 },
+            Instruction::ConstI64 { dst: 3, value: 101 },
+            Instruction::LtI64 {
+                dst: 4,
+                lhs: 1,
+                rhs: 3,
+            },
+            Instruction::Branch {
+                cond: 4,
+                yes: 6,
+                no: 9,
+            },
+            Instruction::AddI64 {
+                dst: 0,
+                lhs: 0,
+                rhs: 1,
+            },
+            Instruction::AddI64 {
+                dst: 1,
+                lhs: 1,
+                rhs: 2,
+            },
+            Instruction::Jump { target: 4 },
+            Instruction::Return { src: 0 },
+        ],
+    };
+    let structure_map = structure_map_with_loop(
+        &function,
+        4,
+        8,
+        vec![RegionExit { target: 9 }],
+        (0..4).map(i64_slot).collect(),
+    );
+    ExecutableFunction::new(function, structure_map)
 }
 
 fn overflow_function() -> ExecutableFunction {
-    ExecutableFunction::new(
-        Function {
-            register_count: 4,
-            code: vec![
-                Instruction::ConstI64 {
-                    dst: 0,
-                    value: i64::MAX,
-                },
-                Instruction::ConstI64 { dst: 1, value: 1 },
-                Instruction::LtI64 {
-                    dst: 3,
-                    lhs: 1,
-                    rhs: 0,
-                },
-                Instruction::AddI64 {
-                    dst: 2,
-                    lhs: 0,
-                    rhs: 1,
-                },
-                Instruction::Branch {
-                    cond: 3,
-                    yes: 6,
-                    no: 5,
-                },
-                Instruction::Jump { target: 3 },
-                Instruction::Return { src: 2 },
-            ],
-        },
-        StructureMap {
-            regions: vec![Region {
-                kind: RegionKind::Loop,
-                entry: 3,
-                backedge: Some(5),
-                exits: vec![RegionExit { target: 6 }],
-                live_slots: vec![i64_slot(0), i64_slot(1), bool_slot(3)],
-            }],
-            operation_sites: vec![],
-        },
-    )
+    let function = Function {
+        register_count: 4,
+        code: vec![
+            Instruction::ConstI64 {
+                dst: 0,
+                value: i64::MAX,
+            },
+            Instruction::ConstI64 { dst: 1, value: 1 },
+            Instruction::LtI64 {
+                dst: 3,
+                lhs: 1,
+                rhs: 0,
+            },
+            Instruction::AddI64 {
+                dst: 2,
+                lhs: 0,
+                rhs: 1,
+            },
+            Instruction::Branch {
+                cond: 3,
+                yes: 6,
+                no: 5,
+            },
+            Instruction::Jump { target: 3 },
+            Instruction::Return { src: 2 },
+        ],
+    };
+    let structure_map = structure_map_with_loop(
+        &function,
+        3,
+        5,
+        vec![RegionExit { target: 6 }],
+        vec![i64_slot(0), i64_slot(1), bool_slot(3)],
+    );
+    ExecutableFunction::new(function, structure_map)
 }
 
 fn cached_entry_type_mismatch_function() -> ExecutableFunction {
+    let function = Function {
+        register_count: 5,
+        code: vec![
+            Instruction::ConstI64 { dst: 1, value: 0 },
+            Instruction::ConstI64 { dst: 2, value: 1 },
+            Instruction::ConstI64 { dst: 3, value: 3 },
+            Instruction::LtI64 {
+                dst: 4,
+                lhs: 1,
+                rhs: 3,
+            },
+            Instruction::Branch {
+                cond: 4,
+                yes: 5,
+                no: 7,
+            },
+            Instruction::AddI64 {
+                dst: 1,
+                lhs: 1,
+                rhs: 2,
+            },
+            Instruction::Jump { target: 3 },
+            Instruction::Return { src: 1 },
+        ],
+    };
+    let structure_map = structure_map_with_loop(
+        &function,
+        3,
+        6,
+        vec![RegionExit { target: 7 }],
+        vec![i64_slot(0), i64_slot(1), i64_slot(2), i64_slot(3)],
+    );
     ExecutableFunction::new_with_parameters(
-        Function {
-            register_count: 5,
-            code: vec![
-                Instruction::ConstI64 { dst: 1, value: 0 },
-                Instruction::ConstI64 { dst: 2, value: 1 },
-                Instruction::ConstI64 { dst: 3, value: 3 },
-                Instruction::LtI64 {
-                    dst: 4,
-                    lhs: 1,
-                    rhs: 3,
-                },
-                Instruction::Branch {
-                    cond: 4,
-                    yes: 5,
-                    no: 7,
-                },
-                Instruction::AddI64 {
-                    dst: 1,
-                    lhs: 1,
-                    rhs: 2,
-                },
-                Instruction::Jump { target: 3 },
-                Instruction::Return { src: 1 },
-            ],
-        },
-        StructureMap {
-            regions: vec![Region {
-                kind: RegionKind::Loop,
-                entry: 3,
-                backedge: Some(6),
-                exits: vec![RegionExit { target: 7 }],
-                live_slots: vec![i64_slot(0), i64_slot(1), i64_slot(2), i64_slot(3)],
-            }],
-            operation_sites: vec![],
-        },
+        function,
+        structure_map,
         vec![ExecutableParameter {
             name: "opaque_entry".to_string(),
             register: 0,
@@ -162,44 +170,40 @@ fn cached_entry_type_mismatch_function() -> ExecutableFunction {
 }
 
 fn invalid_region_metadata_function() -> ExecutableFunction {
-    ExecutableFunction::new(
-        Function {
-            register_count: 4,
-            code: vec![
-                Instruction::ConstI64 { dst: 0, value: 0 },
-                Instruction::ConstI64 { dst: 1, value: 1 },
-                Instruction::ConstI64 { dst: 3, value: 3 },
-                Instruction::LtI64 {
-                    dst: 2,
-                    lhs: 0,
-                    rhs: 3,
-                },
-                Instruction::Branch {
-                    cond: 2,
-                    yes: 6,
-                    no: 8,
-                },
-                Instruction::Return { src: 0 },
-                Instruction::AddI64 {
-                    dst: 0,
-                    lhs: 0,
-                    rhs: 1,
-                },
-                Instruction::Jump { target: 3 },
-                Instruction::Return { src: 0 },
-            ],
-        },
-        StructureMap {
-            regions: vec![Region {
-                kind: RegionKind::Loop,
-                entry: 3,
-                backedge: Some(7),
-                exits: vec![],
-                live_slots: vec![i64_slot(0), i64_slot(1), i64_slot(3)],
-            }],
-            operation_sites: vec![],
-        },
-    )
+    let function = Function {
+        register_count: 4,
+        code: vec![
+            Instruction::ConstI64 { dst: 0, value: 0 },
+            Instruction::ConstI64 { dst: 1, value: 1 },
+            Instruction::ConstI64 { dst: 3, value: 3 },
+            Instruction::LtI64 {
+                dst: 2,
+                lhs: 0,
+                rhs: 3,
+            },
+            Instruction::Branch {
+                cond: 2,
+                yes: 6,
+                no: 8,
+            },
+            Instruction::Return { src: 0 },
+            Instruction::AddI64 {
+                dst: 0,
+                lhs: 0,
+                rhs: 1,
+            },
+            Instruction::Jump { target: 3 },
+            Instruction::Return { src: 0 },
+        ],
+    };
+    let structure_map = structure_map_with_loop(
+        &function,
+        3,
+        7,
+        vec![],
+        vec![i64_slot(0), i64_slot(1), i64_slot(3)],
+    );
+    ExecutableFunction::new(function, structure_map)
 }
 
 fn unsupported_f64_wxir() -> WxFunction {
@@ -260,12 +264,15 @@ fn compiled_sum_region_restores_live_state_and_resume_pc() {
 #[test]
 fn compiled_overflow_exits_before_updating_destination() {
     let executable = overflow_function();
+    let region = executable.structure_map().region(RegionId(0)).unwrap();
     let plan = JitPlan {
         region_id: RegionId(0),
         header: 3,
         backedge: 5,
         exits: vec![RegionExit { target: 6 }],
-        live_slots: executable.structure_map().regions[0].live_slots.clone(),
+        live_slots: region.entry_summary.clone(),
+        blocks: region.blocks.clone(),
+        summary: region.summary,
     };
     let wxir = build_region(&executable, &plan).unwrap();
     let mut compiler = CraneliftRegionCompiler::new(executable.id());

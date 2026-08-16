@@ -1,63 +1,68 @@
 #![cfg(feature = "inkwell")]
 
+use wustite::CompilerBackend;
 use wustite::bytecode::{Function, Instruction};
 use wustite::executable::ExecutableFunction;
 use wustite::jit::{LlvmRegionCompiler, RegionCompiler};
 use wustite::planner;
-use wustite::structure_map::{LiveSlot, Region, RegionExit, RegionKind, SlotType, StructureMap};
+use wustite::structure_map::{RegionExit, RegionKind, SlotType, StateSlot, StructureMapBuilder};
 use wustite::value::Value;
 use wustite::wvm::Vm;
 use wustite::wxir::{WxExitKind, build_region};
 
 fn sum_function() -> ExecutableFunction {
-    ExecutableFunction::new(
-        Function {
-            register_count: 5,
-            code: vec![
-                Instruction::ConstI64 { dst: 0, value: 0 },
-                Instruction::ConstI64 { dst: 1, value: 1 },
-                Instruction::ConstI64 { dst: 2, value: 1 },
-                Instruction::ConstI64 { dst: 3, value: 101 },
-                Instruction::LtI64 {
-                    dst: 4,
-                    lhs: 1,
-                    rhs: 3,
-                },
-                Instruction::Branch {
-                    cond: 4,
-                    yes: 6,
-                    no: 9,
-                },
-                Instruction::AddI64 {
-                    dst: 0,
-                    lhs: 0,
-                    rhs: 1,
-                },
-                Instruction::AddI64 {
-                    dst: 1,
-                    lhs: 1,
-                    rhs: 2,
-                },
-                Instruction::Jump { target: 4 },
-                Instruction::Return { src: 0 },
-            ],
-        },
-        StructureMap {
-            regions: vec![Region {
-                kind: RegionKind::Loop,
-                entry: 4,
-                backedge: Some(8),
-                exits: vec![RegionExit { target: 9 }],
-                live_slots: (0..4)
-                    .map(|register| LiveSlot {
-                        register,
-                        ty: SlotType::SmallInt,
-                    })
-                    .collect(),
-            }],
-            operation_sites: Vec::new(),
-        },
-    )
+    let function = Function {
+        register_count: 5,
+        code: vec![
+            Instruction::ConstI64 { dst: 0, value: 0 },
+            Instruction::ConstI64 { dst: 1, value: 1 },
+            Instruction::ConstI64 { dst: 2, value: 1 },
+            Instruction::ConstI64 { dst: 3, value: 101 },
+            Instruction::LtI64 {
+                dst: 4,
+                lhs: 1,
+                rhs: 3,
+            },
+            Instruction::Branch {
+                cond: 4,
+                yes: 6,
+                no: 9,
+            },
+            Instruction::AddI64 {
+                dst: 0,
+                lhs: 0,
+                rhs: 1,
+            },
+            Instruction::AddI64 {
+                dst: 1,
+                lhs: 1,
+                rhs: 2,
+            },
+            Instruction::Jump { target: 4 },
+            Instruction::Return { src: 0 },
+        ],
+    };
+    let mut builder = StructureMapBuilder::new();
+    let region = builder.begin_region(
+        4,
+        (0..4)
+            .map(|register| StateSlot {
+                register,
+                ty: SlotType::SmallInt,
+            })
+            .collect(),
+    );
+    builder
+        .finish_region(
+            region,
+            RegionKind::Loop { backedge: 8 },
+            vec![RegionExit { target: 9 }],
+        )
+        .unwrap();
+    let structure_map = builder
+        .finish(&function.code, function.register_count)
+        .unwrap();
+    ExecutableFunction::new(function, structure_map)
 }
 
 #[test]
@@ -108,6 +113,24 @@ fn vm_promotes_cranelift_region_to_llvm_after_tier1_execution() {
     // Then: Cranelift ran first and LLVM replaced it for the second execution.
     assert_eq!(first.value, Value::SmallInt(5050));
     assert_eq!(second.value, Value::SmallInt(5050));
+    assert_eq!(vm.jit_report().tier2_compilation_attempts, 1);
+    assert_eq!(vm.jit_report().tier2_compiled_regions, 1);
+    assert_eq!(vm.jit_report().tier2_native_executions, 1);
+}
+
+#[test]
+fn vm_compiles_directly_with_llvm_when_selected() {
+    // Given: a VM explicitly configured to use LLVM without a Cranelift tier.
+    let executable = sum_function();
+    let mut vm = Vm::with_compiler_backend(10, 1, CompilerBackend::Llvm);
+
+    // When: the hot region reaches its compilation threshold.
+    let result = vm.execute(&executable).unwrap();
+
+    // Then: LLVM compiles and executes the region as Tier-2 immediately.
+    assert_eq!(result.value, Value::SmallInt(5050));
+    assert_eq!(vm.jit_report().compilation_attempts, 1);
+    assert_eq!(vm.jit_report().compiled_regions, 1);
     assert_eq!(vm.jit_report().tier2_compilation_attempts, 1);
     assert_eq!(vm.jit_report().tier2_compiled_regions, 1);
     assert_eq!(vm.jit_report().tier2_native_executions, 1);

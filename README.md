@@ -53,12 +53,21 @@ CPython command line.
 ```text
 cargo run -- run examples/sum.py
 cargo run -- run examples/sum.py --repeat 2 --hot-threshold 10 --trace-jit
+cargo run -- run examples/sum.py --backend cranelift
+cargo run --features inkwell -- run examples/sum.py --backend llvm
 cargo run -- run examples/sum.py --interpreter
+cargo run --release --features inkwell -- bench examples/sum.py --backend llvm
 cargo run -- run examples/add.py --function add --arg 20 --arg 22
 cargo run -- inspect examples/sum.py
 ```
 
 Use `--function NAME` to select a function and `--json` for structured output.
+The default `--backend tiered` policy compiles hot regions with Tier-1
+Cranelift and promotes them to Tier-2 LLVM when the binary is built with the
+`inkwell` feature. `--backend cranelift` disables promotion,
+`--backend llvm` compiles directly with LLVM, and `--interpreter` disables JIT
+compiler construction and native execution entirely. The `bench` command uses
+the same `--backend` values for the JIT side of its interpreter comparison.
 
 ## Runtime value model
 

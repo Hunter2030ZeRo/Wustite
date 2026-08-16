@@ -20,6 +20,30 @@ pub use layout::{RegionLayout, RegionSlot};
 #[cfg(feature = "inkwell")]
 pub use llvm::LlvmRegionCompiler;
 
+/// Selects the native compiler used for hot WVM regions.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CompilerBackend {
+    /// Compile hot regions directly with Cranelift and never promote them.
+    Cranelift,
+    /// Compile hot regions directly with LLVM O3.
+    #[cfg(feature = "inkwell")]
+    Llvm,
+    /// Compile with Cranelift first, then promote to LLVM when available.
+    #[default]
+    Tiered,
+}
+
+impl CompilerBackend {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cranelift => "cranelift",
+            #[cfg(feature = "inkwell")]
+            Self::Llvm => "llvm",
+            Self::Tiered => "tiered",
+        }
+    }
+}
+
 /// A recoverable WXIR compilation failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CompileError {

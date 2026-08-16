@@ -12,6 +12,7 @@ pub(super) struct RunDocument {
     path: String,
     function: String,
     execution_mode: &'static str,
+    compiler_backend: Option<&'static str>,
     hot_threshold: u64,
     runs: Vec<RunOutput>,
 }
@@ -25,13 +26,16 @@ pub(super) struct RunContext {
 
 impl RunDocument {
     pub(super) fn new(context: RunContext, runs: Vec<RunOutput>) -> Self {
+        let (execution_mode, compiler_backend) = match context.execution_mode {
+            ExecutionMode::Interpreter => ("interpreter", None),
+            ExecutionMode::AdaptiveJit => ("adaptive_jit", Some("tiered")),
+            ExecutionMode::Jit(backend) => ("adaptive_jit", Some(backend.as_str())),
+        };
         Self {
             path: context.path,
             function: context.function,
-            execution_mode: match context.execution_mode {
-                ExecutionMode::Interpreter => "interpreter",
-                ExecutionMode::AdaptiveJit => "adaptive_jit",
-            },
+            execution_mode,
+            compiler_backend,
             hot_threshold: context.hot_threshold,
             runs,
         }

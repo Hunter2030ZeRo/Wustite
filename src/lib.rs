@@ -13,6 +13,7 @@ pub mod verifier;
 pub mod wvm;
 pub mod wxir;
 
+pub use jit::CompilerBackend;
 pub use metrics::{CompilationMetrics, ExecutionMetrics};
 pub use object::{Object, ObjectRef};
 pub use runtime::{

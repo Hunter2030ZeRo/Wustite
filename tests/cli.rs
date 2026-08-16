@@ -34,6 +34,7 @@ fn help_describes_commands_and_options() {
         "--arg",
         "--repeat",
         "--interpreter",
+        "--backend",
         "--hot-threshold",
         "--trace-jit",
         "--json",
@@ -46,6 +47,10 @@ fn help_describes_commands_and_options() {
     let inspect_help = stdout(&inspect);
     assert!(inspect_help.contains("--function"));
     assert!(inspect_help.contains("--json"));
+
+    let bench = run_cli(&["bench", "--help"]);
+    assert!(bench.status.success());
+    assert!(stdout(&bench).contains("--backend"));
 }
 
 #[test]
@@ -154,6 +159,50 @@ fn interpreter_mode_never_tiers_up() {
 }
 
 #[test]
+fn interpreter_mode_rejects_a_compiler_backend() {
+    // Given: mutually exclusive interpreter-only and native backend selections.
+    // When: both are supplied at the CLI boundary.
+    let output = run_cli(&[
+        "run",
+        "examples/sum.py",
+        "--interpreter",
+        "--backend",
+        "cranelift",
+    ]);
+
+    // Then: clap rejects the invalid execution configuration before running code.
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("cannot be used with"));
+}
+
+#[test]
+fn explicit_cranelift_backend_never_reports_tier2_execution() {
+    // Given: a run explicitly restricted to Cranelift for longer than Tier-2 promotion takes.
+    let output = run_cli(&[
+        "run",
+        "examples/sum.py",
+        "--backend",
+        "cranelift",
+        "--hot-threshold",
+        "10",
+        "--repeat",
+        "12",
+        "--json",
+    ]);
+
+    // When: the structured result is read after every repeated execution.
+    assert!(output.status.success(), "{}", stderr(&output));
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+
+    // Then: the selected backend is observable and no run uses LLVM Tier-2.
+    assert_eq!(document["execution_mode"], "adaptive_jit");
+    assert_eq!(document["compiler_backend"], "cranelift");
+    for run in document["runs"].as_array().unwrap() {
+        assert_eq!(run["jit"]["tier2_native_executions"], 0);
+    }
+}
+
+#[test]
 fn json_run_is_one_typed_document_with_jit_snapshots() {
     let output = run_cli(&[
         "run",
@@ -169,6 +218,7 @@ fn json_run_is_one_typed_document_with_jit_snapshots() {
     assert!(stderr(&output).is_empty());
     let document: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(document["execution_mode"], "adaptive_jit");
+    assert_eq!(document["compiler_backend"], "tiered");
     assert_eq!(document["runs"].as_array().unwrap().len(), 2);
     assert_eq!(document["runs"][0]["value"]["type"], "small_int");
     assert_eq!(document["runs"][0]["value"]["value"], 5050);

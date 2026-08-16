@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use wustite::wvm::JitReport;
-use wustite::{ExecutionMode, Runtime, RuntimeConfig};
+use wustite::{CompilerBackend, ExecutionMode, Runtime, RuntimeConfig};
 
 use super::arguments::parse_arguments;
 use super::{BenchArgs, read_source};
@@ -47,8 +47,9 @@ pub(super) fn run(args: BenchArgs) -> Result<(), String> {
     }
     let interpreter_stats = summarize_durations(interpreter_samples)?;
 
+    let compiler_backend = CompilerBackend::from(args.backend);
     let mut adaptive = Runtime::new(RuntimeConfig {
-        execution_mode: ExecutionMode::AdaptiveJit,
+        execution_mode: ExecutionMode::Jit(compiler_backend),
         hot_threshold: args.hot_threshold,
     });
     let adaptive_arguments =
@@ -93,6 +94,10 @@ fn print_benchmark(
     println!("Function: {}", args.function);
     println!("Warmup runs: {}", args.warmup);
     println!("Measured iterations: {}", args.iterations);
+    println!(
+        "Compiler backend: {}",
+        CompilerBackend::from(args.backend).as_str()
+    );
     println!("Hot threshold: {}", args.hot_threshold);
     println!();
     println!("Frontend compilation: {}", format_duration(frontend_time));
@@ -104,6 +109,10 @@ fn print_benchmark(
     println!("  Time: {}", format_duration(cold_time));
     println!("  Compilation attempts: {}", cold_jit.compilation_attempts);
     println!("  Compiled regions: {}", cold_jit.compiled_regions);
+    println!(
+        "  Tier-2 compiled regions: {}",
+        cold_jit.tier2_compiled_regions
+    );
     println!("  Native executions: {}", cold_jit.native_executions);
     println!();
     println!("Adaptive JIT warm:");

@@ -29,7 +29,7 @@ impl Vm {
         };
         while frame.pc < function.code.len() {
             if frame.suppress_osr_pc != Some(frame.pc)
-                && let Some(region_id) = runtime.jit.region_at(frame.pc)
+                && let Some(region_id) = executable.structure_map().region_by_entry_pc(frame.pc)
             {
                 runtime.profile.record_entry(region_id);
             }

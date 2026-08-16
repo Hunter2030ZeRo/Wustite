@@ -1,3 +1,4 @@
+use wustite::CompilerBackend;
 use wustite::runtime::{ExecutionMode, Runtime, RuntimeConfig, RuntimeValue};
 
 const SUM_SOURCE: &str = include_str!("../examples/sum.py");
@@ -5,7 +6,7 @@ const SUM_SOURCE: &str = include_str!("../examples/sum.py");
 #[test]
 fn measured_execution_preserves_jit_reuse() {
     let mut runtime = Runtime::new(RuntimeConfig {
-        execution_mode: ExecutionMode::AdaptiveJit,
+        execution_mode: ExecutionMode::Jit(CompilerBackend::Tiered),
         hot_threshold: 10,
     });
 

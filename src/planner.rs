@@ -1,13 +1,17 @@
 use crate::profiler::Profile;
-use crate::structure_map::{LiveSlot, RegionExit, RegionId, StructureMap};
+use crate::structure_map::{
+    BlockId, RegionExit, RegionId, RegionKind, RegionSummary, StateSlot, StructureMap,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JitPlan {
     pub region_id: RegionId,
     pub header: usize,
     pub backedge: usize,
+    pub blocks: Vec<BlockId>,
     pub exits: Vec<RegionExit>,
-    pub live_slots: Vec<LiveSlot>,
+    pub live_slots: Vec<StateSlot>,
+    pub summary: RegionSummary,
 }
 
 pub fn select_hot_loop(
@@ -16,17 +20,24 @@ pub fn select_hot_loop(
     threshold: u64,
 ) -> Option<JitPlan> {
     structure_map
-        .regions
+        .regions()
         .iter()
         .enumerate()
-        .filter(|(index, _)| profile.is_hot(RegionId(*index), threshold))
-        .max_by_key(|(index, _)| profile.entry_count(RegionId(*index)))
-        .map(|(index, region)| JitPlan {
+        .filter_map(|(index, region)| match region.kind {
+            RegionKind::Loop { backedge } if profile.is_hot(RegionId(index), threshold) => {
+                Some((index, region, backedge))
+            }
+            RegionKind::Loop { .. } | RegionKind::Branch => None,
+        })
+        .max_by_key(|(index, _, _)| profile.entry_count(RegionId(*index)))
+        .map(|(index, region, backedge)| JitPlan {
             region_id: RegionId(index),
             header: region.entry,
-            backedge: region.backedge.unwrap_or(0),
+            backedge,
+            blocks: region.blocks.clone(),
             exits: region.exits.clone(),
-            live_slots: region.live_slots.clone(),
+            live_slots: region.entry_summary.clone(),
+            summary: region.summary,
         })
 }
 
@@ -37,12 +48,17 @@ pub fn plan_hot_region(
     threshold: u64,
     region_id: RegionId,
 ) -> Option<JitPlan> {
-    let region = structure_map.regions.get(region_id.0)?;
+    let region = structure_map.region(region_id)?;
+    let RegionKind::Loop { backedge } = region.kind else {
+        return None;
+    };
     profile.is_hot(region_id, threshold).then(|| JitPlan {
         region_id,
         header: region.entry,
-        backedge: region.backedge.unwrap_or(0),
+        backedge,
+        blocks: region.blocks.clone(),
         exits: region.exits.clone(),
-        live_slots: region.live_slots.clone(),
+        live_slots: region.entry_summary.clone(),
+        summary: region.summary,
     })
 }

@@ -5,8 +5,8 @@ use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use clap::{Args, Parser, Subcommand};
-use wustite::{ExecutionMode, Runtime, RuntimeConfig};
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use wustite::{CompilerBackend, ExecutionMode, Runtime, RuntimeConfig};
 
 mod arguments;
 mod benchmark;
@@ -39,6 +39,25 @@ enum Command {
     Bench(BenchArgs),
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+pub(super) enum BackendArg {
+    Cranelift,
+    #[cfg(feature = "inkwell")]
+    Llvm,
+    Tiered,
+}
+
+impl From<BackendArg> for CompilerBackend {
+    fn from(backend: BackendArg) -> Self {
+        match backend {
+            BackendArg::Cranelift => Self::Cranelift,
+            #[cfg(feature = "inkwell")]
+            BackendArg::Llvm => Self::Llvm,
+            BackendArg::Tiered => Self::Tiered,
+        }
+    }
+}
+
 #[derive(Args)]
 struct RunArgs {
     /// Python source file to execute.
@@ -57,8 +76,12 @@ struct RunArgs {
     repeat: NonZeroUsize,
 
     /// Disable adaptive native tier-up.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "backend")]
     interpreter: bool,
+
+    /// Native compiler policy. Tiered uses Cranelift before LLVM when available.
+    #[arg(long, value_enum, default_value_t = BackendArg::Tiered)]
+    backend: BackendArg,
 
     /// Region-entry threshold for adaptive JIT compilation.
     #[arg(long, default_value_t = RuntimeConfig::default().hot_threshold)]
@@ -108,6 +131,10 @@ pub(super) struct BenchArgs {
     #[arg(long, default_value = "100")]
     pub(super) iterations: NonZeroUsize,
 
+    /// Native compiler policy used for the JIT comparison.
+    #[arg(long, value_enum, default_value_t = BackendArg::Tiered)]
+    pub(super) backend: BackendArg,
+
     /// Region-entry threshold for adaptive JIT compilation.
     #[arg(long, default_value_t = 10)]
     pub(super) hot_threshold: u64,
@@ -136,7 +163,7 @@ fn run(args: RunArgs) -> Result<(), String> {
     let execution_mode = if args.interpreter {
         ExecutionMode::Interpreter
     } else {
-        ExecutionMode::AdaptiveJit
+        ExecutionMode::Jit(args.backend.into())
     };
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode,

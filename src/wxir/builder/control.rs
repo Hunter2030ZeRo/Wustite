@@ -6,7 +6,7 @@ impl RegionBuilder<'_> {
         target: usize,
         environment: &HashMap<Register, TypedValue>,
     ) -> Result<WxBlockTarget, WxBuildError> {
-        if (self.plan.header..=self.plan.backedge).contains(&target) {
+        if self.leaders.contains(&target) {
             self.internal_target(target, environment)
         } else {
             self.exit_target(target, environment)
@@ -108,7 +108,7 @@ impl RegionBuilder<'_> {
 
     pub(super) fn parameters_for_slots(
         &mut self,
-        slots: &[LiveSlot],
+        slots: &[StateSlot],
         pc: usize,
     ) -> Result<Vec<(Register, WxBlockParam)>, WxBuildError> {
         slots

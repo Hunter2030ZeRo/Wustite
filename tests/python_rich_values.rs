@@ -189,7 +189,11 @@ fn integer_division_returns_float_and_records_float_result_metadata() {
     // Then: both the value and immutable operation metadata identify a float.
     assert_eq!(result, RuntimeValue::Float(2.5));
     assert_eq!(
-        executable.structure_map().operation_sites[0].result,
+        executable
+            .structure_map()
+            .operation_site(wustite::structure_map::OperationSiteId(0))
+            .unwrap()
+            .result,
         TypeFact::Exact(SlotType::Float)
     );
 }

@@ -1,8 +1,8 @@
 use wustite::bytecode::{Function, Instruction};
 use wustite::executable::{ExecutableFunction, ExecutableParameter};
-use wustite::structure_map::{LiveSlot, RegionId, SlotType, StructureMap};
+use wustite::structure_map::{RegionId, SlotType, StateSlot, StructureMap};
 use wustite::value::Value;
-use wustite::{ExecutionMode, Runtime, RuntimeConfig, RuntimeError, RuntimeValue};
+use wustite::{CompilerBackend, ExecutionMode, Runtime, RuntimeConfig, RuntimeError, RuntimeValue};
 
 const SUM_SOURCE: &str = r#"def main():
     acc = 0
@@ -35,7 +35,7 @@ const SUM_TO_SOURCE: &str = r#"def sum_to(limit: int):
 
 fn adaptive_runtime(hot_threshold: u64) -> Runtime {
     Runtime::new(RuntimeConfig {
-        execution_mode: ExecutionMode::AdaptiveJit,
+        execution_mode: ExecutionMode::Jit(CompilerBackend::Tiered),
         hot_threshold,
     })
 }
@@ -45,7 +45,7 @@ fn run_function_and_interpreter_mode_return_sum() {
     assert_eq!(
         RuntimeConfig::default(),
         RuntimeConfig {
-            execution_mode: ExecutionMode::AdaptiveJit,
+            execution_mode: ExecutionMode::Jit(CompilerBackend::Tiered),
             hot_threshold: wustite::wvm::DEFAULT_HOT_THRESHOLD,
         }
     );
@@ -69,6 +69,28 @@ fn run_function_and_interpreter_mode_return_sum() {
     );
     assert_eq!(interpreter.last_jit_report().compilation_attempts, 0);
     assert_eq!(interpreter.last_jit_report().native_executions, 0);
+}
+
+#[test]
+fn cranelift_backend_stays_in_tier1_when_hot() {
+    // Given: a runtime explicitly restricted to the Cranelift backend.
+    let mut runtime = Runtime::new(RuntimeConfig {
+        execution_mode: ExecutionMode::Jit(CompilerBackend::Cranelift),
+        hot_threshold: 10,
+    });
+    let executable = runtime.compile_function(SUM_SOURCE, "main").unwrap();
+
+    // When: the region executes enough times to exceed the normal Tier-2 threshold.
+    for _ in 0..12 {
+        assert_eq!(
+            runtime.execute(&executable).unwrap(),
+            RuntimeValue::SmallInt(5050)
+        );
+
+        // Then: every native execution remains on Cranelift without LLVM promotion.
+        assert_eq!(runtime.last_jit_report().tier2_compilation_attempts, 0);
+        assert_eq!(runtime.last_jit_report().tier2_native_executions, 0);
+    }
 }
 
 #[test]
@@ -323,19 +345,19 @@ fn inspect_is_deterministic_and_has_no_runtime_side_effects() {
     assert_eq!(
         info.regions[0].live_slots,
         vec![
-            LiveSlot {
+            StateSlot {
                 register: 0,
                 ty: SlotType::SmallInt,
             },
-            LiveSlot {
+            StateSlot {
                 register: 2,
                 ty: SlotType::SmallInt,
             },
-            LiveSlot {
+            StateSlot {
                 register: 4,
                 ty: SlotType::SmallInt,
             },
-            LiveSlot {
+            StateSlot {
                 register: 6,
                 ty: SlotType::SmallInt,
             },

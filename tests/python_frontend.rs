@@ -1,7 +1,10 @@
 use wustite::bytecode::{CompareOperator, Function, Instruction};
 use wustite::executable::ExecutableFunction;
 use wustite::frontend::python::compile_python_function;
-use wustite::structure_map::{SlotType, StructureMap, TypeFact};
+use wustite::structure_map::{
+    BlockEdge, BlockId, EdgeKind, OperationSiteId, RegionId, RegionKind, SlotType, StructureMap,
+    TypeFact,
+};
 use wustite::value::Value;
 use wustite::verifier;
 use wustite::wvm::Vm;
@@ -22,9 +25,11 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
     let executable = compile_python_function(SUM_SOURCE, "main").unwrap();
     verifier::verify(&executable).unwrap();
 
-    let region = &executable.structure_map().regions[0];
-    assert_eq!(executable.structure_map().regions.len(), 1);
-    assert_eq!((region.entry, region.backedge), (8, Some(14)));
+    let structure_map = executable.structure_map();
+    assert_eq!(structure_map.regions().len(), 1);
+    let region = structure_map.region(RegionId(0)).unwrap();
+    assert_eq!(region.entry, 8);
+    assert_eq!(region.kind, RegionKind::Loop { backedge: 14 });
     assert!(matches!(
         executable.bytecode().code[region.entry],
         Instruction::CompareOp {
@@ -33,7 +38,7 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
         }
     ));
     assert!(matches!(
-        executable.bytecode().code[region.backedge.unwrap_or(0)],
+        executable.bytecode().code[14],
         Instruction::Jump { target } if target == region.entry
     ));
     assert_eq!(region.exits.len(), 1);
@@ -42,10 +47,10 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
         executable.bytecode().code[region.exits[0].target],
         Instruction::Return { .. }
     ));
-    assert_eq!(region.live_slots.len(), 4);
+    assert_eq!(region.entry_summary.len(), 4);
     assert_eq!(
         region
-            .live_slots
+            .entry_summary
             .iter()
             .map(|slot| (slot.register, slot.ty))
             .collect::<Vec<_>>(),
@@ -57,17 +62,64 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
         ]
     );
 
-    let operation_sites = &executable.structure_map().operation_sites;
-    assert_eq!(operation_sites.len(), 3);
-    assert_eq!(operation_sites[0].pc, region.entry);
-    assert_eq!(operation_sites[0].lhs, TypeFact::Exact(SlotType::SmallInt));
-    assert_eq!(operation_sites[0].rhs, TypeFact::Exact(SlotType::SmallInt));
-    assert_eq!(operation_sites[0].result, TypeFact::Exact(SlotType::Bool));
-    assert!(operation_sites[1..].iter().all(|site| {
-        site.lhs == TypeFact::Exact(SlotType::SmallInt)
-            && site.rhs == TypeFact::Exact(SlotType::SmallInt)
-            && site.result == TypeFact::Exact(SlotType::SmallInt)
-    }));
+    assert_eq!(structure_map.operation_sites().len(), 3);
+    for (id, pc, result) in [
+        (OperationSiteId(0), 8, SlotType::Bool),
+        (OperationSiteId(1), 10, SlotType::SmallInt),
+        (OperationSiteId(2), 12, SlotType::SmallInt),
+    ] {
+        let site = structure_map.operation_site(id).unwrap();
+        assert_eq!(site.pc, pc);
+        assert_eq!(site.lhs, TypeFact::Exact(SlotType::SmallInt));
+        assert_eq!(site.rhs, TypeFact::Exact(SlotType::SmallInt));
+        assert_eq!(site.result, TypeFact::Exact(result));
+    }
+
+    assert_eq!(
+        structure_map
+            .blocks()
+            .iter()
+            .map(|block| (block.start_pc, block.end_pc, block.successors.clone()))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                0,
+                8,
+                vec![BlockEdge {
+                    target: BlockId(1),
+                    kind: EdgeKind::Fallthrough,
+                }],
+            ),
+            (
+                8,
+                10,
+                vec![
+                    BlockEdge {
+                        target: BlockId(2),
+                        kind: EdgeKind::BranchTrue,
+                    },
+                    BlockEdge {
+                        target: BlockId(3),
+                        kind: EdgeKind::BranchFalse,
+                    },
+                ],
+            ),
+            (
+                10,
+                15,
+                vec![BlockEdge {
+                    target: BlockId(1),
+                    kind: EdgeKind::Jump,
+                }],
+            ),
+            (15, 16, Vec::new()),
+        ]
+    );
+    assert_eq!(region.blocks, vec![BlockId(1), BlockId(2)]);
+    assert_eq!(region.summary.instruction_count, 7);
+    assert_eq!(region.summary.block_count, 2);
+    assert_eq!(region.summary.operation_count, 3);
+    assert_eq!(region.summary.call_count, 0);
 
     let mut interpreter = Vm::with_hot_threshold(u64::MAX);
     assert_eq!(

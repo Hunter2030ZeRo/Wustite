@@ -1,7 +1,7 @@
 use num_bigint::BigInt;
 use wustite::bytecode::{BinaryOperator, CompareOperator, Function, Instruction};
 use wustite::executable::{ConstantId, ExecutableConstant, ExecutableFunction};
-use wustite::structure_map::{OperationSite, OperationSiteId, StructureMap, TypeFact};
+use wustite::structure_map::{OperationSiteId, StructureMapBuilder, TypeFact};
 use wustite::value::Value;
 use wustite::wvm::Vm;
 
@@ -13,31 +13,25 @@ fn executable(
     code: Vec<Instruction>,
     constants: Vec<ExecutableConstant>,
 ) -> ExecutableFunction {
-    let operation_sites = code
-        .iter()
-        .enumerate()
-        .filter_map(|(pc, instruction)| match instruction {
-            Instruction::BinaryOp { .. } | Instruction::CompareOp { .. } => Some(OperationSite {
-                pc,
-                lhs: TypeFact::Unknown,
-                rhs: TypeFact::Unknown,
-                result: TypeFact::Unknown,
-            }),
-            _ => None,
-        })
-        .collect();
-    ExecutableFunction::new_with_abi(
-        Function {
-            code,
-            register_count,
-        },
-        StructureMap {
-            regions: Vec::new(),
-            operation_sites,
-        },
-        Vec::new(),
-        constants,
-    )
+    let function = Function {
+        code,
+        register_count,
+    };
+    let mut builder = StructureMapBuilder::new();
+    for (pc, instruction) in function.code.iter().enumerate() {
+        if matches!(
+            instruction,
+            Instruction::BinaryOp { .. } | Instruction::CompareOp { .. }
+        ) {
+            builder
+                .record_operation(pc, TypeFact::Unknown, TypeFact::Unknown, TypeFact::Unknown)
+                .expect("operation site fixture should be representable");
+        }
+    }
+    let structure_map = builder
+        .finish(&function.code, function.register_count)
+        .expect("structure map fixture should be representable");
+    ExecutableFunction::new_with_abi(function, structure_map, Vec::new(), constants)
 }
 
 fn compare_to_float(

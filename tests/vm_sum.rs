@@ -1,66 +1,76 @@
 use wustite::{bytecode, executable, planner, structure_map, value, verifier, wvm};
 
 fn sum_function() -> executable::ExecutableFunction {
-    executable::ExecutableFunction::new(
-        bytecode::Function {
-            register_count: 5,
-            code: vec![
-                bytecode::Instruction::ConstI64 { dst: 0, value: 0 },
-                bytecode::Instruction::ConstI64 { dst: 1, value: 1 },
-                bytecode::Instruction::ConstI64 { dst: 2, value: 1 },
-                bytecode::Instruction::ConstI64 { dst: 3, value: 101 },
-                bytecode::Instruction::LtI64 {
-                    dst: 4,
-                    lhs: 1,
-                    rhs: 3,
-                },
-                bytecode::Instruction::Branch {
-                    cond: 4,
-                    yes: 6,
-                    no: 9,
-                },
-                bytecode::Instruction::AddI64 {
-                    dst: 0,
-                    lhs: 0,
-                    rhs: 1,
-                },
-                bytecode::Instruction::AddI64 {
-                    dst: 1,
-                    lhs: 1,
-                    rhs: 2,
-                },
-                bytecode::Instruction::Jump { target: 4 },
-                bytecode::Instruction::Return { src: 0 },
-            ],
-        },
-        structure_map::StructureMap {
-            regions: vec![structure_map::Region {
-                kind: structure_map::RegionKind::Loop,
-                entry: 4,
-                backedge: Some(8),
-                exits: vec![structure_map::RegionExit { target: 9 }],
-                live_slots: vec![
-                    structure_map::LiveSlot {
-                        register: 0,
-                        ty: structure_map::SlotType::SmallInt,
-                    },
-                    structure_map::LiveSlot {
-                        register: 1,
-                        ty: structure_map::SlotType::SmallInt,
-                    },
-                    structure_map::LiveSlot {
-                        register: 2,
-                        ty: structure_map::SlotType::SmallInt,
-                    },
-                    structure_map::LiveSlot {
-                        register: 3,
-                        ty: structure_map::SlotType::SmallInt,
-                    },
-                ],
-            }],
-            operation_sites: vec![],
-        },
-    )
+    let function = bytecode::Function {
+        register_count: 5,
+        code: vec![
+            bytecode::Instruction::ConstI64 { dst: 0, value: 0 },
+            bytecode::Instruction::ConstI64 { dst: 1, value: 1 },
+            bytecode::Instruction::ConstI64 { dst: 2, value: 1 },
+            bytecode::Instruction::ConstI64 { dst: 3, value: 101 },
+            bytecode::Instruction::LtI64 {
+                dst: 4,
+                lhs: 1,
+                rhs: 3,
+            },
+            bytecode::Instruction::Branch {
+                cond: 4,
+                yes: 6,
+                no: 9,
+            },
+            bytecode::Instruction::AddI64 {
+                dst: 0,
+                lhs: 0,
+                rhs: 1,
+            },
+            bytecode::Instruction::AddI64 {
+                dst: 1,
+                lhs: 1,
+                rhs: 2,
+            },
+            bytecode::Instruction::Jump { target: 4 },
+            bytecode::Instruction::Return { src: 0 },
+        ],
+    };
+    let mut builder = structure_map::StructureMapBuilder::new();
+    let region = builder.begin_region(
+        4,
+        vec![
+            structure_map::StateSlot {
+                register: 0,
+                ty: structure_map::SlotType::SmallInt,
+            },
+            structure_map::StateSlot {
+                register: 1,
+                ty: structure_map::SlotType::SmallInt,
+            },
+            structure_map::StateSlot {
+                register: 2,
+                ty: structure_map::SlotType::SmallInt,
+            },
+            structure_map::StateSlot {
+                register: 3,
+                ty: structure_map::SlotType::SmallInt,
+            },
+        ],
+    );
+    builder
+        .finish_region(
+            region,
+            structure_map::RegionKind::Loop { backedge: 8 },
+            vec![structure_map::RegionExit { target: 9 }],
+        )
+        .unwrap();
+    let structure_map = builder
+        .finish(&function.code, function.register_count)
+        .unwrap();
+    executable::ExecutableFunction::new(function, structure_map)
+}
+
+fn empty_structure_map() -> structure_map::StructureMap {
+    structure_map::StructureMapBuilder::new()
+        .finish(&[], 0)
+        .unwrap()
 }
 
 #[test]
@@ -73,7 +83,7 @@ fn sum_one_to_one_hundred() {
 
     let hot_loop = function
         .structure_map()
-        .regions
+        .regions()
         .iter()
         .enumerate()
         .find(|(index, _)| profile.is_hot(structure_map::RegionId(*index), 50))
@@ -87,11 +97,18 @@ fn sum_one_to_one_hundred() {
     assert_eq!(plan.exits, vec![structure_map::RegionExit { target: 9 }]);
     assert_eq!(
         plan.live_slots,
-        function.structure_map().regions[0].live_slots
+        function
+            .structure_map()
+            .region(structure_map::RegionId(0))
+            .unwrap()
+            .entry_summary
     );
     assert_eq!(plan.region_id, structure_map::RegionId(0));
     assert_eq!(hot_loop.entry, 4);
-    assert_eq!(hot_loop.backedge, Some(8));
+    assert_eq!(
+        hot_loop.kind,
+        structure_map::RegionKind::Loop { backedge: 8 }
+    );
     assert_eq!(profile.entry_count(structure_map::RegionId(0)), 101);
     assert_eq!(result.value, value::Value::SmallInt(5050));
     assert_eq!(profile.entry_count(structure_map::RegionId(0)), 101);
@@ -168,13 +185,11 @@ fn clone_preserves_identity_and_reuses_runtime() {
 #[test]
 fn invalid_executable_does_not_disturb_a_cached_runtime() {
     let valid = sum_function();
-    let invalid = executable::ExecutableFunction::new(
-        bytecode::Function {
-            register_count: 0,
-            code: vec![bytecode::Instruction::Return { src: 0 }],
-        },
-        structure_map::StructureMap::default(),
-    );
+    let bytecode = bytecode::Function {
+        register_count: 0,
+        code: vec![bytecode::Instruction::Return { src: 0 }],
+    };
+    let invalid = executable::ExecutableFunction::new(bytecode, empty_structure_map());
     let mut vm = wvm::Vm::with_hot_threshold(10);
 
     vm.execute(&valid).unwrap();
@@ -187,16 +202,14 @@ fn invalid_executable_does_not_disturb_a_cached_runtime() {
 
 #[test]
 fn verifier_rejects_invalid_register() {
-    let function = executable::ExecutableFunction::new(
-        bytecode::Function {
-            register_count: 1,
-            code: vec![
-                bytecode::Instruction::ConstI64 { dst: 1, value: 0 },
-                bytecode::Instruction::Return { src: 0 },
-            ],
-        },
-        structure_map::StructureMap::default(),
-    );
+    let bytecode = bytecode::Function {
+        register_count: 1,
+        code: vec![
+            bytecode::Instruction::ConstI64 { dst: 1, value: 0 },
+            bytecode::Instruction::Return { src: 0 },
+        ],
+    };
+    let function = executable::ExecutableFunction::new(bytecode, empty_structure_map());
 
     assert!(verifier::verify(&function).is_err());
 
@@ -207,38 +220,37 @@ fn verifier_rejects_invalid_register() {
 
 #[test]
 fn verifier_rejects_invalid_jump_target() {
-    let function = executable::ExecutableFunction::new(
-        bytecode::Function {
-            register_count: 0,
-            code: vec![bytecode::Instruction::Jump { target: 1 }],
-        },
-        structure_map::StructureMap::default(),
-    );
+    let bytecode = bytecode::Function {
+        register_count: 0,
+        code: vec![bytecode::Instruction::Jump { target: 1 }],
+    };
+    let function = executable::ExecutableFunction::new(bytecode, empty_structure_map());
 
     assert!(verifier::verify(&function).is_err());
 }
 
 #[test]
 fn verifier_rejects_invalid_loop_metadata() {
-    let function = executable::ExecutableFunction::new(
-        bytecode::Function {
-            register_count: 1,
-            code: vec![
-                bytecode::Instruction::Jump { target: 1 },
-                bytecode::Instruction::Return { src: 0 },
-            ],
-        },
-        structure_map::StructureMap {
-            regions: vec![structure_map::Region {
-                kind: structure_map::RegionKind::Loop,
-                entry: 0,
-                backedge: Some(0),
-                exits: vec![structure_map::RegionExit { target: 1 }],
-                live_slots: vec![],
-            }],
-            operation_sites: vec![],
-        },
-    );
+    let bytecode = bytecode::Function {
+        register_count: 1,
+        code: vec![
+            bytecode::Instruction::Jump { target: 1 },
+            bytecode::Instruction::Return { src: 0 },
+        ],
+    };
+    let mut builder = structure_map::StructureMapBuilder::new();
+    let region = builder.begin_region(0, vec![]);
+    builder
+        .finish_region(
+            region,
+            structure_map::RegionKind::Loop { backedge: 0 },
+            vec![structure_map::RegionExit { target: 1 }],
+        )
+        .unwrap();
+    let structure_map = builder
+        .finish(&bytecode.code, bytecode.register_count)
+        .unwrap();
+    let function = executable::ExecutableFunction::new(bytecode, structure_map);
 
     assert!(verifier::verify(&function).is_err());
 }
@@ -246,8 +258,29 @@ fn verifier_rejects_invalid_loop_metadata() {
 #[test]
 fn verifier_rejects_duplicate_loop_headers() {
     let original = sum_function();
-    let mut structure_map = original.structure_map().clone();
-    structure_map.regions.push(structure_map.regions[0].clone());
+    let bytecode = original.bytecode().clone();
+    let mut builder = structure_map::StructureMapBuilder::new();
+    for _ in 0..2 {
+        let region = builder.begin_region(
+            4,
+            (0..4)
+                .map(|register| structure_map::StateSlot {
+                    register,
+                    ty: structure_map::SlotType::SmallInt,
+                })
+                .collect(),
+        );
+        builder
+            .finish_region(
+                region,
+                structure_map::RegionKind::Loop { backedge: 8 },
+                vec![structure_map::RegionExit { target: 9 }],
+            )
+            .unwrap();
+    }
+    let structure_map = builder
+        .finish(&bytecode.code, bytecode.register_count)
+        .unwrap();
     let function = executable::ExecutableFunction::new(original.bytecode().clone(), structure_map);
 
     assert!(
@@ -260,10 +293,30 @@ fn verifier_rejects_duplicate_loop_headers() {
 #[test]
 fn verifier_rejects_duplicate_exit_targets() {
     let original = sum_function();
-    let mut structure_map = original.structure_map().clone();
-    structure_map.regions[0]
-        .exits
-        .push(structure_map::RegionExit { target: 9 });
+    let bytecode = original.bytecode().clone();
+    let mut builder = structure_map::StructureMapBuilder::new();
+    let region = builder.begin_region(
+        4,
+        (0..4)
+            .map(|register| structure_map::StateSlot {
+                register,
+                ty: structure_map::SlotType::SmallInt,
+            })
+            .collect(),
+    );
+    builder
+        .finish_region(
+            region,
+            structure_map::RegionKind::Loop { backedge: 8 },
+            vec![
+                structure_map::RegionExit { target: 9 },
+                structure_map::RegionExit { target: 9 },
+            ],
+        )
+        .unwrap();
+    let structure_map = builder
+        .finish(&bytecode.code, bytecode.register_count)
+        .unwrap();
     let function = executable::ExecutableFunction::new(original.bytecode().clone(), structure_map);
 
     assert!(

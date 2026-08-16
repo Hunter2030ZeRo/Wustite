@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::bytecode::Register;
 use crate::executable::{ExecutableFunction, ExecutableId};
+use crate::jit::CompilerBackend;
 use crate::object::{Object, ObjectError, ObjectHeap, ObjectKind, ObjectRef};
 use crate::profiler::Profile;
 use crate::structure_map::RegionId;
@@ -38,6 +39,7 @@ pub(super) struct Frame {
 pub struct Vm {
     hot_threshold: u64,
     tier2_threshold: u64,
+    compiler_backend: Option<CompilerBackend>,
     jit_report: JitReport,
     runtimes: HashMap<ExecutableId, FunctionRuntime>,
     last_executed: Option<ExecutableId>,
@@ -47,25 +49,41 @@ pub struct Vm {
 
 pub(super) struct FunctionRuntime {
     profile: Profile,
-    jit: jit_runtime::JitRuntime,
+    jit: Option<jit_runtime::JitRuntime>,
     constants: Vec<Option<Value>>,
     current_function: Option<Value>,
     quick_code: Arc<QuickCode>,
 }
 
 impl FunctionRuntime {
+    #[cfg(test)]
     fn new(executable: &ExecutableFunction) -> Self {
-        Self::with_quick_code(executable, Arc::new(QuickCode::new(executable)))
+        Self::with_compiler_backend(executable, Some(CompilerBackend::Tiered))
+    }
+
+    fn with_compiler_backend(
+        executable: &ExecutableFunction,
+        compiler_backend: Option<CompilerBackend>,
+    ) -> Self {
+        Self::with_quick_code(
+            executable,
+            Arc::new(QuickCode::new(executable)),
+            compiler_backend,
+        )
     }
 
     fn recursive_placeholder(executable: &ExecutableFunction, quick_code: Arc<QuickCode>) -> Self {
-        Self::with_quick_code(executable, quick_code)
+        Self::with_quick_code(executable, quick_code, None)
     }
 
-    fn with_quick_code(executable: &ExecutableFunction, quick_code: Arc<QuickCode>) -> Self {
+    fn with_quick_code(
+        executable: &ExecutableFunction,
+        quick_code: Arc<QuickCode>,
+        compiler_backend: Option<CompilerBackend>,
+    ) -> Self {
         Self {
-            profile: Profile::new(executable.structure_map().regions.len()),
-            jit: jit_runtime::JitRuntime::new(executable),
+            profile: Profile::new(executable.structure_map().regions().len()),
+            jit: compiler_backend.map(|backend| jit_runtime::JitRuntime::new(executable, backend)),
             constants: vec![None; executable.constants().len()],
             current_function: None,
             quick_code,
@@ -142,9 +160,31 @@ impl Vm {
     }
 
     pub fn with_tier_thresholds(hot_threshold: u64, tier2_threshold: u64) -> Self {
+        Self::with_compiler_backend(hot_threshold, tier2_threshold, CompilerBackend::Tiered)
+    }
+
+    pub fn with_compiler_backend(
+        hot_threshold: u64,
+        tier2_threshold: u64,
+        compiler_backend: CompilerBackend,
+    ) -> Self {
         Self {
             hot_threshold,
             tier2_threshold,
+            compiler_backend: Some(compiler_backend),
+            jit_report: JitReport::default(),
+            runtimes: HashMap::new(),
+            last_executed: None,
+            object_heap: ObjectHeap::new(),
+            call_depth: 0,
+        }
+    }
+
+    pub fn interpreter() -> Self {
+        Self {
+            hot_threshold: u64::MAX,
+            tier2_threshold: u64::MAX,
+            compiler_backend: None,
             jit_report: JitReport::default(),
             runtimes: HashMap::new(),
             last_executed: None,
@@ -227,10 +267,10 @@ impl Vm {
         let registers =
             arguments::initialize_registers(executable, function_arguments, &self.object_heap)?;
         let id = executable.id();
-        let mut runtime = self
-            .runtimes
-            .remove(&id)
-            .unwrap_or_else(|| FunctionRuntime::new(executable));
+        let compiler_backend = self.compiler_backend;
+        let mut runtime = self.runtimes.remove(&id).unwrap_or_else(|| {
+            FunctionRuntime::with_compiler_backend(executable, compiler_backend)
+        });
         let result = self.execute_with_runtime(executable, &mut runtime, registers);
         self.runtimes.insert(id, runtime);
         self.last_executed = Some(id);

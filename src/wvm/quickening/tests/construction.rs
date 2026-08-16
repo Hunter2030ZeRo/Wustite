@@ -1,6 +1,6 @@
 use crate::bytecode::{BinaryOperator, CompareOperator, Function, Instruction};
 use crate::executable::ExecutableFunction;
-use crate::structure_map::{OperationSite, OperationSiteId, SlotType, StructureMap, TypeFact};
+use crate::structure_map::{OperationSiteId, SlotType, StructureMapBuilder, TypeFact};
 
 use super::super::QuickCode;
 
@@ -8,26 +8,33 @@ fn exact(ty: SlotType) -> TypeFact {
     TypeFact::Exact(ty)
 }
 
-fn executable(code: Vec<Instruction>, sites: Vec<OperationSite>) -> ExecutableFunction {
-    ExecutableFunction::new(
-        Function {
-            register_count: 4,
-            code,
-        },
-        StructureMap {
-            regions: Vec::new(),
-            operation_sites: sites,
-        },
-    )
+fn executable(
+    code: Vec<Instruction>,
+    sites: Vec<(usize, TypeFact, TypeFact, TypeFact)>,
+) -> ExecutableFunction {
+    let function = Function {
+        register_count: 4,
+        code,
+    };
+    let mut builder = StructureMapBuilder::new();
+    for (pc, lhs, rhs, result) in sites {
+        builder
+            .record_operation(pc, lhs, rhs, result)
+            .expect("operation site fixture should be representable");
+    }
+    let structure_map = builder
+        .finish(&function.code, function.register_count)
+        .expect("structure map fixture should be representable");
+    ExecutableFunction::new(function, structure_map)
 }
 
-fn site(pc: usize, lhs: TypeFact, rhs: TypeFact, result: TypeFact) -> OperationSite {
-    OperationSite {
-        pc,
-        lhs,
-        rhs,
-        result,
-    }
+fn site(
+    pc: usize,
+    lhs: TypeFact,
+    rhs: TypeFact,
+    result: TypeFact,
+) -> (usize, TypeFact, TypeFact, TypeFact) {
+    (pc, lhs, rhs, result)
 }
 
 #[test]

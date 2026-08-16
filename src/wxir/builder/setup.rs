@@ -5,8 +5,24 @@ impl<'a> RegionBuilder<'a> {
         executable: &'a ExecutableFunction,
         plan: &'a JitPlan,
     ) -> Result<Self, WxBuildError> {
-        let mut leaders = HashSet::from([plan.header]);
+        let mut leaders = HashSet::with_capacity(plan.blocks.len());
         let mut exit_by_pc = HashMap::new();
+
+        for block_id in &plan.blocks {
+            let block = executable.structure_map().block(*block_id).ok_or_else(|| {
+                WxBuildError::InvalidPlan(format!(
+                    "region references unknown CFG block {}",
+                    block_id.0
+                ))
+            })?;
+            leaders.insert(block.start_pc);
+        }
+
+        if !leaders.contains(&plan.header) {
+            return Err(WxBuildError::InvalidPlan(
+                "region CFG blocks do not contain the plan entry".to_string(),
+            ));
+        }
 
         for (index, exit) in plan.exits.iter().enumerate() {
             if exit_by_pc.insert(exit.target, index).is_some() {
@@ -14,45 +30,6 @@ impl<'a> RegionBuilder<'a> {
                     "multiple exits resume at bytecode pc {}",
                     exit.target
                 )));
-            }
-        }
-
-        for pc in plan.header..=plan.backedge {
-            match &executable.bytecode().code[pc] {
-                Instruction::Jump { target } => {
-                    if (plan.header..=plan.backedge).contains(target) {
-                        leaders.insert(*target);
-                    }
-                }
-                Instruction::Branch { yes, no, .. } => {
-                    if (plan.header..=plan.backedge).contains(yes) {
-                        leaders.insert(*yes);
-                    }
-                    if (plan.header..=plan.backedge).contains(no) {
-                        leaders.insert(*no);
-                    }
-                }
-                Instruction::ConstSmallInt { .. }
-                | Instruction::ConstFloat { .. }
-                | Instruction::ConstBool { .. }
-                | Instruction::LoadConstant { .. }
-                | Instruction::ConstI64 { .. }
-                | Instruction::BinaryOp { .. }
-                | Instruction::CompareOp { .. }
-                | Instruction::UnaryOp { .. }
-                | Instruction::BooleanOp { .. }
-                | Instruction::BuildTuple { .. }
-                | Instruction::BuildList { .. }
-                | Instruction::BuildDict { .. }
-                | Instruction::GetItem { .. }
-                | Instruction::SetItem { .. }
-                | Instruction::Length { .. }
-                | Instruction::LoadCurrentFunction { .. }
-                | Instruction::Call { .. }
-                | Instruction::AddI64 { .. }
-                | Instruction::LtI64 { .. }
-                | Instruction::Return { .. }
-                | Instruction::Move { .. } => {}
             }
         }
 

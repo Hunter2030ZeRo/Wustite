@@ -2,7 +2,7 @@ use wustite::bytecode::{Function, Instruction};
 use wustite::executable::{ExecutableFunction, ExecutableParameter};
 use wustite::planner::{JitPlan, select_hot_loop};
 use wustite::structure_map::{
-    LiveSlot, Region, RegionExit, RegionId, RegionKind, SlotType, StructureMap,
+    RegionExit, RegionId, RegionKind, SlotType, StateSlot, StructureMapBuilder,
 };
 use wustite::wvm::Vm;
 use wustite::wxir::{
@@ -11,66 +11,71 @@ use wustite::wxir::{
 };
 
 fn sum_function() -> ExecutableFunction {
-    ExecutableFunction::new(
-        Function {
-            register_count: 5,
-            code: vec![
-                Instruction::ConstI64 { dst: 0, value: 0 },
-                Instruction::ConstI64 { dst: 1, value: 1 },
-                Instruction::ConstI64 { dst: 2, value: 1 },
-                Instruction::ConstI64 { dst: 3, value: 101 },
-                Instruction::LtI64 {
-                    dst: 4,
-                    lhs: 1,
-                    rhs: 3,
-                },
-                Instruction::Branch {
-                    cond: 4,
-                    yes: 6,
-                    no: 9,
-                },
-                Instruction::AddI64 {
-                    dst: 0,
-                    lhs: 0,
-                    rhs: 1,
-                },
-                Instruction::AddI64 {
-                    dst: 1,
-                    lhs: 1,
-                    rhs: 2,
-                },
-                Instruction::Jump { target: 4 },
-                Instruction::Return { src: 0 },
-            ],
-        },
-        StructureMap {
-            regions: vec![Region {
-                kind: RegionKind::Loop,
-                entry: 4,
-                backedge: Some(8),
-                exits: vec![RegionExit { target: 9 }],
-                live_slots: vec![
-                    LiveSlot {
-                        register: 0,
-                        ty: SlotType::SmallInt,
-                    },
-                    LiveSlot {
-                        register: 1,
-                        ty: SlotType::SmallInt,
-                    },
-                    LiveSlot {
-                        register: 2,
-                        ty: SlotType::SmallInt,
-                    },
-                    LiveSlot {
-                        register: 3,
-                        ty: SlotType::SmallInt,
-                    },
-                ],
-            }],
-            operation_sites: vec![],
-        },
-    )
+    let function = Function {
+        register_count: 5,
+        code: vec![
+            Instruction::ConstI64 { dst: 0, value: 0 },
+            Instruction::ConstI64 { dst: 1, value: 1 },
+            Instruction::ConstI64 { dst: 2, value: 1 },
+            Instruction::ConstI64 { dst: 3, value: 101 },
+            Instruction::LtI64 {
+                dst: 4,
+                lhs: 1,
+                rhs: 3,
+            },
+            Instruction::Branch {
+                cond: 4,
+                yes: 6,
+                no: 9,
+            },
+            Instruction::AddI64 {
+                dst: 0,
+                lhs: 0,
+                rhs: 1,
+            },
+            Instruction::AddI64 {
+                dst: 1,
+                lhs: 1,
+                rhs: 2,
+            },
+            Instruction::Jump { target: 4 },
+            Instruction::Return { src: 0 },
+        ],
+    };
+    let mut structure_map = StructureMapBuilder::new();
+    let region = structure_map.begin_region(
+        4,
+        vec![
+            StateSlot {
+                register: 0,
+                ty: SlotType::SmallInt,
+            },
+            StateSlot {
+                register: 1,
+                ty: SlotType::SmallInt,
+            },
+            StateSlot {
+                register: 2,
+                ty: SlotType::SmallInt,
+            },
+            StateSlot {
+                register: 3,
+                ty: SlotType::SmallInt,
+            },
+        ],
+    );
+    structure_map
+        .finish_region(
+            region,
+            RegionKind::Loop { backedge: 8 },
+            vec![RegionExit { target: 9 }],
+        )
+        .unwrap();
+    let structure_map = structure_map
+        .finish(&function.code, function.register_count)
+        .unwrap();
+
+    ExecutableFunction::new(function, structure_map)
 }
 
 #[test]
@@ -207,39 +212,45 @@ fn sum_region_lowers_to_verified_ssa() {
 
 #[test]
 fn return_inside_region_is_rejected_without_panicking() {
+    let function = Function {
+        register_count: 1,
+        code: vec![
+            Instruction::Return { src: 0 },
+            Instruction::Jump { target: 0 },
+        ],
+    };
+    let mut structure_map = StructureMapBuilder::new();
+    let region = structure_map.begin_region(
+        0,
+        vec![StateSlot {
+            register: 0,
+            ty: SlotType::SmallInt,
+        }],
+    );
+    structure_map
+        .finish_region(region, RegionKind::Loop { backedge: 1 }, vec![])
+        .unwrap();
+    let structure_map = structure_map
+        .finish(&function.code, function.register_count)
+        .unwrap();
     let executable = ExecutableFunction::new_with_parameters(
-        Function {
-            register_count: 1,
-            code: vec![
-                Instruction::Return { src: 0 },
-                Instruction::Jump { target: 0 },
-            ],
-        },
-        StructureMap {
-            regions: vec![Region {
-                kind: RegionKind::Loop,
-                entry: 0,
-                backedge: Some(1),
-                exits: vec![],
-                live_slots: vec![LiveSlot {
-                    register: 0,
-                    ty: SlotType::SmallInt,
-                }],
-            }],
-            operation_sites: vec![],
-        },
+        function,
+        structure_map,
         vec![ExecutableParameter {
             name: "value".to_owned(),
             register: 0,
             ty: SlotType::SmallInt,
         }],
     );
+    let region = executable.structure_map().region(RegionId(0)).unwrap();
     let plan = JitPlan {
         region_id: RegionId(0),
         header: 0,
         backedge: 1,
         exits: vec![],
-        live_slots: executable.structure_map().regions[0].live_slots.clone(),
+        live_slots: region.entry_summary.clone(),
+        blocks: region.blocks.clone(),
+        summary: region.summary,
     };
 
     assert_eq!(

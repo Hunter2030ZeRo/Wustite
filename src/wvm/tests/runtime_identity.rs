@@ -2,37 +2,39 @@ use std::sync::Arc;
 
 use crate::bytecode::{BinaryOperator, Function, Instruction};
 use crate::executable::ExecutableFunction;
-use crate::structure_map::{OperationSite, OperationSiteId, SlotType, StructureMap, TypeFact};
+use crate::structure_map::{OperationSiteId, SlotType, StructureMapBuilder, TypeFact};
 
 use super::{FunctionRuntime, Vm};
 
 fn exact_add(site_pc: usize) -> ExecutableFunction {
-    ExecutableFunction::new(
-        Function {
-            register_count: 3,
-            code: vec![
-                Instruction::ConstSmallInt { dst: 0, value: 1 },
-                Instruction::ConstSmallInt { dst: 1, value: 2 },
-                Instruction::BinaryOp {
-                    dst: 2,
-                    op: BinaryOperator::Add,
-                    lhs: 0,
-                    rhs: 1,
-                    site: OperationSiteId(0),
-                },
-                Instruction::Return { src: 2 },
-            ],
-        },
-        StructureMap {
-            regions: Vec::new(),
-            operation_sites: vec![OperationSite {
-                pc: site_pc,
-                lhs: TypeFact::Exact(SlotType::SmallInt),
-                rhs: TypeFact::Exact(SlotType::SmallInt),
-                result: TypeFact::Exact(SlotType::SmallInt),
-            }],
-        },
-    )
+    let function = Function {
+        register_count: 3,
+        code: vec![
+            Instruction::ConstSmallInt { dst: 0, value: 1 },
+            Instruction::ConstSmallInt { dst: 1, value: 2 },
+            Instruction::BinaryOp {
+                dst: 2,
+                op: BinaryOperator::Add,
+                lhs: 0,
+                rhs: 1,
+                site: OperationSiteId(0),
+            },
+            Instruction::Return { src: 2 },
+        ],
+    };
+    let mut builder = StructureMapBuilder::new();
+    builder
+        .record_operation(
+            site_pc,
+            TypeFact::Exact(SlotType::SmallInt),
+            TypeFact::Exact(SlotType::SmallInt),
+            TypeFact::Exact(SlotType::SmallInt),
+        )
+        .expect("operation site fixture should be representable");
+    let structure_map = builder
+        .finish(&function.code, function.register_count)
+        .expect("structure map fixture should be representable");
+    ExecutableFunction::new(function, structure_map)
 }
 
 #[test]
