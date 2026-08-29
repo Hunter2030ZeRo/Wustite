@@ -69,6 +69,16 @@ fn run_function_and_interpreter_mode_return_sum() {
     );
     assert_eq!(interpreter.last_jit_report().compilation_attempts, 0);
     assert_eq!(interpreter.last_jit_report().native_executions, 0);
+    let profile = interpreter
+        .profile_for(&executable)
+        .expect("interpreter runtime should retain an inert profile handle");
+    for (index, _) in executable.structure_map().regions().iter().enumerate() {
+        assert_eq!(
+            profile.entry_count(RegionId(index)),
+            0,
+            "pure interpreter execution must not collect JIT profile entries"
+        );
+    }
 }
 
 #[test]

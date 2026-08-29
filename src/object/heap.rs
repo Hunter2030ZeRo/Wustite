@@ -531,6 +531,46 @@ impl ObjectHeap {
         .map(Value::Object)
     }
 
+    pub(crate) fn instance_shape(&self, receiver: ObjectRef) -> Result<ShapeId, ObjectError> {
+        match self.get(receiver)? {
+            Object::Instance(instance) => Ok(instance.shape),
+            _ => Err(ObjectError::NotInstance),
+        }
+    }
+
+    pub(crate) fn lookup_instance_field(
+        &self,
+        receiver: ObjectRef,
+        name: &str,
+    ) -> Result<Option<(ShapeId, usize, Value)>, ObjectError> {
+        let instance = match self.get(receiver)? {
+            Object::Instance(instance) => instance,
+            _ => return Err(ObjectError::NotInstance),
+        };
+        Ok(instance
+            .fields
+            .iter()
+            .enumerate()
+            .find(|(_, (candidate, _))| candidate == name)
+            .map(|(index, (_, value))| (instance.shape, index, *value)))
+    }
+
+    pub(crate) fn instance_field_at(
+        &self,
+        receiver: ObjectRef,
+        expected_shape: ShapeId,
+        index: usize,
+    ) -> Result<Option<Value>, ObjectError> {
+        let instance = match self.get(receiver)? {
+            Object::Instance(instance) => instance,
+            _ => return Err(ObjectError::NotInstance),
+        };
+        if instance.shape != expected_shape {
+            return Ok(None);
+        }
+        Ok(instance.fields.get(index).map(|(_, value)| *value))
+    }
+
     pub(crate) fn set_attribute(
         &mut self,
         receiver: ObjectRef,

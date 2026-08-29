@@ -37,27 +37,68 @@ fn quick_execution_handles_exact_smallints_and_aliases() {
         );
         assert_eq!(frame.pc, 5);
         let dst = match instruction {
-            QuickInstruction::Add { dst, .. } | QuickInstruction::Lt { dst, .. } => dst,
+            QuickInstruction::Add { dst, .. }
+            | QuickInstruction::Subtract { dst, .. }
+            | QuickInstruction::Multiply { dst, .. }
+            | QuickInstruction::Divide { dst, .. }
+            | QuickInstruction::FloorDivide { dst, .. }
+            | QuickInstruction::Power { dst, .. }
+            | QuickInstruction::Compare { dst, .. } => dst,
         };
         assert_eq!(frame.registers[usize::from(dst)], Value::SmallInt(42));
     }
 
-    let mut frame = frame(7, vec![Value::SmallInt(-3), Value::SmallInt(2)]);
+    let mut compare_frame = frame(7, vec![Value::SmallInt(-3), Value::SmallInt(2)]);
     assert_eq!(
         execute_quick(
-            QuickInstruction::Lt {
+            QuickInstruction::Compare {
                 dst: 0,
                 lhs: 0,
                 rhs: 1,
+                op: crate::bytecode::CompareOperator::Lt,
             },
-            &mut frame,
+            &mut compare_frame,
             &mut heap,
         )
         .unwrap(),
         QuickOutcome::Handled
     );
-    assert_eq!(frame.pc, 8);
-    assert_eq!(frame.registers[0], Value::Bool(true));
+    assert_eq!(compare_frame.pc, 8);
+    assert_eq!(compare_frame.registers[0], Value::Bool(true));
+
+    for (instruction, expected) in [
+        (
+            QuickInstruction::Subtract {
+                dst: 2,
+                lhs: 0,
+                rhs: 1,
+            },
+            Value::SmallInt(38),
+        ),
+        (
+            QuickInstruction::Multiply {
+                dst: 2,
+                lhs: 0,
+                rhs: 1,
+            },
+            Value::SmallInt(80),
+        ),
+    ] {
+        let mut frame = frame(
+            9,
+            vec![
+                Value::SmallInt(40),
+                Value::SmallInt(2),
+                Value::Uninitialized,
+            ],
+        );
+        assert_eq!(
+            execute_quick(instruction, &mut frame, &mut heap).unwrap(),
+            QuickOutcome::Handled
+        );
+        assert_eq!(frame.registers[2], expected);
+        assert_eq!(frame.pc, 10);
+    }
 }
 
 #[test]
@@ -66,7 +107,6 @@ fn quick_execution_guard_miss_is_side_effect_free() {
     let bigint = heap.allocate(Object::BigInt(BigInt::from(9))).unwrap();
     for mismatch in [
         Value::Bool(true),
-        Value::Float(1.5),
         Value::Object(bigint),
         Value::Uninitialized,
     ] {
@@ -76,10 +116,11 @@ fn quick_execution_guard_miss_is_side_effect_free() {
                 lhs: 0,
                 rhs: 1,
             },
-            QuickInstruction::Lt {
+            QuickInstruction::Compare {
                 dst: 2,
                 lhs: 0,
                 rhs: 1,
+                op: crate::bytecode::CompareOperator::Lt,
             },
         ] {
             let mut frame = frame(3, vec![Value::SmallInt(1), mismatch, Value::SmallInt(77)]);
@@ -122,10 +163,11 @@ fn quick_execution_guard_miss_is_side_effect_free() {
 
     overflow.pc = 12;
     let before = overflow.registers.clone();
-    let downstream = QuickInstruction::Lt {
+    let downstream = QuickInstruction::Compare {
         dst: 0,
         lhs: 2,
         rhs: 1,
+        op: crate::bytecode::CompareOperator::Lt,
     };
     assert_eq!(
         execute_quick(downstream, &mut overflow, &mut heap).unwrap(),
@@ -133,4 +175,60 @@ fn quick_execution_guard_miss_is_side_effect_free() {
     );
     assert_eq!(overflow.pc, 12);
     assert_eq!(overflow.registers, before);
+}
+
+#[test]
+fn quick_execution_handles_immediate_float_and_floor_arithmetic() {
+    let mut heap = ObjectHeap::new();
+    let cases = [
+        (
+            QuickInstruction::Multiply {
+                dst: 2,
+                lhs: 0,
+                rhs: 1,
+            },
+            vec![Value::Float(1.5), Value::SmallInt(4), Value::Uninitialized],
+            Value::Float(6.0),
+        ),
+        (
+            QuickInstruction::Divide {
+                dst: 2,
+                lhs: 0,
+                rhs: 1,
+            },
+            vec![Value::Float(9.0), Value::SmallInt(2), Value::Uninitialized],
+            Value::Float(4.5),
+        ),
+        (
+            QuickInstruction::FloorDivide {
+                dst: 2,
+                lhs: 0,
+                rhs: 1,
+            },
+            vec![
+                Value::SmallInt(-9),
+                Value::SmallInt(2),
+                Value::Uninitialized,
+            ],
+            Value::SmallInt(-5),
+        ),
+        (
+            QuickInstruction::Power {
+                dst: 2,
+                lhs: 0,
+                rhs: 1,
+            },
+            vec![Value::SmallInt(9), Value::Float(-0.5), Value::Uninitialized],
+            Value::Float(1.0 / 3.0),
+        ),
+    ];
+    for (instruction, registers, expected) in cases {
+        let mut frame = frame(4, registers);
+        assert_eq!(
+            execute_quick(instruction, &mut frame, &mut heap).unwrap(),
+            QuickOutcome::Handled
+        );
+        assert_eq!(frame.registers[2], expected);
+        assert_eq!(frame.pc, 5);
+    }
 }

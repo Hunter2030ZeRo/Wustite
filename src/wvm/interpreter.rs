@@ -19,13 +19,19 @@ impl Vm {
         runtime: &mut FunctionRuntime,
         frame: &mut Frame,
     ) -> Result<super::ExecutionResult, String> {
+        let interpreter_only = !runtime.profiling_enabled && self.adaptive_v2.is_none();
         let function = executable.bytecode();
         while frame.pc < function.code.len() {
-            if frame.suppress_osr_pc != Some(frame.pc)
+            if !interpreter_only
+                && frame.suppress_osr_pc != Some(frame.pc)
                 && let Some(region_id) = executable.structure_map().region_by_entry_pc(frame.pc)
             {
-                runtime.profile.record_entry(region_id);
-                if let Some(region) = executable.structure_map().region(region_id) {
+                if runtime.profiling_enabled {
+                    runtime.profile.record_entry(region_id);
+                }
+                if runtime.profiling_enabled
+                    && let Some(region) = executable.structure_map().region(region_id)
+                {
                     match self.jit_policy {
                         crate::planner::JitPolicy::Profile => {
                             runtime.profile.observe_entry(
@@ -84,7 +90,7 @@ impl Vm {
                     }
                 }
             }
-            if self.try_execute_region(executable, frame, runtime) {
+            if runtime.profiling_enabled && self.try_execute_region(executable, frame, runtime) {
                 continue;
             }
             if let Some(instruction) = runtime.quick_code.get(frame.pc)
@@ -144,12 +150,14 @@ impl Vm {
                     frame.pc,
                     instruction,
                 )? {
-                    runtime.profile.observe_instruction(
-                        frame.pc,
-                        instruction,
-                        &frame.registers,
-                        &self.object_heap,
-                    );
+                    if runtime.profiling_enabled {
+                        runtime.profile.observe_instruction(
+                            frame.pc,
+                            instruction,
+                            &frame.registers,
+                            &self.object_heap,
+                        );
+                    }
                     frame.pc += 1;
                     return Ok(None);
                 }
@@ -162,30 +170,49 @@ impl Vm {
                         instruction,
                     )?
                 {
+                    if runtime.profiling_enabled {
+                        runtime.profile.observe_instruction(
+                            frame.pc,
+                            instruction,
+                            &frame.registers,
+                            &self.object_heap,
+                        );
+                    }
+                    frame.pc += 1;
+                    return Ok(None);
+                }
+                self.jit_report.record_interpreter_guest_call();
+                let callable = Self::read_register(frame, *callable)?;
+                let value = match args.as_slice() {
+                    [] => self.invoke_callable(executable, runtime, frame.pc, callable, &[])?,
+                    [arg] => {
+                        let arguments = [Self::read_register(frame, *arg)?];
+                        self.invoke_callable(executable, runtime, frame.pc, callable, &arguments)?
+                    }
+                    [first, second] => {
+                        let arguments = [
+                            Self::read_register(frame, *first)?,
+                            Self::read_register(frame, *second)?,
+                        ];
+                        self.invoke_callable(executable, runtime, frame.pc, callable, &arguments)?
+                    }
+                    _ => {
+                        let arguments = args
+                            .iter()
+                            .map(|register| Self::read_register(frame, *register))
+                            .collect::<Result<Vec<_>, String>>()?;
+                        self.invoke_callable(executable, runtime, frame.pc, callable, &arguments)?
+                    }
+                };
+                Self::write_register(frame, *dst, value)?;
+                if runtime.profiling_enabled {
                     runtime.profile.observe_instruction(
                         frame.pc,
                         instruction,
                         &frame.registers,
                         &self.object_heap,
                     );
-                    frame.pc += 1;
-                    return Ok(None);
                 }
-                self.jit_report.record_interpreter_guest_call();
-                let callable = Self::read_register(frame, *callable)?;
-                let arguments = args
-                    .iter()
-                    .map(|register| Self::read_register(frame, *register))
-                    .collect::<Result<Vec<_>, String>>()?;
-                let value =
-                    self.invoke_callable(executable, runtime, frame.pc, callable, &arguments)?;
-                Self::write_register(frame, *dst, value)?;
-                runtime.profile.observe_instruction(
-                    frame.pc,
-                    instruction,
-                    &frame.registers,
-                    &self.object_heap,
-                );
                 frame.pc += 1;
             }
             Instruction::CallMethod {
@@ -216,23 +243,39 @@ impl Vm {
                     Self::read_register(frame, *receiver)?,
                     name,
                 )?;
-                let mut arguments = Vec::with_capacity(args.len() + 1);
-                arguments.push(Value::Object(receiver));
-                arguments.extend(
-                    args.iter()
-                        .map(|register| Self::read_register(frame, *register))
-                        .collect::<Result<Vec<_>, String>>()?,
-                );
-                let value = self
-                    .invoke(executable, runtime, function.as_ref(), &arguments)?
-                    .value;
+                let value = match args.as_slice() {
+                    [] => {
+                        let arguments = [Value::Object(receiver)];
+                        self.invoke(executable, runtime, function.as_ref(), &arguments)?
+                            .value
+                    }
+                    [arg] => {
+                        let arguments =
+                            [Value::Object(receiver), Self::read_register(frame, *arg)?];
+                        self.invoke(executable, runtime, function.as_ref(), &arguments)?
+                            .value
+                    }
+                    _ => {
+                        let mut arguments = Vec::with_capacity(args.len() + 1);
+                        arguments.push(Value::Object(receiver));
+                        arguments.extend(
+                            args.iter()
+                                .map(|register| Self::read_register(frame, *register))
+                                .collect::<Result<Vec<_>, String>>()?,
+                        );
+                        self.invoke(executable, runtime, function.as_ref(), &arguments)?
+                            .value
+                    }
+                };
                 Self::write_register(frame, *dst, value)?;
-                runtime.profile.observe_instruction(
-                    frame.pc,
-                    instruction,
-                    &frame.registers,
-                    &self.object_heap,
-                );
+                if runtime.profiling_enabled {
+                    runtime.profile.observe_instruction(
+                        frame.pc,
+                        instruction,
+                        &frame.registers,
+                        &self.object_heap,
+                    );
+                }
                 frame.pc += 1;
             }
             instruction @ (Instruction::ConstFloat { .. }
@@ -262,12 +305,14 @@ impl Vm {
                     frame.pc,
                     instruction,
                 )?;
-                runtime.profile.observe_instruction(
-                    frame.pc,
-                    instruction,
-                    &frame.registers,
-                    &self.object_heap,
-                );
+                if runtime.profiling_enabled {
+                    runtime.profile.observe_instruction(
+                        frame.pc,
+                        instruction,
+                        &frame.registers,
+                        &self.object_heap,
+                    );
+                }
                 frame.pc += 1;
             }
             Instruction::AddI64 { dst, lhs, rhs } => {

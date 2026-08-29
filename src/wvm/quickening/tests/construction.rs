@@ -77,10 +77,11 @@ fn quick_code_builds_only_exact_add_and_lt() {
     );
     assert_eq!(
         quick.get(2),
-        Some(super::super::QuickInstruction::Lt {
+        Some(super::super::QuickInstruction::Compare {
             dst: 3,
             lhs: 0,
-            rhs: 1
+            rhs: 1,
+            op: CompareOperator::Lt,
         })
     );
     assert_eq!(quick.get(3), None);
@@ -89,16 +90,15 @@ fn quick_code_builds_only_exact_add_and_lt() {
 #[test]
 fn quick_code_preserves_unknown_mismatched_and_unsupported_sites() {
     let small = exact(SlotType::SmallInt);
-    let boolean = exact(SlotType::Bool);
     let float = exact(SlotType::Float);
     let cases = vec![
         (BinaryOperator::Add, TypeFact::Unknown, small, small, 0),
         (BinaryOperator::Add, small, TypeFact::Unknown, small, 0),
         (BinaryOperator::Add, small, small, TypeFact::Unknown, 0),
         (BinaryOperator::Add, small, small, float, 0),
-        (BinaryOperator::Subtract, small, small, small, 0),
-        (BinaryOperator::Multiply, small, small, small, 0),
         (BinaryOperator::Divide, small, small, small, 0),
+        (BinaryOperator::FloorDivide, small, small, small, 0),
+        (BinaryOperator::Power, small, small, small, 0),
         (BinaryOperator::Add, small, small, small, 1),
     ];
     for (op, lhs_fact, rhs_fact, result_fact, fact_pc) in cases {
@@ -111,26 +111,6 @@ fn quick_code_preserves_unknown_mismatched_and_unsupported_sites() {
                 site: OperationSiteId(0),
             }],
             vec![site(fact_pc, lhs_fact, rhs_fact, result_fact)],
-        );
-        assert_eq!(QuickCode::new(&executable).get(0), None);
-    }
-
-    for op in [
-        CompareOperator::Eq,
-        CompareOperator::NotEq,
-        CompareOperator::Le,
-        CompareOperator::Gt,
-        CompareOperator::Ge,
-    ] {
-        let executable = executable(
-            vec![Instruction::CompareOp {
-                dst: 2,
-                op,
-                lhs: 0,
-                rhs: 1,
-                site: OperationSiteId(0),
-            }],
-            vec![site(0, small, small, boolean)],
         );
         assert_eq!(QuickCode::new(&executable).get(0), None);
     }
@@ -150,4 +130,113 @@ fn quick_code_preserves_unknown_mismatched_and_unsupported_sites() {
         let executable = executable(vec![instruction], Vec::new());
         assert_eq!(QuickCode::new(&executable).get(0), None);
     }
+}
+
+#[test]
+fn interpreter_quick_code_uses_guarded_opcodes_without_structure_facts() {
+    let small = exact(SlotType::SmallInt);
+    let boolean = exact(SlotType::Bool);
+    let executable = executable(
+        vec![
+            Instruction::BinaryOp {
+                dst: 2,
+                op: BinaryOperator::Subtract,
+                lhs: 0,
+                rhs: 1,
+                site: OperationSiteId(0),
+            },
+            Instruction::BinaryOp {
+                dst: 2,
+                op: BinaryOperator::Multiply,
+                lhs: 0,
+                rhs: 1,
+                site: OperationSiteId(1),
+            },
+            Instruction::CompareOp {
+                dst: 3,
+                op: CompareOperator::Ge,
+                lhs: 0,
+                rhs: 1,
+                site: OperationSiteId(2),
+            },
+            Instruction::BinaryOp {
+                dst: 2,
+                op: BinaryOperator::Divide,
+                lhs: 0,
+                rhs: 1,
+                site: OperationSiteId(3),
+            },
+            Instruction::BinaryOp {
+                dst: 2,
+                op: BinaryOperator::FloorDivide,
+                lhs: 0,
+                rhs: 1,
+                site: OperationSiteId(4),
+            },
+            Instruction::BinaryOp {
+                dst: 2,
+                op: BinaryOperator::Power,
+                lhs: 0,
+                rhs: 1,
+                site: OperationSiteId(5),
+            },
+        ],
+        vec![
+            site(99, TypeFact::Unknown, small, small),
+            site(99, small, TypeFact::Unknown, small),
+            site(99, small, small, boolean),
+        ],
+    );
+
+    let quick = QuickCode::new_interpreter(executable.bytecode());
+
+    assert_eq!(
+        quick.get(0),
+        Some(super::super::QuickInstruction::Subtract {
+            dst: 2,
+            lhs: 0,
+            rhs: 1,
+        })
+    );
+    assert_eq!(
+        quick.get(1),
+        Some(super::super::QuickInstruction::Multiply {
+            dst: 2,
+            lhs: 0,
+            rhs: 1,
+        })
+    );
+    assert_eq!(
+        quick.get(2),
+        Some(super::super::QuickInstruction::Compare {
+            dst: 3,
+            lhs: 0,
+            rhs: 1,
+            op: CompareOperator::Ge,
+        })
+    );
+    assert_eq!(
+        quick.get(3),
+        Some(super::super::QuickInstruction::Divide {
+            dst: 2,
+            lhs: 0,
+            rhs: 1,
+        })
+    );
+    assert_eq!(
+        quick.get(4),
+        Some(super::super::QuickInstruction::FloorDivide {
+            dst: 2,
+            lhs: 0,
+            rhs: 1,
+        })
+    );
+    assert_eq!(
+        quick.get(5),
+        Some(super::super::QuickInstruction::Power {
+            dst: 2,
+            lhs: 0,
+            rhs: 1,
+        })
+    );
 }

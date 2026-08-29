@@ -51,6 +51,37 @@ impl<'a> ValueOps<'a> {
         }
     }
 
+    pub(super) fn immediate_binary(
+        &mut self,
+        op: BinaryOperator,
+        lhs: Value,
+        rhs: Value,
+    ) -> Result<Option<Value>, String> {
+        let lhs = match lhs {
+            Value::SmallInt(value) => Number::Small(value),
+            Value::Float(value) => Number::Float(value),
+            Value::Bool(_) | Value::None | Value::Object(_) | Value::Uninitialized => {
+                return Ok(None);
+            }
+        };
+        let rhs = match rhs {
+            Value::SmallInt(value) => Number::Small(value),
+            Value::Float(value) => Number::Float(value),
+            Value::Bool(_) | Value::None | Value::Object(_) | Value::Uninitialized => {
+                return Ok(None);
+            }
+        };
+        let value = match op {
+            BinaryOperator::Add => self.add(lhs, rhs)?,
+            BinaryOperator::Subtract => self.subtract(lhs, rhs)?,
+            BinaryOperator::Multiply => self.multiply(lhs, rhs)?,
+            BinaryOperator::Divide => self.divide(lhs, rhs)?,
+            BinaryOperator::FloorDivide => self.floor_divide(lhs, rhs)?,
+            BinaryOperator::Power => self.power(lhs, rhs)?,
+        };
+        Ok(Some(value))
+    }
+
     pub(super) fn unary(&mut self, op: UnaryOperator, value: Value) -> Result<Value, String> {
         match (op, value) {
             (UnaryOperator::Not, Value::Bool(value)) => Ok(Value::Bool(!value)),
@@ -168,6 +199,11 @@ impl<'a> ValueOps<'a> {
             return Ok(Value::Float(
                 (number_to_f64(&lhs)? / number_to_f64(&rhs)?).floor(),
             ));
+        }
+        if let (Number::Small(lhs), Number::Small(rhs)) = (&lhs, &rhs)
+            && let Some(value) = lhs.checked_div_euclid(*rhs)
+        {
+            return Ok(Value::SmallInt(value));
         }
         let lhs = number_to_big(lhs)?;
         let rhs = number_to_big(rhs)?;

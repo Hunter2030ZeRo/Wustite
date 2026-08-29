@@ -1,4 +1,4 @@
-use crate::bytecode::{BinaryOperator, CompareOperator, Instruction, Register};
+use crate::bytecode::{BinaryOperator, CompareOperator, Function, Instruction, Register};
 use crate::executable::ExecutableFunction;
 use crate::object::ObjectHeap;
 use crate::structure_map::{SlotType, TypeFact};
@@ -14,10 +14,36 @@ pub(super) enum QuickInstruction {
         lhs: Register,
         rhs: Register,
     },
-    Lt {
+    Subtract {
         dst: Register,
         lhs: Register,
         rhs: Register,
+    },
+    Multiply {
+        dst: Register,
+        lhs: Register,
+        rhs: Register,
+    },
+    Divide {
+        dst: Register,
+        lhs: Register,
+        rhs: Register,
+    },
+    FloorDivide {
+        dst: Register,
+        lhs: Register,
+        rhs: Register,
+    },
+    Power {
+        dst: Register,
+        lhs: Register,
+        rhs: Register,
+    },
+    Compare {
+        dst: Register,
+        lhs: Register,
+        rhs: Register,
+        op: CompareOperator,
     },
 }
 
@@ -36,20 +62,51 @@ pub(super) fn execute_quick(
     heap: &mut ObjectHeap,
 ) -> Result<QuickOutcome, String> {
     let (dst, lhs, rhs) = match instruction {
-        QuickInstruction::Add { dst, lhs, rhs } | QuickInstruction::Lt { dst, lhs, rhs } => {
-            (dst, lhs, rhs)
-        }
+        QuickInstruction::Add { dst, lhs, rhs }
+        | QuickInstruction::Subtract { dst, lhs, rhs }
+        | QuickInstruction::Multiply { dst, lhs, rhs }
+        | QuickInstruction::Divide { dst, lhs, rhs }
+        | QuickInstruction::FloorDivide { dst, lhs, rhs }
+        | QuickInstruction::Power { dst, lhs, rhs }
+        | QuickInstruction::Compare { dst, lhs, rhs, .. } => (dst, lhs, rhs),
     };
     Vm::read_register(frame, dst)?;
-    let (Value::SmallInt(lhs), Value::SmallInt(rhs)) = (
-        Vm::read_register(frame, lhs)?,
-        Vm::read_register(frame, rhs)?,
-    ) else {
-        return Ok(QuickOutcome::GuardMiss);
-    };
+    let lhs = Vm::read_register(frame, lhs)?;
+    let rhs = Vm::read_register(frame, rhs)?;
     let value = match instruction {
-        QuickInstruction::Add { .. } => ValueOps::new(heap).smallint_add(lhs, rhs)?,
-        QuickInstruction::Lt { .. } => Value::Bool(lhs < rhs),
+        QuickInstruction::Add { .. }
+        | QuickInstruction::Subtract { .. }
+        | QuickInstruction::Multiply { .. }
+        | QuickInstruction::Divide { .. }
+        | QuickInstruction::FloorDivide { .. }
+        | QuickInstruction::Power { .. } => {
+            let op = match instruction {
+                QuickInstruction::Add { .. } => BinaryOperator::Add,
+                QuickInstruction::Subtract { .. } => BinaryOperator::Subtract,
+                QuickInstruction::Multiply { .. } => BinaryOperator::Multiply,
+                QuickInstruction::Divide { .. } => BinaryOperator::Divide,
+                QuickInstruction::FloorDivide { .. } => BinaryOperator::FloorDivide,
+                QuickInstruction::Power { .. } => BinaryOperator::Power,
+                QuickInstruction::Compare { .. } => unreachable!(),
+            };
+            let Some(value) = ValueOps::new(heap).immediate_binary(op, lhs, rhs)? else {
+                return Ok(QuickOutcome::GuardMiss);
+            };
+            value
+        }
+        QuickInstruction::Compare { op, .. } => {
+            let (Value::SmallInt(lhs), Value::SmallInt(rhs)) = (lhs, rhs) else {
+                return Ok(QuickOutcome::GuardMiss);
+            };
+            Value::Bool(match op {
+                CompareOperator::Eq => lhs == rhs,
+                CompareOperator::NotEq => lhs != rhs,
+                CompareOperator::Lt => lhs < rhs,
+                CompareOperator::Le => lhs <= rhs,
+                CompareOperator::Gt => lhs > rhs,
+                CompareOperator::Ge => lhs >= rhs,
+            })
+        }
     };
     Vm::write_register(frame, dst, value)?;
     frame.pc += 1;
@@ -68,27 +125,48 @@ impl QuickCode {
             .map(|(pc, instruction)| match instruction {
                 Instruction::BinaryOp {
                     dst,
-                    op: BinaryOperator::Add,
+                    op,
                     lhs,
                     rhs,
                     site,
-                } => executable
-                    .structure_map()
-                    .operation_site(*site)
-                    .filter(|facts| {
-                        facts.pc == pc
-                            && facts.lhs == small
-                            && facts.rhs == small
-                            && facts.result == small
-                    })
-                    .map(|_| QuickInstruction::Add {
-                        dst: *dst,
-                        lhs: *lhs,
-                        rhs: *rhs,
-                    }),
+                } if matches!(
+                    op,
+                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                ) =>
+                {
+                    executable
+                        .structure_map()
+                        .operation_site(*site)
+                        .filter(|facts| {
+                            facts.pc == pc
+                                && facts.lhs == small
+                                && facts.rhs == small
+                                && facts.result == small
+                        })
+                        .map(|_| match op {
+                            BinaryOperator::Add => QuickInstruction::Add {
+                                dst: *dst,
+                                lhs: *lhs,
+                                rhs: *rhs,
+                            },
+                            BinaryOperator::Subtract => QuickInstruction::Subtract {
+                                dst: *dst,
+                                lhs: *lhs,
+                                rhs: *rhs,
+                            },
+                            BinaryOperator::Multiply => QuickInstruction::Multiply {
+                                dst: *dst,
+                                lhs: *lhs,
+                                rhs: *rhs,
+                            },
+                            BinaryOperator::Divide
+                            | BinaryOperator::FloorDivide
+                            | BinaryOperator::Power => unreachable!(),
+                        })
+                }
                 Instruction::CompareOp {
                     dst,
-                    op: CompareOperator::Lt,
+                    op,
                     lhs,
                     rhs,
                     site,
@@ -101,51 +179,13 @@ impl QuickCode {
                             && facts.rhs == small
                             && facts.result == boolean
                     })
-                    .map(|_| QuickInstruction::Lt {
+                    .map(|_| QuickInstruction::Compare {
                         dst: *dst,
                         lhs: *lhs,
                         rhs: *rhs,
+                        op: *op,
                     }),
-                Instruction::BinaryOp {
-                    op: BinaryOperator::Subtract,
-                    ..
-                }
-                | Instruction::BinaryOp {
-                    op: BinaryOperator::Multiply,
-                    ..
-                }
-                | Instruction::BinaryOp {
-                    op: BinaryOperator::Divide,
-                    ..
-                }
-                | Instruction::BinaryOp {
-                    op: BinaryOperator::FloorDivide,
-                    ..
-                }
-                | Instruction::BinaryOp {
-                    op: BinaryOperator::Power,
-                    ..
-                }
-                | Instruction::CompareOp {
-                    op: CompareOperator::Eq,
-                    ..
-                }
-                | Instruction::CompareOp {
-                    op: CompareOperator::NotEq,
-                    ..
-                }
-                | Instruction::CompareOp {
-                    op: CompareOperator::Le,
-                    ..
-                }
-                | Instruction::CompareOp {
-                    op: CompareOperator::Gt,
-                    ..
-                }
-                | Instruction::CompareOp {
-                    op: CompareOperator::Ge,
-                    ..
-                }
+                Instruction::BinaryOp { .. }
                 | Instruction::ConstSmallInt { .. }
                 | Instruction::ConstFloat { .. }
                 | Instruction::ConstBool { .. }
@@ -176,6 +216,91 @@ impl QuickCode {
                 | Instruction::Branch { .. }
                 | Instruction::Return { .. }
                 | Instruction::Move { .. } => None,
+            })
+            .collect();
+        Self(slots)
+    }
+
+    pub(super) fn new_interpreter(function: &Function) -> Self {
+        let slots = function
+            .code
+            .iter()
+            .map(|instruction| match instruction {
+                Instruction::BinaryOp {
+                    dst,
+                    op: BinaryOperator::Add,
+                    lhs,
+                    rhs,
+                    ..
+                } => Some(QuickInstruction::Add {
+                    dst: *dst,
+                    lhs: *lhs,
+                    rhs: *rhs,
+                }),
+                Instruction::BinaryOp {
+                    dst,
+                    op: BinaryOperator::Subtract,
+                    lhs,
+                    rhs,
+                    ..
+                } => Some(QuickInstruction::Subtract {
+                    dst: *dst,
+                    lhs: *lhs,
+                    rhs: *rhs,
+                }),
+                Instruction::BinaryOp {
+                    dst,
+                    op: BinaryOperator::Multiply,
+                    lhs,
+                    rhs,
+                    ..
+                } => Some(QuickInstruction::Multiply {
+                    dst: *dst,
+                    lhs: *lhs,
+                    rhs: *rhs,
+                }),
+                Instruction::BinaryOp {
+                    dst,
+                    op: BinaryOperator::Divide,
+                    lhs,
+                    rhs,
+                    ..
+                } => Some(QuickInstruction::Divide {
+                    dst: *dst,
+                    lhs: *lhs,
+                    rhs: *rhs,
+                }),
+                Instruction::BinaryOp {
+                    dst,
+                    op: BinaryOperator::FloorDivide,
+                    lhs,
+                    rhs,
+                    ..
+                } => Some(QuickInstruction::FloorDivide {
+                    dst: *dst,
+                    lhs: *lhs,
+                    rhs: *rhs,
+                }),
+                Instruction::BinaryOp {
+                    dst,
+                    op: BinaryOperator::Power,
+                    lhs,
+                    rhs,
+                    ..
+                } => Some(QuickInstruction::Power {
+                    dst: *dst,
+                    lhs: *lhs,
+                    rhs: *rhs,
+                }),
+                Instruction::CompareOp {
+                    dst, op, lhs, rhs, ..
+                } => Some(QuickInstruction::Compare {
+                    dst: *dst,
+                    lhs: *lhs,
+                    rhs: *rhs,
+                    op: *op,
+                }),
+                _ => None,
             })
             .collect();
         Self(slots)

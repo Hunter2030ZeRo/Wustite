@@ -67,7 +67,7 @@ fn finite_nested_guest_calls_succeed_after_a_depth_limit_error() {
 }
 
 #[test]
-fn same_function_nested_activations_preserve_runtime_profile_updates() {
+fn same_function_nested_activations_keep_interpreter_profile_inert() {
     // Given: a recursive function that enters one loop in every activation.
     let mut runtime = interpreter_runtime();
     let executable = runtime
@@ -77,13 +77,13 @@ fn same_function_nested_activations_preserve_runtime_profile_updates() {
     // When: recursive execution reaches the guest call-depth limit.
     let result = runtime.execute(&executable);
 
-    // Then: profile updates from nested same-function activations remain in the runtime.
+    // Then: pure interpreter activations never collect JIT profile entries.
     assert!(result.is_err());
     assert_eq!(
         runtime
             .profile_for(&executable)
             .unwrap()
             .entry_count(wustite::structure_map::RegionId(0)),
-        256
+        0
     );
 }

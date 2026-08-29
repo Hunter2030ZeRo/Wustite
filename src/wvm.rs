@@ -73,14 +73,19 @@ pub struct Vm {
 }
 
 pub(super) struct FunctionRuntime {
+    profiling_enabled: bool,
     profile: Profile,
     profile_schemas: Vec<RegionProfileSchema>,
-    jit: Option<jit_runtime::JitRuntime>,
+    // BackendCompiler owns large backend state. Keep it off the interpreter's
+    // host stack even when this runtime has no JIT, because Option<T> otherwise
+    // reserves space for the largest variant in every guest call frame.
+    jit: Option<Box<jit_runtime::JitRuntime>>,
     constants: Vec<Option<Value>>,
     current_function: Option<Value>,
     quick_code: Arc<QuickCode>,
     leaf_calls: Vec<Option<native_jit::leaf::PreparedLeafCall>>,
     call_sites: Vec<callables::PreparedCallSite>,
+    attribute_sites: Vec<callables::PreparedAttributeSite>,
 }
 
 impl FunctionRuntime {
@@ -93,40 +98,62 @@ impl FunctionRuntime {
         executable: &ExecutableFunction,
         compiler_backend: Option<CompilerBackend>,
     ) -> Self {
+        let profiling_enabled = compiler_backend.is_some();
+        let quick_code = if profiling_enabled {
+            QuickCode::new(executable)
+        } else {
+            QuickCode::new_interpreter(executable.bytecode())
+        };
         Self::with_quick_code(
             executable,
-            Arc::new(QuickCode::new(executable)),
+            Arc::new(quick_code),
             compiler_backend,
+            profiling_enabled,
         )
     }
 
-    fn recursive_placeholder(executable: &ExecutableFunction, quick_code: Arc<QuickCode>) -> Self {
-        Self::with_quick_code(executable, quick_code, None)
+    fn recursive_placeholder(
+        executable: &ExecutableFunction,
+        quick_code: Arc<QuickCode>,
+        profiling_enabled: bool,
+    ) -> Self {
+        Self::with_quick_code(executable, quick_code, None, profiling_enabled)
     }
 
     fn with_quick_code(
         executable: &ExecutableFunction,
         quick_code: Arc<QuickCode>,
         compiler_backend: Option<CompilerBackend>,
+        profiling_enabled: bool,
     ) -> Self {
+        let (profile, profile_schemas) = if profiling_enabled {
+            (
+                Profile::new(
+                    executable.structure_map().regions().len(),
+                    executable.bytecode().code.len(),
+                ),
+                executable
+                    .structure_map()
+                    .regions()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, _)| {
+                        RegionProfileSchema::from_structure_map(
+                            executable.structure_map(),
+                            RegionId(index),
+                        )
+                    })
+                    .collect(),
+            )
+        } else {
+            (Profile::new(0, 0), Vec::new())
+        };
         Self {
-            profile: Profile::new(
-                executable.structure_map().regions().len(),
-                executable.bytecode().code.len(),
-            ),
-            profile_schemas: executable
-                .structure_map()
-                .regions()
-                .iter()
-                .enumerate()
-                .filter_map(|(index, _)| {
-                    RegionProfileSchema::from_structure_map(
-                        executable.structure_map(),
-                        RegionId(index),
-                    )
-                })
-                .collect(),
-            jit: compiler_backend.map(|backend| jit_runtime::JitRuntime::new(executable, backend)),
+            profiling_enabled,
+            profile,
+            profile_schemas,
+            jit: compiler_backend
+                .map(|backend| Box::new(jit_runtime::JitRuntime::new(executable, backend))),
             constants: vec![None; executable.constants().len()],
             current_function: None,
             quick_code,
@@ -135,6 +162,9 @@ impl FunctionRuntime {
                 .collect(),
             call_sites: (0..executable.bytecode().code.len())
                 .map(|_| callables::PreparedCallSite::default())
+                .collect(),
+            attribute_sites: (0..executable.bytecode().code.len())
+                .map(|_| callables::PreparedAttributeSite::default())
                 .collect(),
         }
     }

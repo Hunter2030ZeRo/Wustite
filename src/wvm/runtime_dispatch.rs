@@ -112,13 +112,8 @@ impl Vm {
                 write(registers, *dst, value)
             }
             Instruction::GetAttr { dst, object, name } => {
-                let Value::Object(receiver) = read(registers, *object)? else {
-                    return Err("attribute receiver is not an object".to_string());
-                };
-                let value = self
-                    .object_heap
-                    .get_attribute(receiver, name)
-                    .map_err(|error| error.to_string())?;
+                let value =
+                    self.prepared_attribute(runtime, pc, read(registers, *object)?, name)?;
                 write(registers, *dst, value)
             }
             Instruction::GetSlice {
