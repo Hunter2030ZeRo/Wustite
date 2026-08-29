@@ -15,9 +15,9 @@ fn finish_builds_exact_cfg_and_loop_summary_from_final_bytecode() {
     let operation = builder
         .record_operation(
             2,
-            TypeFact::Exact(SlotType::SmallInt),
-            TypeFact::Exact(SlotType::SmallInt),
-            TypeFact::Exact(SlotType::SmallInt),
+            TypeFact::Proven(SlotType::SmallInt),
+            TypeFact::Proven(SlotType::SmallInt),
+            TypeFact::Proven(SlotType::SmallInt),
         )
         .unwrap();
     let region = builder.begin_region(1, vec![slot(0)]);
@@ -134,6 +134,14 @@ fn finish_builds_exact_cfg_and_loop_summary_from_final_bytecode() {
             block_count: 3,
             operation_count: 1,
             call_count: 1,
+            effects: Fact::Proven(EffectSummary {
+                may_mutate: true,
+                may_allocate: true,
+                may_call_unknown: true,
+                may_access_global_state: true,
+            }),
+            failure_site_count: 1,
+            ..RegionSummary::default()
         }
     );
 }

@@ -6,16 +6,18 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use wustite::{CompilerBackend, ExecutionMode, Runtime, RuntimeConfig};
+use wustite::{AdaptiveReport, CompilerBackend, ExecutionMode, JitPolicy, Runtime, RuntimeConfig};
 
 mod arguments;
 mod benchmark;
 mod inspection;
+mod profile_cache;
 mod report;
 mod value_names;
 
 use self::arguments::parse_arguments;
 use self::inspection::{InspectDocument, print_inspection};
+use self::profile_cache::ProfileCache;
 use self::report::{RunContext, RunDocument, RunOutput, print_jit_trace, print_run_values};
 
 #[derive(Parser)]
@@ -39,7 +41,7 @@ enum Command {
     Bench(BenchArgs),
 }
 
-#[derive(Clone, Copy, ValueEnum)]
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub(super) enum BackendArg {
     Cranelift,
     #[cfg(feature = "inkwell")]
@@ -87,13 +89,25 @@ struct RunArgs {
     #[arg(long, default_value_t = RuntimeConfig::default().hot_threshold)]
     hot_threshold: u64,
 
-    /// Print per-run JIT diagnostics to stderr.
-    #[arg(long)]
-    trace_jit: bool,
+    /// Print detailed JIT decisions and failures to stderr.
+    #[arg(long, visible_aliases = ["debug", "trace-jit"])]
+    debug_jit: bool,
+
+    /// Print each compiled WXIR function to stderr.
+    #[arg(long, conflicts_with = "interpreter")]
+    dump_wxir: bool,
 
     /// Emit one JSON document to stdout.
-    #[arg(long, conflicts_with = "trace_jit")]
+    #[arg(long, conflicts_with = "debug_jit")]
     json: bool,
+
+    /// JIT planning policy. Both policies require a hot, runtime-validated profile.
+    #[arg(long, value_enum, default_value_t = JitPolicyArg::StructureMap)]
+    jit_policy: JitPolicyArg,
+
+    /// Runtime core. The legacy core remains the default until performance qualification passes.
+    #[arg(long, value_enum, default_value_t = RuntimeCoreArg::Legacy)]
+    runtime_core: RuntimeCoreArg,
 }
 
 #[derive(Args)]
@@ -108,6 +122,27 @@ struct InspectArgs {
     /// Emit one JSON document to stdout.
     #[arg(long)]
     json: bool,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub(super) enum JitPolicyArg {
+    Profile,
+    StructureMap,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub(super) enum RuntimeCoreArg {
+    Legacy,
+    AdaptiveV2,
+}
+
+impl From<JitPolicyArg> for JitPolicy {
+    fn from(policy: JitPolicyArg) -> Self {
+        match policy {
+            JitPolicyArg::Profile => Self::Profile,
+            JitPolicyArg::StructureMap => Self::StructureMap,
+        }
+    }
 }
 
 #[derive(Args)]
@@ -131,6 +166,14 @@ pub(super) struct BenchArgs {
     #[arg(long, default_value = "100")]
     pub(super) iterations: NonZeroUsize,
 
+    /// Interpreter-only stabilization runs. Defaults to `--warmup` when omitted.
+    #[arg(long)]
+    pub(super) interpreter_warmup: Option<usize>,
+
+    /// Interpreter-only measured samples. Defaults to `--iterations` when omitted.
+    #[arg(long)]
+    pub(super) interpreter_iterations: Option<NonZeroUsize>,
+
     /// Native compiler policy used for the JIT comparison.
     #[arg(long, value_enum, default_value_t = BackendArg::Tiered)]
     pub(super) backend: BackendArg,
@@ -138,6 +181,22 @@ pub(super) struct BenchArgs {
     /// Region-entry threshold for adaptive JIT compilation.
     #[arg(long, default_value_t = 10)]
     pub(super) hot_threshold: u64,
+
+    /// Print detailed JIT decisions and failures to stderr.
+    #[arg(long, visible_alias = "debug")]
+    pub(super) debug_jit: bool,
+
+    /// Print each compiled WXIR function to stderr.
+    #[arg(long)]
+    pub(super) dump_wxir: bool,
+
+    /// JIT planning policy. Both policies require a hot, runtime-validated profile.
+    #[arg(long, value_enum, default_value_t = JitPolicyArg::StructureMap)]
+    pub(super) jit_policy: JitPolicyArg,
+
+    /// Runtime core used for the adaptive side of the comparison.
+    #[arg(long, value_enum, default_value_t = RuntimeCoreArg::Legacy)]
+    pub(super) runtime_core: RuntimeCoreArg,
 }
 
 pub(crate) fn main_entry() -> ExitCode {
@@ -159,19 +218,39 @@ fn dispatch(cli: Cli) -> Result<(), String> {
 }
 
 fn run(args: RunArgs) -> Result<(), String> {
+    reject_unsupported_adaptive_backend(args.runtime_core, args.backend)?;
     let source = read_source(&args.path)?;
     let execution_mode = if args.interpreter {
         ExecutionMode::Interpreter
     } else {
         ExecutionMode::Jit(args.backend.into())
     };
-    let mut runtime = Runtime::new(RuntimeConfig {
+    let config = RuntimeConfig {
         execution_mode,
         hot_threshold: args.hot_threshold,
-    });
+    };
+    let mut runtime = match args.runtime_core {
+        RuntimeCoreArg::Legacy => Runtime::new(config),
+        RuntimeCoreArg::AdaptiveV2 => Runtime::new_adaptive_v2(config),
+    };
+    runtime.set_jit_policy(args.jit_policy.into());
+    runtime.set_dump_wxir(args.dump_wxir);
     let executable = runtime
         .compile_function(&source, &args.function)
         .map_err(|error| error.to_string())?;
+    let mut profile_cache = ProfileCache::new(
+        &source,
+        &args.function,
+        &executable,
+        !args.interpreter && args.runtime_core == RuntimeCoreArg::Legacy,
+    );
+    if let Some(artifact) = profile_cache.load()
+        && runtime
+            .seed_profile(&executable, &artifact, profile_cache.fingerprint())
+            .is_err()
+    {
+        profile_cache.reject();
+    }
     let function_arguments =
         parse_arguments(&mut runtime, executable.parameters(), &args.arguments)?;
 
@@ -182,6 +261,11 @@ fn run(args: RunArgs) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
         runs.push(RunOutput::snapshot(index, value, &runtime)?);
     }
+    if let Some(artifact) =
+        runtime.profile_artifact(&executable, profile_cache.fingerprint().to_string())
+    {
+        profile_cache.store(&artifact);
+    }
 
     if args.json {
         report::print_json(&RunDocument::new(
@@ -190,16 +274,57 @@ fn run(args: RunArgs) -> Result<(), String> {
                 function: args.function,
                 execution_mode,
                 hot_threshold: args.hot_threshold,
+                profile_cache: profile_cache.status(),
+                adaptive_v2: runtime.last_adaptive_report().cloned(),
             },
             runs,
         ))?;
     } else {
         print_run_values(&runs);
-        if args.trace_jit {
+        if args.debug_jit {
+            eprintln!(
+                "profile cache: {}",
+                serde_json::to_value(profile_cache.status())
+                    .ok()
+                    .and_then(|value| value.as_str().map(str::to_owned))
+                    .unwrap_or_else(|| "error".to_string())
+            );
             print_jit_trace(&runs);
+            if let Some(report) = runtime.last_adaptive_report() {
+                print_adaptive_debug(report);
+            }
         }
     }
     Ok(())
+}
+
+fn reject_unsupported_adaptive_backend(
+    runtime_core: RuntimeCoreArg,
+    backend: BackendArg,
+) -> Result<(), String> {
+    #[cfg(feature = "inkwell")]
+    if runtime_core == RuntimeCoreArg::AdaptiveV2 && backend == BackendArg::Llvm {
+        return Err(
+            "adaptive-v2 requires Cranelift tier-1 before LLVM promotion; use --backend tiered"
+                .to_owned(),
+        );
+    }
+    let _ = (runtime_core, backend);
+    Ok(())
+}
+
+fn print_adaptive_debug(report: &AdaptiveReport) {
+    eprintln!(
+        "adaptive-v2 schema={} default=legacy qualified={} rollback={} machine_entries={} native_executions={} helper_calls={} generic_dispatch_calls={} deopts={}",
+        report.schema_version,
+        report.qualified_for_default,
+        report.rollback_available,
+        report.machine_entries,
+        report.native_executions,
+        report.helper_calls,
+        report.generic_dispatch_calls,
+        report.deopts,
+    );
 }
 
 fn inspect(args: InspectArgs) -> Result<(), String> {

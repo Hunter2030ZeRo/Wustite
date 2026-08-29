@@ -1,5 +1,7 @@
 use super::*;
 
+mod exits;
+
 impl RegionBuilder<'_> {
     pub(super) fn control_target(
         &mut self,
@@ -26,8 +28,7 @@ impl RegionBuilder<'_> {
 
         if !self.block_specs.contains_key(&target) {
             let id = self.allocate_block()?;
-            let mut registers: Vec<_> = environment.keys().copied().collect();
-            registers.sort_unstable();
+            let registers = self.registers_for_environment(target, environment);
             let mut parameters = Vec::with_capacity(registers.len());
             for register in registers {
                 let value =
@@ -68,48 +69,28 @@ impl RegionBuilder<'_> {
         })
     }
 
-    fn exit_target(
-        &mut self,
-        target: usize,
+    pub(super) fn registers_for_environment(
+        &self,
+        pc: usize,
         environment: &HashMap<Register, TypedValue>,
-    ) -> Result<WxBlockTarget, WxBuildError> {
-        let exit_index = self.exit_by_pc.get(&target).copied().ok_or_else(|| {
-            WxBuildError::InvalidPlan(format!("region edge to pc {target} has no JitPlan exit"))
-        })?;
-
-        if !self.exit_specs.contains_key(&target) {
-            let block_id = self.allocate_block()?;
-            let exit_id = WxExitId(
-                u32::try_from(exit_index)
-                    .map_err(|_| WxBuildError::IdSpaceExhausted("side-exit"))?,
-            );
-            let parameters = self.parameters_for_slots(&self.plan.live_slots, target)?;
-            self.exit_specs.insert(
-                target,
-                ExitBlockSpec {
-                    id: block_id,
-                    exit: exit_id,
-                    resume_pc: target,
-                    parameters,
-                },
-            );
-        }
-
-        let spec =
-            self.exit_specs.get(&target).cloned().ok_or_else(|| {
-                WxBuildError::InvalidPlan(format!("missing exit for pc {target}"))
-            })?;
-        let arguments = self.arguments_for(&spec.parameters, environment, target)?;
-        Ok(WxBlockTarget {
-            block: spec.id,
-            arguments,
-        })
+    ) -> Vec<Register> {
+        let mut registers = environment
+            .keys()
+            .filter(|register| {
+                self.live_registers
+                    .get(&pc)
+                    .is_none_or(|live| live.contains(register))
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        registers.sort_unstable();
+        registers
     }
 
     pub(super) fn parameters_for_slots(
         &mut self,
         slots: &[StateSlot],
-        pc: usize,
+        _pc: usize,
     ) -> Result<Vec<(Register, WxBlockParam)>, WxBuildError> {
         slots
             .iter()
@@ -118,7 +99,7 @@ impl RegionBuilder<'_> {
                     slot.register,
                     WxBlockParam {
                         id: self.allocate_value()?,
-                        ty: slot_type(slot.ty, pc)?,
+                        ty: self.state_type(slot.register, slot.ty),
                     },
                 ))
             })
@@ -178,17 +159,27 @@ impl RegionBuilder<'_> {
             })
         }
     }
+
+    pub(super) fn state_type(&self, register: Register, slot: SlotType) -> WxType {
+        if self.pointer_registers.contains(&register) {
+            WxType::Scalar(WxScalarType::RuntimeHandle)
+        } else if let Some(ty) = self
+            .profile
+            .and_then(|profile| profile.entry_tag(self.plan.region_id, register))
+            .and_then(profiled_type)
+        {
+            ty
+        } else {
+            slot_type(slot)
+        }
+    }
 }
 
-fn slot_type(slot_type: SlotType, pc: usize) -> Result<WxType, WxBuildError> {
+pub(super) const fn slot_type(slot_type: SlotType) -> WxType {
     match slot_type {
-        SlotType::SmallInt => Ok(WxType::Scalar(WxScalarType::I64)),
-        SlotType::Bool => Ok(WxType::Scalar(WxScalarType::I1)),
-        SlotType::Float | SlotType::Object(_) | SlotType::Any => {
-            Err(WxBuildError::UnsupportedSpecialization {
-                pc,
-                reason: "live slot type is not supported by WXIR".to_string(),
-            })
-        }
+        SlotType::SmallInt => WxType::Scalar(WxScalarType::I64),
+        SlotType::Float => WxType::Scalar(WxScalarType::F64),
+        SlotType::Bool => WxType::Scalar(WxScalarType::I1),
+        SlotType::Object(_) | SlotType::Any => WxType::Scalar(WxScalarType::RuntimeHandle),
     }
 }

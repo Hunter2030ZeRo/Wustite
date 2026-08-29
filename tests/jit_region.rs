@@ -206,8 +206,8 @@ fn invalid_region_metadata_function() -> ExecutableFunction {
     ExecutableFunction::new(function, structure_map)
 }
 
-fn unsupported_f64_wxir() -> WxFunction {
-    let ty = WxType::Scalar(WxScalarType::F64);
+fn unsupported_f32_wxir() -> WxFunction {
+    let ty = WxType::Scalar(WxScalarType::F32);
     WxFunction {
         origin: WxRegionOrigin {
             region_id: RegionId(0),
@@ -317,6 +317,10 @@ fn vm_replays_synthetic_overflow_exit_in_interpreter() {
     let executable = overflow_function();
     let mut vm = Vm::with_hot_threshold(0);
 
+    for _ in 0..7 {
+        vm.execute(&executable).unwrap();
+    }
+
     // Given a hot VM whose native SmallInt region exits before committing overflow,
     // When the interpreter replays the overflowing instruction,
     // Then it promotes the result to a heap BigInt and completes successfully.
@@ -332,7 +336,7 @@ fn vm_replays_synthetic_overflow_exit_in_interpreter() {
         vm.object(object_ref).unwrap(),
         &Object::BigInt(BigInt::from(i64::MAX) + 1)
     );
-    assert_eq!(vm.profile().unwrap().entry_count(RegionId(0)), 1);
+    assert_eq!(vm.profile().unwrap().entry_count(RegionId(0)), 8);
     assert_eq!(vm.jit_report().compilation_attempts, 1);
     assert_eq!(vm.jit_report().compiled_regions, 1);
     assert_eq!(vm.jit_report().native_executions, 1);
@@ -347,6 +351,9 @@ fn vm_replays_synthetic_overflow_exit_in_interpreter() {
 fn vm_suppresses_cached_region_for_object_entry_without_disabling_it() {
     let executable = cached_entry_type_mismatch_function();
     let mut vm = Vm::with_hot_threshold(0);
+
+    vm.execute_with_args(&executable, &[Value::SmallInt(9)])
+        .unwrap();
 
     // Given a cached region whose live entry state is specialized to SmallInt,
     // When the first scalar invocation executes, Then native code is compiled and reused.
@@ -393,10 +400,12 @@ fn invalid_region_metadata_is_disabled_after_one_attempt() {
     let executable = invalid_region_metadata_function();
     let mut vm = Vm::with_hot_threshold(0);
 
+    vm.execute(&executable).unwrap();
+
     let result = vm.execute(&executable).unwrap();
 
     assert_eq!(result.value, Value::SmallInt(3));
-    assert_eq!(vm.profile().unwrap().entry_count(RegionId(0)), 4);
+    assert_eq!(vm.profile().unwrap().entry_count(RegionId(0)), 8);
     assert_eq!(vm.jit_report().compilation_attempts, 1);
     assert_eq!(vm.jit_report().compiled_regions, 0);
     assert_eq!(vm.jit_report().disabled_regions, 1);
@@ -409,16 +418,16 @@ fn invalid_region_metadata_is_disabled_after_one_attempt() {
 }
 
 #[test]
-fn backend_rejects_unsupported_f64_state() {
+fn backend_rejects_unsupported_f32_state() {
     let executable = sum_function();
     let error = CraneliftRegionCompiler::new(executable.id())
-        .compile(&unsupported_f64_wxir())
+        .compile(&unsupported_f32_wxir())
         .err()
         .unwrap();
 
     assert_eq!(
         error,
-        CompileError::UnsupportedType(WxType::Scalar(WxScalarType::F64))
+        CompileError::UnsupportedType(WxType::Scalar(WxScalarType::F32))
     );
 }
 

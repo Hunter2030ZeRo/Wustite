@@ -1,6 +1,7 @@
 mod helpers;
 mod instructions;
 mod lowering;
+mod native_calls;
 pub(super) mod symbols;
 
 #[cfg(test)]
@@ -88,8 +89,11 @@ impl RegionCompiler for CraneliftRegionCompiler {
 }
 
 fn new_jit_module() -> Result<JITModule, CompileError> {
-    let jit_builder = JITBuilder::new(default_libcall_names())
+    let mut jit_builder = JITBuilder::new(default_libcall_names())
         .map_err(|error| CompileError::Backend(error.to_string()))?;
+    for (name, address) in super::runtime::symbols() {
+        jit_builder.symbol(name, address);
+    }
     Ok(JITModule::new(jit_builder))
 }
 
@@ -102,6 +106,7 @@ fn compile_function(
     let pointer_type = module.target_config().pointer_type();
     let mut signature = module.make_signature();
     signature.params.push(AbiParam::new(pointer_type));
+    signature.params.push(AbiParam::new(pointer_type));
     signature.returns.push(AbiParam::new(types::I32));
     let function_id = module
         .declare_function(symbol, Linkage::Local, &signature)
@@ -110,11 +115,12 @@ fn compile_function(
     let mut context = module.make_context();
     context.func.signature = signature;
     context.func.name = UserFuncName::user(0, function_id.as_u32());
+    let runtime_functions = native_calls::RuntimeFunctions::declare(module, &mut context.func)?;
     let mut builder_context = FunctionBuilderContext::new();
 
     {
         let mut builder = FunctionBuilder::new(&mut context.func, &mut builder_context);
-        lower_function(&mut builder, function, layout)?;
+        lower_function(&mut builder, function, layout, &runtime_functions)?;
         builder.seal_all_blocks();
         builder.finalize(module.target_config());
     }
@@ -130,7 +136,7 @@ fn compile_function(
     let code_ptr = module.get_finalized_function(function_id);
     // SAFETY: [Categories 3, 5, 6, and 14 — finalized JIT entry ABI]
     // `code_ptr` names a finalized function declared above with exactly one
-    // native pointer argument and one 32-bit result. `NativeRegionEntry` uses
+    // native pointer arguments and one 32-bit result. `NativeRegionEntry` uses
     // the same C ABI and bit widths. The compiler retains the JIT module on
     // success, and this crate never calls JITModule::free_memory.
     Ok(unsafe { std::mem::transmute::<*const u8, NativeRegionEntry>(code_ptr) })

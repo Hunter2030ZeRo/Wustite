@@ -2,10 +2,14 @@ use std::fmt;
 
 use serde::Serialize;
 use wustite::object::ObjectRef;
-use wustite::wvm::JitReport;
-use wustite::{ExecutionMode, Runtime, RuntimeValue};
+use wustite::{AdaptiveReport, ExecutionMode, Runtime, RuntimeValue};
 
+use super::profile_cache::ProfileCacheStatus;
 use super::value_names::object_kind_name;
+
+mod jit;
+
+pub(super) use self::jit::{JitOutput, print_jit_debug, print_jit_trace};
 
 #[derive(Serialize)]
 pub(super) struct RunDocument {
@@ -14,7 +18,10 @@ pub(super) struct RunDocument {
     execution_mode: &'static str,
     compiler_backend: Option<&'static str>,
     hot_threshold: u64,
+    profile_cache: ProfileCacheStatus,
     runs: Vec<RunOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    adaptive_v2: Option<AdaptiveReport>,
 }
 
 pub(super) struct RunContext {
@@ -22,6 +29,8 @@ pub(super) struct RunContext {
     pub(super) function: String,
     pub(super) execution_mode: ExecutionMode,
     pub(super) hot_threshold: u64,
+    pub(super) profile_cache: ProfileCacheStatus,
+    pub(super) adaptive_v2: Option<AdaptiveReport>,
 }
 
 impl RunDocument {
@@ -37,7 +46,9 @@ impl RunDocument {
             execution_mode,
             compiler_backend,
             hot_threshold: context.hot_threshold,
+            profile_cache: context.profile_cache,
             runs,
+            adaptive_v2: context.adaptive_v2,
         }
     }
 }
@@ -69,6 +80,7 @@ enum OutputValue {
     SmallInt(i64),
     Float(f64),
     Bool(bool),
+    None,
     Object(ObjectOutput),
 }
 
@@ -78,6 +90,7 @@ impl OutputValue {
             RuntimeValue::SmallInt(value) => Ok(Self::SmallInt(value)),
             RuntimeValue::Float(value) => Ok(Self::Float(value)),
             RuntimeValue::Bool(value) => Ok(Self::Bool(value)),
+            RuntimeValue::None => Ok(Self::None),
             RuntimeValue::Object(reference) => {
                 Ok(Self::Object(ObjectOutput::snapshot(reference, runtime)?))
             }
@@ -91,6 +104,7 @@ impl fmt::Display for OutputValue {
             Self::SmallInt(value) => value.fmt(formatter),
             Self::Float(value) => value.fmt(formatter),
             Self::Bool(value) => value.fmt(formatter),
+            Self::None => formatter.write_str("None"),
             Self::Object(value) => value.fmt(formatter),
         }
     }
@@ -128,88 +142,12 @@ impl fmt::Display for ObjectOutput {
     }
 }
 
-#[derive(Serialize)]
-struct JitOutput {
-    compilation_attempts: u64,
-    compiled_regions: u64,
-    tier2_compilation_attempts: u64,
-    tier2_compiled_regions: u64,
-    disabled_regions: u64,
-    native_executions: u64,
-    tier2_native_executions: u64,
-    last_resume_pc: Option<usize>,
-    last_exit_kind: Option<String>,
-    failures: Vec<JitFailureOutput>,
-}
-
-impl JitOutput {
-    fn snapshot(report: &JitReport) -> Self {
-        Self {
-            compilation_attempts: report.compilation_attempts,
-            compiled_regions: report.compiled_regions,
-            tier2_compilation_attempts: report.tier2_compilation_attempts,
-            tier2_compiled_regions: report.tier2_compiled_regions,
-            disabled_regions: report.disabled_regions,
-            native_executions: report.native_executions,
-            tier2_native_executions: report.tier2_native_executions,
-            last_resume_pc: report.last_resume_pc,
-            last_exit_kind: report.last_exit_kind_name().map(str::to_string),
-            failures: report
-                .failures
-                .iter()
-                .map(|failure| JitFailureOutput {
-                    region_id: failure.region_id.0,
-                    stage: failure.stage.as_str(),
-                    reason: failure.reason.clone(),
-                })
-                .collect(),
-        }
-    }
-}
-
-#[derive(Serialize)]
-struct JitFailureOutput {
-    region_id: usize,
-    stage: &'static str,
-    reason: String,
-}
-
 pub(super) fn print_run_values(runs: &[RunOutput]) {
     if let [run] = runs {
         println!("{}", run.value);
     } else {
         for run in runs {
             println!("run {}: {}", run.index, run.value);
-        }
-    }
-}
-
-pub(super) fn print_jit_trace(runs: &[RunOutput]) {
-    for run in runs {
-        let jit = &run.jit;
-        let mut line = format!(
-            "run {}: compilation_attempts={} compiled_regions={} tier2_compilation_attempts={} tier2_compiled_regions={} disabled_regions={} native_executions={} tier2_native_executions={}",
-            run.index,
-            jit.compilation_attempts,
-            jit.compiled_regions,
-            jit.tier2_compilation_attempts,
-            jit.tier2_compiled_regions,
-            jit.disabled_regions,
-            jit.native_executions,
-            jit.tier2_native_executions
-        );
-        if let Some(resume_pc) = jit.last_resume_pc {
-            line.push_str(&format!(" last_resume_pc={resume_pc}"));
-        }
-        if let Some(exit_kind) = &jit.last_exit_kind {
-            line.push_str(&format!(" last_exit_kind={exit_kind}"));
-        }
-        eprintln!("{line}");
-        for failure in &jit.failures {
-            eprintln!(
-                "run {}: failure region={} stage={} reason={}",
-                run.index, failure.region_id, failure.stage, failure.reason
-            );
         }
     }
 }

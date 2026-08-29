@@ -29,8 +29,8 @@ fn containers_reject_foreign_and_stale_nested_references() {
     heap.allocate(Object::String("replacement".into())).unwrap();
 
     // When: containers attempt to retain those invalid nested references.
-    let foreign_result = heap.allocate(Object::List(vec![Value::Object(foreign)]));
-    let stale_result = heap.allocate(Object::Tuple(vec![Value::Object(stale)]));
+    let foreign_result = heap.allocate(Object::list(vec![Value::Object(foreign)]));
+    let stale_result = heap.allocate(Object::tuple(vec![Value::Object(stale)]));
 
     // Then: allocation rejects the invalid handle at the heap boundary.
     assert!(matches!(foreign_result, Err(ObjectError::WrongHeap { .. })));
@@ -106,9 +106,9 @@ fn host_dictionary_handles_exact_mixed_numeric_keys() {
 fn containers_reject_uninitialized_values_and_unhashable_dictionary_keys() {
     // Given: direct host-created containers with invalid nested values.
     let mut heap = ObjectHeap::new();
-    let uninitialized = Object::Tuple(vec![Value::Uninitialized]);
+    let uninitialized = Object::tuple(vec![Value::Uninitialized]);
     let unhashable_key = Object::Dict(vec![(
-        Value::Object(heap.allocate(Object::List(Vec::new())).unwrap()),
+        Value::Object(heap.allocate(Object::list(Vec::new())).unwrap()),
         Value::Bool(true),
     )]);
 

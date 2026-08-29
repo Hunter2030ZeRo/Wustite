@@ -81,6 +81,8 @@ fn print_instruction(instruction: &WxInst) -> String {
         WxInstKind::IntegerBinaryWithOverflow { op, lhs, rhs } => {
             let operation = match op {
                 WxIntOverflowOp::Add => "iadd.with_overflow",
+                WxIntOverflowOp::Sub => "isub.with_overflow",
+                WxIntOverflowOp::Mul => "imul.with_overflow",
             };
             format!("{operation} {lhs}, {rhs}")
         }
@@ -116,12 +118,91 @@ fn print_instruction(instruction: &WxInst) -> String {
             };
             format!("guard.{mode} {condition}, {exit}")
         }
+        WxInstKind::GuardSequence { object, value } => {
+            format!("guard_sequence r{object}, {value}")
+        }
+        WxInstKind::SequenceLength {
+            pc,
+            object,
+            inputs,
+            output,
+            strategy,
+            profiled,
+        } => format!(
+            "sequence_length.{strategy:?}.profiled={profiled} pc={pc} r{object} [{}] -> r{output}",
+            print_runtime_inputs(inputs)
+        ),
+        WxInstKind::SequenceGet {
+            pc,
+            object,
+            inputs,
+            output,
+            strategy,
+            profiled,
+        } => format!(
+            "sequence_get.{strategy:?}.profiled={profiled} pc={pc} r{object} [{}] -> r{output}",
+            print_runtime_inputs(inputs)
+        ),
+        WxInstKind::SequenceSet {
+            pc,
+            object,
+            inputs,
+            strategy,
+            profiled,
+        } => format!(
+            "sequence_set.{strategy:?}.profiled={profiled} pc={pc} r{object} [{}]",
+            print_runtime_inputs(inputs)
+        ),
+        WxInstKind::SequenceMutate {
+            pc,
+            object,
+            operation,
+            inputs,
+            output,
+            strategy,
+            profiled,
+        } => format!(
+            "sequence_mutate.{operation:?}.{strategy:?}.profiled={profiled} pc={pc} r{object} [{}] -> {output:?}",
+            print_runtime_inputs(inputs)
+        ),
+        WxInstKind::MaterializeSequence { object, value } => {
+            format!("materialize_sequence r{object}, {value}")
+        }
         WxInstKind::Call {
             callee, arguments, ..
         } => format!("call {callee}({})", print_values(arguments)),
+        WxInstKind::RuntimeCall {
+            pc,
+            inputs,
+            output,
+            effects,
+        } => {
+            let inputs = print_runtime_inputs(inputs);
+            let effects = format!(
+                "mutate={} alloc={} unknown_call={} global={}",
+                effects.may_mutate,
+                effects.may_allocate,
+                effects.may_call_unknown,
+                effects.may_access_global_state
+            );
+            match output {
+                Some(register) => {
+                    format!("runtime_call pc={pc} effects=({effects}) [{inputs}] -> r{register}")
+                }
+                None => format!("runtime_call pc={pc} effects=({effects}) [{inputs}]"),
+            }
+        }
     };
 
     format!("{prefix}{operation}")
+}
+
+fn print_runtime_inputs(inputs: &[super::ir::WxRuntimeInput]) -> String {
+    inputs
+        .iter()
+        .map(|input| format!("r{}={}:{}", input.register, input.value, input.ty))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn print_terminator(terminator: &WxTerminator) -> String {
@@ -170,6 +251,7 @@ fn print_binary_op(op: WxBinaryOp) -> &'static str {
         WxBinaryOp::Integer(WxIntBinaryOp::Add) => "iadd.wrapping",
         WxBinaryOp::Integer(WxIntBinaryOp::Sub) => "isub.wrapping",
         WxBinaryOp::Integer(WxIntBinaryOp::Mul) => "imul.wrapping",
+        WxBinaryOp::Integer(WxIntBinaryOp::FloorDiv) => "ifloor_div",
         WxBinaryOp::Integer(WxIntBinaryOp::And) => "iand",
         WxBinaryOp::Integer(WxIntBinaryOp::Or) => "ior",
         WxBinaryOp::Integer(WxIntBinaryOp::Xor) => "ixor",

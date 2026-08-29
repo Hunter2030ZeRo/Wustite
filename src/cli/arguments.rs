@@ -77,6 +77,9 @@ fn parse_argument(runtime: &mut Runtime, input: ArgumentInput<'_>) -> Result<Run
         SlotType::Object(ObjectKind::List) => Err(unsupported(index, name, "list")),
         SlotType::Object(ObjectKind::Dict) => Err(unsupported(index, name, "dict")),
         SlotType::Object(ObjectKind::Function) => Err(unsupported(index, name, "function")),
+        SlotType::Object(ObjectKind::Class) => Err(unsupported(index, name, "class")),
+        SlotType::Object(ObjectKind::Instance) => Err(unsupported(index, name, "instance")),
+        SlotType::Object(ObjectKind::BoundMethod) => Err(unsupported(index, name, "bound_method")),
         SlotType::Any => Err(unsupported(index, name, "Any")),
     }
 }

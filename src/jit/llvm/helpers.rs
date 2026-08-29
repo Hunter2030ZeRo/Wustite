@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use inkwell::basic_block::BasicBlock;
 use inkwell::context::Context;
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::{BasicValue, BasicValueEnum, IntValue, PhiValue};
+use inkwell::values::{BasicValue, BasicValueEnum, FloatValue, IntValue, PhiValue};
 
 use crate::wxir::{
     WxBlockId, WxExitId, WxFunction, WxInst, WxInstResult, WxScalarType, WxSideExit, WxType,
@@ -16,6 +16,10 @@ pub(super) fn llvm_type(context: &Context, ty: WxType) -> Result<BasicTypeEnum<'
     match ty {
         WxType::Scalar(WxScalarType::I1) => Ok(context.bool_type().into()),
         WxType::Scalar(WxScalarType::I64) => Ok(context.i64_type().into()),
+        WxType::Scalar(WxScalarType::F64) => Ok(context.f64_type().into()),
+        WxType::Scalar(WxScalarType::RuntimeHandle | WxScalarType::Ptr) => {
+            Ok(context.i64_type().into())
+        }
         _ => Err(CompileError::UnsupportedType(ty)),
     }
 }
@@ -75,6 +79,18 @@ pub(super) fn int_value_for<'ctx>(
         BasicValueEnum::IntValue(value) => Ok(value),
         _ => Err(CompileError::InvalidFunction(format!(
             "value {value} is not an integer"
+        ))),
+    }
+}
+
+pub(super) fn float_value_for<'ctx>(
+    values: &HashMap<WxValueId, BasicValueEnum<'ctx>>,
+    value: WxValueId,
+) -> Result<FloatValue<'ctx>, CompileError> {
+    match value_for(values, value)? {
+        BasicValueEnum::FloatValue(value) => Ok(value),
+        _ => Err(CompileError::InvalidFunction(format!(
+            "value {value} is not a float"
         ))),
     }
 }

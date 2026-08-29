@@ -12,6 +12,7 @@ pub(super) fn verify_structure_map(
 ) -> Result<(), String> {
     let bytecode = function.bytecode();
     let structure_map = function.structure_map();
+    structure_map.verify_analysis(&bytecode.code)?;
     for (index, site) in structure_map.operation_sites().iter().enumerate() {
         let id = OperationSiteId(
             u32::try_from(index)

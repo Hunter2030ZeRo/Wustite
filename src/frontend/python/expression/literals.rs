@@ -32,6 +32,7 @@ impl Compiler<'_> {
             Constant::Float(value) if !negative => Ok(HirExpressionKind::Float(*value)),
             Constant::Bool(value) if !negative => Ok(HirExpressionKind::Bool(*value)),
             Constant::Str(value) if !negative => Ok(HirExpressionKind::String(value.clone())),
+            Constant::None if !negative => Ok(HirExpressionKind::None),
             Constant::None
             | Constant::Bool(_)
             | Constant::Str(_)
@@ -52,12 +53,19 @@ pub(super) fn binary_operator(
     source: &str,
     binary: &ast::ExprBinOp,
 ) -> Result<BinaryOperator, PythonFrontendError> {
-    match binary.op {
-        Operator::Add => Ok(BinaryOperator::Add),
-        Operator::Sub => Ok(BinaryOperator::Subtract),
-        Operator::Mult => Ok(BinaryOperator::Multiply),
-        Operator::Div => Ok(BinaryOperator::Divide),
-        _ => Err(error_at(source, binary, "unsupported binary operator")),
+    binary_operator_kind(binary.op)
+        .ok_or_else(|| error_at(source, binary, "unsupported binary operator"))
+}
+
+pub(crate) const fn binary_operator_kind(op: Operator) -> Option<BinaryOperator> {
+    match op {
+        Operator::Add => Some(BinaryOperator::Add),
+        Operator::Sub => Some(BinaryOperator::Subtract),
+        Operator::Mult => Some(BinaryOperator::Multiply),
+        Operator::Div => Some(BinaryOperator::Divide),
+        Operator::FloorDiv => Some(BinaryOperator::FloorDivide),
+        Operator::Pow => Some(BinaryOperator::Power),
+        _ => None,
     }
 }
 

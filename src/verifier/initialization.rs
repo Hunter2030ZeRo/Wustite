@@ -82,6 +82,7 @@ const fn written_register(instruction: &Instruction) -> Option<Register> {
         Instruction::ConstSmallInt { dst, .. }
         | Instruction::ConstFloat { dst, .. }
         | Instruction::ConstBool { dst, .. }
+        | Instruction::ConstNone { dst }
         | Instruction::LoadConstant { dst, .. }
         | Instruction::ConstI64 { dst, .. }
         | Instruction::BinaryOp { dst, .. }
@@ -92,13 +93,21 @@ const fn written_register(instruction: &Instruction) -> Option<Register> {
         | Instruction::BuildList { dst, .. }
         | Instruction::BuildDict { dst, .. }
         | Instruction::GetItem { dst, .. }
+        | Instruction::GetAttr { dst, .. }
+        | Instruction::GetSlice { dst, .. }
+        | Instruction::ListPop { dst, .. }
         | Instruction::Length { dst, .. }
         | Instruction::LoadCurrentFunction { dst }
         | Instruction::Call { dst, .. }
+        | Instruction::CallMethod { dst, .. }
         | Instruction::AddI64 { dst, .. }
         | Instruction::LtI64 { dst, .. }
         | Instruction::Move { dst, .. } => Some(*dst),
         Instruction::SetItem { .. }
+        | Instruction::SetAttr { .. }
+        | Instruction::SetSlice { .. }
+        | Instruction::ListAppend { .. }
+        | Instruction::ListInsert { .. }
         | Instruction::Jump { .. }
         | Instruction::Branch { .. }
         | Instruction::Return { .. } => None,
@@ -114,6 +123,7 @@ fn verify_reads(
         Instruction::ConstSmallInt { .. }
         | Instruction::ConstFloat { .. }
         | Instruction::ConstBool { .. }
+        | Instruction::ConstNone { .. }
         | Instruction::LoadConstant { .. }
         | Instruction::ConstI64 { .. }
         | Instruction::LoadCurrentFunction { .. }
@@ -143,20 +153,78 @@ fn verify_reads(
             verify_read(*object, assigned, pc, "GetItem object")?;
             verify_read(*key, assigned, pc, "GetItem key")
         }
+        Instruction::GetAttr { object, .. } => verify_read(*object, assigned, pc, "GetAttr object"),
+        Instruction::GetSlice {
+            object,
+            start,
+            stop,
+            step,
+            ..
+        } => {
+            verify_read(*object, assigned, pc, "GetSlice object")?;
+            verify_optional_read(*start, assigned, pc, "GetSlice start")?;
+            verify_optional_read(*stop, assigned, pc, "GetSlice stop")?;
+            verify_optional_read(*step, assigned, pc, "GetSlice step")
+        }
         Instruction::SetItem { object, key, value } => {
             verify_read(*object, assigned, pc, "SetItem object")?;
             verify_read(*key, assigned, pc, "SetItem key")?;
             verify_read(*value, assigned, pc, "SetItem value")
+        }
+        Instruction::SetAttr { object, value, .. } => {
+            verify_read(*object, assigned, pc, "SetAttr object")?;
+            verify_read(*value, assigned, pc, "SetAttr value")
+        }
+        Instruction::SetSlice {
+            object,
+            start,
+            stop,
+            step,
+            value,
+        } => {
+            verify_read(*object, assigned, pc, "SetSlice object")?;
+            verify_optional_read(*start, assigned, pc, "SetSlice start")?;
+            verify_optional_read(*stop, assigned, pc, "SetSlice stop")?;
+            verify_optional_read(*step, assigned, pc, "SetSlice step")?;
+            verify_read(*value, assigned, pc, "SetSlice value")
+        }
+        Instruction::ListAppend { list, value } => {
+            verify_read(*list, assigned, pc, "ListAppend list")?;
+            verify_read(*value, assigned, pc, "ListAppend value")
+        }
+        Instruction::ListInsert { list, index, value } => {
+            verify_read(*list, assigned, pc, "ListInsert list")?;
+            verify_read(*index, assigned, pc, "ListInsert index")?;
+            verify_read(*value, assigned, pc, "ListInsert value")
+        }
+        Instruction::ListPop { list, index, .. } => {
+            verify_read(*list, assigned, pc, "ListPop list")?;
+            verify_read(*index, assigned, pc, "ListPop index")
         }
         Instruction::Length { object, .. } => verify_read(*object, assigned, pc, "Length object"),
         Instruction::Call { callable, args, .. } => {
             verify_read(*callable, assigned, pc, "Call callable")?;
             verify_read_slice(args, assigned, pc, "Call argument")
         }
+        Instruction::CallMethod { receiver, args, .. } => {
+            verify_read(*receiver, assigned, pc, "CallMethod receiver")?;
+            verify_read_slice(args, assigned, pc, "CallMethod argument")
+        }
         Instruction::Branch { cond, .. } => verify_read(*cond, assigned, pc, "Branch cond"),
         Instruction::Return { src } => verify_read(*src, assigned, pc, "Return src"),
         Instruction::Move { src, .. } => verify_read(*src, assigned, pc, "Move src"),
     }
+}
+
+fn verify_optional_read(
+    register: Option<Register>,
+    assigned: &HashSet<Register>,
+    pc: usize,
+    context: &str,
+) -> Result<(), String> {
+    register.map_or(Ok(()), |register| {
+        verify_read(register, assigned, pc, context)
+    })
 }
 
 fn verify_read_slice(

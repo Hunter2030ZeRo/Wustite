@@ -7,7 +7,8 @@ pub(crate) fn initialize_registers(
     executable: &ExecutableFunction,
     arguments: &[Value],
     heap: &ObjectHeap,
-) -> Result<Vec<Value>, String> {
+    registers: &mut [Value],
+) -> Result<(), String> {
     let parameters = executable.parameters();
     if arguments.len() != parameters.len() {
         return Err(format!(
@@ -17,12 +18,15 @@ pub(crate) fn initialize_registers(
         ));
     }
 
-    let mut registers = vec![Value::Uninitialized; executable.bytecode().register_count];
+    if registers.len() != executable.bytecode().register_count {
+        return Err("function frame has the wrong register count".to_string());
+    }
+    registers.fill(Value::Uninitialized);
     for (index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
         validate_argument(index, parameter, *argument, heap)?;
         registers[usize::from(parameter.register)] = *argument;
     }
-    Ok(registers)
+    Ok(())
 }
 
 fn validate_argument(
@@ -35,7 +39,9 @@ fn validate_argument(
         (SlotType::SmallInt, Value::SmallInt(_))
         | (SlotType::Float, Value::Float(_))
         | (SlotType::Bool, Value::Bool(_)) => true,
-        (SlotType::Any, Value::SmallInt(_) | Value::Float(_) | Value::Bool(_)) => true,
+        (SlotType::Any, Value::SmallInt(_) | Value::Float(_) | Value::Bool(_) | Value::None) => {
+            true
+        }
         (SlotType::Any, Value::Object(reference)) => {
             heap.kind(reference).map_err(|error| {
                 format!(
@@ -58,19 +64,35 @@ fn validate_argument(
         }
         (
             SlotType::SmallInt,
-            Value::Float(_) | Value::Bool(_) | Value::Object(_) | Value::Uninitialized,
+            Value::Float(_)
+            | Value::Bool(_)
+            | Value::None
+            | Value::Object(_)
+            | Value::Uninitialized,
         )
         | (
             SlotType::Float,
-            Value::SmallInt(_) | Value::Bool(_) | Value::Object(_) | Value::Uninitialized,
+            Value::SmallInt(_)
+            | Value::Bool(_)
+            | Value::None
+            | Value::Object(_)
+            | Value::Uninitialized,
         )
         | (
             SlotType::Bool,
-            Value::SmallInt(_) | Value::Float(_) | Value::Object(_) | Value::Uninitialized,
+            Value::SmallInt(_)
+            | Value::Float(_)
+            | Value::None
+            | Value::Object(_)
+            | Value::Uninitialized,
         )
         | (
             SlotType::Object(_),
-            Value::SmallInt(_) | Value::Float(_) | Value::Bool(_) | Value::Uninitialized,
+            Value::SmallInt(_)
+            | Value::Float(_)
+            | Value::Bool(_)
+            | Value::None
+            | Value::Uninitialized,
         )
         | (SlotType::Any, Value::Uninitialized) => false,
     };
@@ -105,6 +127,9 @@ const fn object_kind_name(kind: ObjectKind) -> &'static str {
         ObjectKind::List => "list",
         ObjectKind::Dict => "dict",
         ObjectKind::Function => "function",
+        ObjectKind::Class => "class",
+        ObjectKind::Instance => "instance",
+        ObjectKind::BoundMethod => "bound_method",
     }
 }
 
@@ -113,6 +138,7 @@ fn value_name(value: Value, heap: &ObjectHeap) -> &'static str {
         Value::SmallInt(_) => "small_int",
         Value::Float(_) => "float",
         Value::Bool(_) => "bool",
+        Value::None => "none",
         Value::Object(reference) => match heap.kind(reference) {
             Ok(kind) => object_kind_name(kind),
             Err(_) => "invalid object reference",

@@ -42,7 +42,11 @@ impl<'ctx> StateBuffer<'_, 'ctx> {
                 )
                 .map(BasicValueEnum::from)
                 .map_err(llvm_error),
-            WxType::Scalar(WxScalarType::I64) => Ok(word.into()),
+            WxType::Scalar(WxScalarType::I64 | WxScalarType::RuntimeHandle) => Ok(word.into()),
+            WxType::Scalar(WxScalarType::F64) => self
+                .builder
+                .build_bit_cast(word, self.context.f64_type(), "state_float")
+                .map_err(llvm_error),
             _ => Err(CompileError::UnsupportedType(ty)),
         }
     }
@@ -53,18 +57,28 @@ impl<'ctx> StateBuffer<'_, 'ctx> {
         ty: WxType,
         value: BasicValueEnum<'ctx>,
     ) -> Result<(), CompileError> {
-        let BasicValueEnum::IntValue(value) = value else {
-            return Err(CompileError::InvalidFunction(format!(
-                "state value for r{register} is not an integer"
-            )));
-        };
-        let word = match ty {
-            WxType::Scalar(WxScalarType::I1) => self
+        let word = match (ty, value) {
+            (WxType::Scalar(WxScalarType::I1), BasicValueEnum::IntValue(value)) => self
                 .builder
                 .build_int_z_extend(value, self.context.i64_type(), "bool_word")
                 .map_err(llvm_error)?,
-            WxType::Scalar(WxScalarType::I64) => value,
-            _ => return Err(CompileError::UnsupportedType(ty)),
+            (
+                WxType::Scalar(WxScalarType::I64 | WxScalarType::RuntimeHandle),
+                BasicValueEnum::IntValue(value),
+            ) => value,
+            (WxType::Scalar(WxScalarType::F64), BasicValueEnum::FloatValue(value)) => {
+                let value = self
+                    .builder
+                    .build_bit_cast(value, self.context.i64_type(), "float_word")
+                    .map_err(llvm_error)?;
+                let BasicValueEnum::IntValue(value) = value else {
+                    return Err(CompileError::Backend(
+                        "LLVM float state bitcast did not produce an integer".to_string(),
+                    ));
+                };
+                value
+            }
+            (ty, _) => return Err(CompileError::UnsupportedType(ty)),
         };
         self.builder
             .build_store(self.slot_pointer(register)?, word)

@@ -27,6 +27,7 @@ pub enum ExecutableConstant {
     String(String),
     BigInt(num_bigint::BigInt),
     Function(Box<ExecutableFunction>),
+    Class(crate::object::ClassObject),
 }
 
 /// One positional host-to-WVM argument mapping in the execution ABI.
@@ -40,6 +41,7 @@ pub struct ExecutableParameter {
 #[derive(Clone)]
 pub struct ExecutableFunction {
     id: ExecutableId,
+    name: Option<Arc<str>>,
     bytecode: Function,
     structure_map: StructureMap,
     parameters: Vec<ExecutableParameter>,
@@ -77,6 +79,7 @@ impl ExecutableFunction {
 
         Self {
             id: ExecutableId(id),
+            name: None,
             bytecode,
             structure_map,
             parameters,
@@ -87,6 +90,14 @@ impl ExecutableFunction {
 
     pub fn id(&self) -> ExecutableId {
         self.id
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    pub(crate) fn set_name(&mut self, name: String) {
+        self.name = Some(name.into());
     }
 
     pub fn bytecode(&self) -> &Function {

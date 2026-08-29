@@ -194,7 +194,7 @@ fn integer_division_returns_float_and_records_float_result_metadata() {
             .operation_site(wustite::structure_map::OperationSiteId(0))
             .unwrap()
             .result,
-        TypeFact::Exact(SlotType::Float)
+        TypeFact::Proven(SlotType::Float)
     );
 }
 

@@ -337,6 +337,30 @@ fn verify_instruction(
             }
             verify_exit_use(*exit, ExitUse::Guard, available, side_exits, used_exits)?;
         }
+        WxInstKind::GuardSequence { value, .. } => {
+            let result = one_result(instruction)?;
+            expect_type(available, *value, WxType::Scalar(WxScalarType::Ptr))?;
+            if result.ty != WxType::Scalar(WxScalarType::I1) {
+                return Err("sequence guard result must be i1".to_string());
+            }
+        }
+        WxInstKind::MaterializeSequence { value, .. } => {
+            let result = one_result(instruction)?;
+            expect_type(available, *value, WxType::Scalar(WxScalarType::Ptr))?;
+            if result.ty != WxType::Scalar(WxScalarType::Ptr) {
+                return Err("materialized sequence result must be Ptr".to_string());
+            }
+        }
+        WxInstKind::SequenceLength { inputs, output, .. }
+        | WxInstKind::SequenceGet { inputs, output, .. } => {
+            verify_runtime_shape(instruction, inputs, Some(*output), available)?;
+        }
+        WxInstKind::SequenceSet { inputs, .. } => {
+            verify_runtime_shape(instruction, inputs, None, available)?;
+        }
+        WxInstKind::SequenceMutate { inputs, output, .. } => {
+            verify_runtime_shape(instruction, inputs, *output, available)?;
+        }
         WxInstKind::Call {
             callee,
             arguments,
@@ -350,9 +374,29 @@ fn verify_instruction(
             }
             verify_values(arguments, parameter_types, available, "call")?;
         }
+        WxInstKind::RuntimeCall { inputs, output, .. } => {
+            verify_runtime_shape(instruction, inputs, *output, available)?;
+        }
     }
 
     Ok(())
+}
+
+fn verify_runtime_shape(
+    instruction: &WxInst,
+    inputs: &[super::ir::WxRuntimeInput],
+    output: Option<crate::bytecode::Register>,
+    available: &HashMap<WxValueId, WxType>,
+) -> Result<(), String> {
+    for input in inputs {
+        verify_type(input.ty)?;
+        expect_type(available, input.value, input.ty)?;
+    }
+    match (output, instruction.results.as_slice()) {
+        (Some(_), [_]) | (None, []) => Ok(()),
+        (Some(_), _) => Err("runtime output requires exactly one result".to_string()),
+        (None, _) => Err("runtime operation without output cannot return values".to_string()),
+    }
 }
 
 fn verify_block_target(
@@ -416,14 +460,14 @@ fn verify_exit_use(
         .get(&exit)
         .ok_or_else(|| format!("side exit {exit} has no metadata"))?;
     match (use_kind, metadata.kind) {
-        (ExitUse::Terminator, WxExitKind::RegionExit) => {}
+        (ExitUse::Terminator, WxExitKind::RegionExit | WxExitKind::ReplayInstruction) => {}
 
         (ExitUse::Guard, WxExitKind::ReplayInstruction) => {}
         (ExitUse::Guard, WxExitKind::Deopt) => {}
 
         (ExitUse::Terminator, actual) => {
             return Err(format!(
-                "side-exit terminator requires RegionExit, found {actual:?}"
+                "side-exit terminator requires RegionExit or ReplayInstruction, found {actual:?}"
             ));
         }
 
@@ -488,9 +532,9 @@ fn verify_type(ty: WxType) -> Result<(), String> {
         // I1 vectors are valid mask values. Pointer vectors remain invalid until
         // WXIR has a target-independent pointer-lane ABI and provenance model.
         WxType::Vector {
-            lane: WxScalarType::Ptr,
+            lane: WxScalarType::RuntimeHandle | WxScalarType::Ptr,
             ..
-        } => Err("Ptr vector lanes are not supported".to_string()),
+        } => Err("handle and Ptr vector lanes are not supported".to_string()),
         _ => Ok(()),
     }
 }

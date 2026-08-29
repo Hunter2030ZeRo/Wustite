@@ -9,6 +9,9 @@ pub(super) const fn object_kind_name(kind: ObjectKind) -> &'static str {
         ObjectKind::List => "list",
         ObjectKind::Dict => "dict",
         ObjectKind::Function => "function",
+        ObjectKind::Class => "class",
+        ObjectKind::Instance => "instance",
+        ObjectKind::BoundMethod => "bound_method",
     }
 }
 

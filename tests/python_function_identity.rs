@@ -80,7 +80,9 @@ fn repeated_top_level_helper_references_share_identity_and_remain_callable() {
         .iter()
         .filter_map(|constant| match constant {
             ExecutableConstant::Function(function) => Some(function.id()),
-            ExecutableConstant::String(_) | ExecutableConstant::BigInt(_) => None,
+            ExecutableConstant::String(_)
+            | ExecutableConstant::BigInt(_)
+            | ExecutableConstant::Class(_) => None,
         })
         .collect();
     let result = vm.execute(&executable).unwrap().value;

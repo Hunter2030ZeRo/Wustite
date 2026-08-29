@@ -3,6 +3,7 @@ mod cranelift;
 mod layout;
 #[cfg(feature = "inkwell")]
 mod llvm;
+mod runtime;
 
 use std::error::Error;
 use std::fmt;
@@ -19,6 +20,7 @@ pub use cranelift::CraneliftRegionCompiler;
 pub use layout::{RegionLayout, RegionSlot};
 #[cfg(feature = "inkwell")]
 pub use llvm::LlvmRegionCompiler;
+pub(crate) use runtime::{NativeDispatch, NativeSequenceView};
 
 /// Selects the native compiler used for hot WVM regions.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

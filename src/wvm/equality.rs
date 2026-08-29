@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use num_bigint::BigInt;
 
-use crate::object::{Object, ObjectHeap, ObjectRef};
+use crate::object::{Object, ObjectHeap, ObjectRef, SequenceObject};
 use crate::value::Value;
 
 use super::arithmetic::numeric_semantics;
@@ -96,15 +96,15 @@ where
 
 fn sequence_equal(
     heap: &ObjectHeap,
-    lhs: &[Value],
-    rhs: &[Value],
+    lhs: &SequenceObject,
+    rhs: &SequenceObject,
     visiting: &mut HashSet<(ObjectRef, ObjectRef)>,
 ) -> Result<bool, String> {
     if lhs.len() != rhs.len() {
         return Ok(false);
     }
-    for (lhs, rhs) in lhs.iter().zip(rhs) {
-        if !values_equal_with(heap, *lhs, *rhs, visiting)? {
+    for (lhs, rhs) in lhs.iter().zip(rhs.iter()) {
+        if !values_equal_with(heap, lhs, rhs, visiting)? {
             return Ok(false);
         }
     }
@@ -155,13 +155,20 @@ fn find_key_with(
 
 pub(super) fn ensure_hashable(heap: &ObjectHeap, value: Value) -> Result<(), String> {
     match value {
-        Value::SmallInt(_) | Value::Float(_) | Value::Bool(_) => Ok(()),
+        Value::SmallInt(_) | Value::Float(_) | Value::Bool(_) | Value::None => Ok(()),
         Value::Uninitialized => Err("uninitialized value is not hashable".to_string()),
         Value::Object(reference) => match heap.get(reference) {
-            Ok(Object::String(_) | Object::BigInt(_) | Object::Function(_)) => Ok(()),
+            Ok(
+                Object::String(_)
+                | Object::BigInt(_)
+                | Object::Function(_)
+                | Object::Class(_)
+                | Object::Instance(_)
+                | Object::BoundMethod(_),
+            ) => Ok(()),
             Ok(Object::Tuple(values)) => {
-                for value in values {
-                    ensure_hashable(heap, *value)?;
+                for value in values.iter() {
+                    ensure_hashable(heap, value)?;
                 }
                 Ok(())
             }

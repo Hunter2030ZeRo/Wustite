@@ -26,9 +26,9 @@ fn exact_add(site_pc: usize) -> ExecutableFunction {
     builder
         .record_operation(
             site_pc,
-            TypeFact::Exact(SlotType::SmallInt),
-            TypeFact::Exact(SlotType::SmallInt),
-            TypeFact::Exact(SlotType::SmallInt),
+            TypeFact::Proven(SlotType::SmallInt),
+            TypeFact::Proven(SlotType::SmallInt),
+            TypeFact::Proven(SlotType::SmallInt),
         )
         .expect("operation site fixture should be representable");
     let structure_map = builder

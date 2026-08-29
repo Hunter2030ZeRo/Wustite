@@ -1,4 +1,3 @@
 def main():
-    if 1 < 2:
-        return 1
+    raise 1
     return 0

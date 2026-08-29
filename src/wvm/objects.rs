@@ -4,6 +4,10 @@ use num_traits::ToPrimitive;
 
 use super::equality::{ensure_hashable, find_key};
 
+mod indexing;
+mod list;
+mod slice;
+
 pub(super) struct ObjectOps<'a> {
     heap: &'a mut ObjectHeap,
 }
@@ -14,11 +18,11 @@ impl<'a> ObjectOps<'a> {
     }
 
     pub(super) fn tuple(&mut self, values: Vec<Value>) -> Result<Value, String> {
-        self.allocate(Object::Tuple(values))
+        self.allocate(Object::tuple(values))
     }
 
     pub(super) fn list(&mut self, values: Vec<Value>) -> Result<Value, String> {
-        self.allocate(Object::List(values))
+        self.allocate(Object::list(values))
     }
 
     pub(super) fn dict(&mut self, entries: Vec<(Value, Value)>) -> Result<Value, String> {
@@ -37,105 +41,6 @@ impl<'a> ObjectOps<'a> {
             .map_err(|error| error.to_string())
     }
 
-    pub(super) fn get_item(&mut self, object: Value, key: Value) -> Result<Value, String> {
-        let Value::Object(reference) = object else {
-            return Err("item access requires an object".to_string());
-        };
-        match self
-            .heap
-            .get(reference)
-            .map_err(|error| error.to_string())?
-        {
-            Object::Tuple(values) | Object::List(values) => {
-                let index = sequence_index(self.heap, key, values.len())?;
-                values
-                    .get(index)
-                    .copied()
-                    .ok_or_else(|| "sequence index out of range".to_string())
-            }
-            Object::String(value) => {
-                let length = value.chars().count();
-                let index = sequence_index(self.heap, key, length)?;
-                let selected = value
-                    .chars()
-                    .nth(index)
-                    .ok_or_else(|| "string index out of range".to_string())?;
-                self.allocate(Object::String(selected.to_string()))
-            }
-            Object::Dict(entries) => {
-                ensure_hashable(self.heap, key)?;
-                let index = find_key(self.heap, entries, key)?
-                    .ok_or_else(|| "dictionary key not found".to_string())?;
-                Ok(entries[index].1)
-            }
-            Object::BigInt(_) | Object::Function(_) => {
-                Err("object does not support item access".to_string())
-            }
-        }
-    }
-
-    pub(super) fn set_item(
-        &mut self,
-        object: Value,
-        key: Value,
-        value: Value,
-    ) -> Result<(), String> {
-        let Value::Object(reference) = object else {
-            return Err("item assignment requires an object".to_string());
-        };
-        let kind = self
-            .heap
-            .kind(reference)
-            .map_err(|error| error.to_string())?;
-        match kind {
-            crate::object::ObjectKind::List => {
-                let length = match self.heap.get(reference) {
-                    Ok(Object::List(values)) => values.len(),
-                    Ok(_) => return Err("item assignment requires list or dict".to_string()),
-                    Err(error) => return Err(error.to_string()),
-                };
-                let index = sequence_index(self.heap, key, length)?;
-                match self.heap.get_mut(reference) {
-                    Ok(Object::List(values)) => {
-                        let slot = values
-                            .get_mut(index)
-                            .ok_or_else(|| "list index out of range".to_string())?;
-                        *slot = value;
-                        Ok(())
-                    }
-                    Ok(_) => Err("item assignment requires list or dict".to_string()),
-                    Err(error) => Err(error.to_string()),
-                }
-            }
-            crate::object::ObjectKind::Dict => {
-                ensure_hashable(self.heap, key)?;
-                let index = match self.heap.get(reference) {
-                    Ok(Object::Dict(entries)) => find_key(self.heap, entries, key)?,
-                    Ok(_) => return Err("item assignment requires list or dict".to_string()),
-                    Err(error) => return Err(error.to_string()),
-                };
-                match self.heap.get_mut(reference) {
-                    Ok(Object::Dict(entries)) => {
-                        if let Some(index) = index {
-                            entries[index].1 = value;
-                        } else {
-                            entries.push((key, value));
-                        }
-                        Ok(())
-                    }
-                    Ok(_) => Err("item assignment requires list or dict".to_string()),
-                    Err(error) => Err(error.to_string()),
-                }
-            }
-            crate::object::ObjectKind::String
-            | crate::object::ObjectKind::Tuple
-            | crate::object::ObjectKind::BigInt
-            | crate::object::ObjectKind::Function => {
-                Err("item assignment requires list or dict".to_string())
-            }
-        }
-    }
-
     pub(super) fn length(&self, value: Value) -> Result<Value, String> {
         let Value::Object(reference) = value else {
             return Err("length requires an object".to_string());
@@ -148,7 +53,11 @@ impl<'a> ObjectOps<'a> {
             Object::String(value) => value.chars().count(),
             Object::Tuple(values) | Object::List(values) => values.len(),
             Object::Dict(entries) => entries.len(),
-            Object::BigInt(_) | Object::Function(_) => {
+            Object::BigInt(_)
+            | Object::Function(_)
+            | Object::Class(_)
+            | Object::Instance(_)
+            | Object::BoundMethod(_) => {
                 return Err("object has no length".to_string());
             }
         };
@@ -166,22 +75,7 @@ impl<'a> ObjectOps<'a> {
 }
 
 fn sequence_index(heap: &ObjectHeap, key: Value, length: usize) -> Result<usize, String> {
-    let index = match key {
-        Value::SmallInt(index) => index,
-        Value::Object(reference) => match heap.get(reference).map_err(|error| error.to_string())? {
-            Object::BigInt(index) => index
-                .to_i64()
-                .ok_or_else(|| "sequence index out of range".to_string())?,
-            Object::String(_)
-            | Object::Tuple(_)
-            | Object::List(_)
-            | Object::Dict(_)
-            | Object::Function(_) => return Err("sequence index must be an integer".to_string()),
-        },
-        Value::Float(_) | Value::Bool(_) | Value::Uninitialized => {
-            return Err("sequence index must be an integer".to_string());
-        }
-    };
+    let index = raw_index(heap, key)?;
     let length = i64::try_from(length).map_err(|_| "sequence is too large".to_string())?;
     let normalized = if index < 0 {
         length
@@ -194,4 +88,110 @@ fn sequence_index(heap: &ObjectHeap, key: Value, length: usize) -> Result<usize,
         return Err("sequence index out of range".to_string());
     }
     usize::try_from(normalized).map_err(|_| "sequence index out of range".to_string())
+}
+
+fn raw_index(heap: &ObjectHeap, key: Value) -> Result<i64, String> {
+    match key {
+        Value::SmallInt(index) => Ok(index),
+        Value::Object(reference) => match heap.get(reference).map_err(|error| error.to_string())? {
+            Object::BigInt(index) => index
+                .to_i64()
+                .ok_or_else(|| "sequence index out of range".to_string()),
+            Object::String(_)
+            | Object::Tuple(_)
+            | Object::List(_)
+            | Object::Dict(_)
+            | Object::Function(_)
+            | Object::Class(_)
+            | Object::Instance(_)
+            | Object::BoundMethod(_) => Err("sequence index must be an integer".to_string()),
+        },
+        Value::Float(_) | Value::Bool(_) | Value::None | Value::Uninitialized => {
+            Err("sequence index must be an integer".to_string())
+        }
+    }
+}
+
+pub(super) fn optional_index(
+    heap: &ObjectHeap,
+    value: Option<Value>,
+) -> Result<Option<i64>, String> {
+    value.map(|index| raw_index(heap, index)).transpose()
+}
+
+pub(super) fn forward_slice_bounds(
+    heap: &ObjectHeap,
+    length: usize,
+    start: Option<Value>,
+    stop: Option<Value>,
+) -> Result<(usize, usize), String> {
+    let length = i64::try_from(length).map_err(|_| "sequence is too large".to_string())?;
+    let start = optional_index(heap, start)?.unwrap_or(0);
+    let stop = optional_index(heap, stop)?.unwrap_or(length);
+    let normalize = |index: i64| {
+        if index < 0 {
+            length.saturating_add(index).clamp(0, length)
+        } else {
+            index.clamp(0, length)
+        }
+    };
+    let start = normalize(start);
+    let stop = normalize(stop).max(start);
+    Ok((
+        usize::try_from(start).map_err(|_| "invalid slice start".to_string())?,
+        usize::try_from(stop).map_err(|_| "invalid slice stop".to_string())?,
+    ))
+}
+
+pub(super) fn slice_indices(
+    heap: &ObjectHeap,
+    length: usize,
+    start: Option<Value>,
+    stop: Option<Value>,
+    step: Option<Value>,
+) -> Result<Vec<usize>, String> {
+    let length = i64::try_from(length).map_err(|_| "sequence is too large".to_string())?;
+    let step = optional_index(heap, step)?.unwrap_or(1);
+    if step == 0 {
+        return Err("slice step cannot be zero".to_string());
+    }
+    let mut result = Vec::new();
+    if step > 0 {
+        let normalize = |index: i64| {
+            if index < 0 {
+                length.saturating_add(index).clamp(0, length)
+            } else {
+                index.clamp(0, length)
+            }
+        };
+        let mut index = normalize(optional_index(heap, start)?.unwrap_or(0));
+        let stop = normalize(optional_index(heap, stop)?.unwrap_or(length));
+        while index < stop {
+            result.push(usize::try_from(index).map_err(|_| "invalid slice index".to_string())?);
+            index = index.saturating_add(step);
+        }
+    } else {
+        let normalize = |index: i64| {
+            if index < 0 {
+                length
+                    .saturating_add(index)
+                    .clamp(-1, length.saturating_sub(1))
+            } else {
+                index.clamp(-1, length.saturating_sub(1))
+            }
+        };
+        let mut index = match optional_index(heap, start)? {
+            Some(index) => normalize(index),
+            None => length.saturating_sub(1),
+        };
+        let stop = match optional_index(heap, stop)? {
+            Some(index) => normalize(index),
+            None => -1,
+        };
+        while index > stop {
+            result.push(usize::try_from(index).map_err(|_| "invalid slice index".to_string())?);
+            index = index.saturating_add(step);
+        }
+    }
+    Ok(result)
 }

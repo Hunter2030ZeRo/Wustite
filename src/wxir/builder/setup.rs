@@ -4,6 +4,7 @@ impl<'a> RegionBuilder<'a> {
     pub(super) fn new(
         executable: &'a ExecutableFunction,
         plan: &'a JitPlan,
+        profile: Option<&'a Profile>,
     ) -> Result<Self, WxBuildError> {
         let mut leaders = HashSet::with_capacity(plan.blocks.len());
         let mut exit_by_pc = HashMap::new();
@@ -36,6 +37,7 @@ impl<'a> RegionBuilder<'a> {
         let mut builder = Self {
             executable,
             plan,
+            profile,
             leaders,
             exit_by_pc,
             block_specs: HashMap::new(),
@@ -43,6 +45,8 @@ impl<'a> RegionBuilder<'a> {
             synthetic_exits: Vec::new(),
             queue: VecDeque::new(),
             built: HashSet::new(),
+            live_registers: super::liveness::analyze(executable, plan),
+            pointer_registers: super::runtime::pointer_registers(executable, plan, profile),
             blocks: Vec::new(),
             next_value: 0,
             next_block: 0,

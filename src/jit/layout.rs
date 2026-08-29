@@ -108,7 +108,9 @@ fn add_state_types(
 fn type_layout(ty: WxType) -> Result<(usize, usize), CompileError> {
     match ty {
         WxType::Scalar(WxScalarType::I1) => Ok((1, 1)),
-        WxType::Scalar(WxScalarType::I64) => Ok((8, 8)),
+        WxType::Scalar(
+            WxScalarType::I64 | WxScalarType::F64 | WxScalarType::RuntimeHandle | WxScalarType::Ptr,
+        ) => Ok((8, 8)),
         _ => Err(CompileError::UnsupportedType(ty)),
     }
 }

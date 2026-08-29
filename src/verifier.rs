@@ -53,6 +53,7 @@ fn verify_uncached(function: &ExecutableFunction) -> Result<(), String> {
             Instruction::ConstSmallInt { dst, .. }
             | Instruction::ConstFloat { dst, .. }
             | Instruction::ConstBool { dst, .. }
+            | Instruction::ConstNone { dst }
             | Instruction::ConstI64 { dst, .. }
             | Instruction::LoadCurrentFunction { dst } => {
                 verify_register(bytecode, *dst, pc, "constant dst")?;
@@ -118,10 +119,58 @@ fn verify_uncached(function: &ExecutableFunction) -> Result<(), String> {
                 verify_register(bytecode, *object, pc, "GetItem object")?;
                 verify_register(bytecode, *key, pc, "GetItem key")?;
             }
+            Instruction::GetAttr { dst, object, .. } => {
+                verify_register(bytecode, *dst, pc, "GetAttr dst")?;
+                verify_register(bytecode, *object, pc, "GetAttr object")?;
+            }
+            Instruction::GetSlice {
+                dst,
+                object,
+                start,
+                stop,
+                step,
+            } => {
+                verify_register(bytecode, *dst, pc, "GetSlice dst")?;
+                verify_register(bytecode, *object, pc, "GetSlice object")?;
+                verify_optional_register(bytecode, *start, pc, "GetSlice start")?;
+                verify_optional_register(bytecode, *stop, pc, "GetSlice stop")?;
+                verify_optional_register(bytecode, *step, pc, "GetSlice step")?;
+            }
             Instruction::SetItem { object, key, value } => {
                 verify_register(bytecode, *object, pc, "SetItem object")?;
                 verify_register(bytecode, *key, pc, "SetItem key")?;
                 verify_register(bytecode, *value, pc, "SetItem value")?;
+            }
+            Instruction::SetAttr { object, value, .. } => {
+                verify_register(bytecode, *object, pc, "SetAttr object")?;
+                verify_register(bytecode, *value, pc, "SetAttr value")?;
+            }
+            Instruction::SetSlice {
+                object,
+                start,
+                stop,
+                step,
+                value,
+            } => {
+                verify_register(bytecode, *object, pc, "SetSlice object")?;
+                verify_optional_register(bytecode, *start, pc, "SetSlice start")?;
+                verify_optional_register(bytecode, *stop, pc, "SetSlice stop")?;
+                verify_optional_register(bytecode, *step, pc, "SetSlice step")?;
+                verify_register(bytecode, *value, pc, "SetSlice value")?;
+            }
+            Instruction::ListAppend { list, value } => {
+                verify_register(bytecode, *list, pc, "ListAppend list")?;
+                verify_register(bytecode, *value, pc, "ListAppend value")?;
+            }
+            Instruction::ListInsert { list, index, value } => {
+                verify_register(bytecode, *list, pc, "ListInsert list")?;
+                verify_register(bytecode, *index, pc, "ListInsert index")?;
+                verify_register(bytecode, *value, pc, "ListInsert value")?;
+            }
+            Instruction::ListPop { dst, list, index } => {
+                verify_register(bytecode, *dst, pc, "ListPop dst")?;
+                verify_register(bytecode, *list, pc, "ListPop list")?;
+                verify_register(bytecode, *index, pc, "ListPop index")?;
             }
             Instruction::Length { dst, object } => {
                 verify_register(bytecode, *dst, pc, "Length dst")?;
@@ -135,6 +184,16 @@ fn verify_uncached(function: &ExecutableFunction) -> Result<(), String> {
                 verify_register(bytecode, *dst, pc, "Call dst")?;
                 verify_register(bytecode, *callable, pc, "Call callable")?;
                 verify_registers(bytecode, args, pc, "Call argument")?;
+            }
+            Instruction::CallMethod {
+                dst,
+                receiver,
+                args,
+                ..
+            } => {
+                verify_register(bytecode, *dst, pc, "CallMethod dst")?;
+                verify_register(bytecode, *receiver, pc, "CallMethod receiver")?;
+                verify_registers(bytecode, args, pc, "CallMethod argument")?;
             }
             Instruction::Jump { target } => verify_target(bytecode, *target, pc, "Jump")?,
             Instruction::Branch { cond, yes, no } => {
@@ -215,6 +274,17 @@ fn verify_registers(
         verify_register(function, *register, pc, context)?;
     }
     Ok(())
+}
+
+fn verify_optional_register(
+    function: &Function,
+    register: Option<Register>,
+    pc: usize,
+    context: &str,
+) -> Result<(), String> {
+    register.map_or(Ok(()), |register| {
+        verify_register(function, register, pc, context)
+    })
 }
 
 pub(super) fn verify_register(

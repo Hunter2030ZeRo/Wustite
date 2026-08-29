@@ -13,6 +13,7 @@ use super::helpers::{
     add_incoming, block_for, exit_block_for, int_value_for, llvm_type, lower_values,
 };
 use super::instructions::InstructionContext;
+use super::native_calls::RuntimeFunctions;
 use super::state_buffer::StateBuffer;
 use super::{CompileError, RegionLayout, llvm_error};
 
@@ -25,9 +26,13 @@ pub(super) fn lower_function<'ctx>(
     let module = context.create_module(symbol);
     let builder = context.create_builder();
     let pointer_type = context.ptr_type(AddressSpace::default());
-    let function_type = context.i32_type().fn_type(&[pointer_type.into()], false);
+    let function_type = context
+        .i32_type()
+        .fn_type(&[pointer_type.into(), pointer_type.into()], false);
     let llvm_function = module.add_function(symbol, function_type, None);
     let prologue = context.append_basic_block(llvm_function, "prologue");
+    let runtime_error_block = context.append_basic_block(llvm_function, "runtime_error");
+    let runtime_functions = RuntimeFunctions::declare(context, &module);
 
     let (blocks, block_phis, mut values) =
         create_blocks(context, &builder, llvm_function, function)?;
@@ -38,6 +43,14 @@ pub(super) fn lower_function<'ctx>(
         _ => {
             return Err(CompileError::InvalidFunction(
                 "missing native state pointer".to_string(),
+            ));
+        }
+    };
+    let runtime_context = match llvm_function.get_nth_param(1) {
+        Some(BasicValueEnum::PointerValue(pointer)) => pointer,
+        _ => {
+            return Err(CompileError::InvalidFunction(
+                "missing native runtime context".to_string(),
             ));
         }
     };
@@ -89,6 +102,10 @@ pub(super) fn lower_function<'ctx>(
                 function,
                 exit_blocks: &exit_blocks,
                 exit_phis: &exit_phis,
+                runtime_functions: &runtime_functions,
+                runtime_context,
+                runtime_error_block,
+                llvm_function,
                 values: &mut values,
             }
             .lower(instruction)?;
@@ -118,6 +135,13 @@ pub(super) fn lower_function<'ctx>(
             ))
             .map_err(llvm_error)?;
     }
+
+    builder.position_at_end(runtime_error_block);
+    builder
+        .build_return(Some(
+            &context.i32_type().const_int(u64::from(u32::MAX), false),
+        ))
+        .map_err(llvm_error)?;
 
     Ok(module)
 }

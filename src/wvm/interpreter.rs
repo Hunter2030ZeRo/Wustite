@@ -1,9 +1,8 @@
-use crate::bytecode::{BooleanOperator, Instruction};
+use crate::bytecode::Instruction;
 use crate::executable::ExecutableFunction;
 use crate::value::Value;
 
 use super::arithmetic::ValueOps;
-use super::objects::ObjectOps;
 use super::quickening::{QuickOutcome, execute_quick};
 use super::{Frame, FunctionRuntime, Vm};
 
@@ -18,26 +17,78 @@ impl Vm {
         &mut self,
         executable: &ExecutableFunction,
         runtime: &mut FunctionRuntime,
-        registers: Vec<Value>,
+        frame: &mut Frame,
     ) -> Result<super::ExecutionResult, String> {
         let function = executable.bytecode();
-        let mut frame = Frame {
-            pc: 0,
-            registers,
-            suppress_osr_pc: None,
-            suppressed_regions: std::collections::HashSet::new(),
-        };
         while frame.pc < function.code.len() {
             if frame.suppress_osr_pc != Some(frame.pc)
                 && let Some(region_id) = executable.structure_map().region_by_entry_pc(frame.pc)
             {
                 runtime.profile.record_entry(region_id);
+                if let Some(region) = executable.structure_map().region(region_id) {
+                    match self.jit_policy {
+                        crate::planner::JitPolicy::Profile => {
+                            runtime.profile.observe_entry(
+                                region_id,
+                                &region.entry_summary,
+                                &frame.registers,
+                            );
+                            runtime.profile.observe_entry_sequences(
+                                region_id,
+                                &region.entry_summary,
+                                &frame.registers,
+                                &self.object_heap,
+                            );
+                        }
+                        crate::planner::JitPolicy::StructureMap => {
+                            if let Some(schema) = runtime.profile_schemas.get(region_id.0) {
+                                runtime
+                                    .profile
+                                    .observe_entry_schema(schema, &frame.registers);
+                                runtime.profile.observe_entry_sequences_schema(
+                                    schema,
+                                    &frame.registers,
+                                    &self.object_heap,
+                                );
+                            }
+                        }
+                    }
+                }
+                let adaptive_result = self.adaptive_v2.as_ref().and_then(|adaptive| {
+                    adaptive.try_execute_loop(
+                        executable,
+                        region_id,
+                        &frame.registers,
+                        &mut self.object_heap,
+                    )
+                });
+                if let Some(result) = adaptive_result {
+                    match result? {
+                        crate::adaptive_v2::integration::LoopExecution::Return(value) => {
+                            return Ok(super::ExecutionResult { value });
+                        }
+                        crate::adaptive_v2::integration::LoopExecution::Resume {
+                            target,
+                            registers,
+                        } => {
+                            for (register, value) in registers {
+                                let slot =
+                                    frame.registers.get_mut(usize::from(register)).ok_or_else(
+                                        || "adaptive-v2 loop resume register overflow".to_owned(),
+                                    )?;
+                                *slot = value;
+                            }
+                            frame.pc = target;
+                            continue;
+                        }
+                    }
+                }
             }
-            if self.try_execute_region(executable, &mut frame, runtime) {
+            if self.try_execute_region(executable, frame, runtime) {
                 continue;
             }
             if let Some(instruction) = runtime.quick_code.get(frame.pc)
-                && execute_quick(instruction, &mut frame, &mut self.object_heap)?
+                && execute_quick(instruction, frame, &mut self.object_heap)?
                     == QuickOutcome::Handled
             {
                 continue;
@@ -49,7 +100,7 @@ impl Vm {
             let context = DispatchContext {
                 executable,
                 runtime,
-                frame: &mut frame,
+                frame,
             };
             if let Some(value) = self.execute_instruction(context, instruction)? {
                 return Ok(super::ExecutionResult { value });
@@ -73,104 +124,12 @@ impl Vm {
                 Self::write_register(frame, *dst, Value::SmallInt(*value))?;
                 frame.pc += 1;
             }
-            Instruction::ConstFloat { dst, value } => {
-                Self::write_register(frame, *dst, Value::Float(*value))?;
-                frame.pc += 1;
-            }
             Instruction::ConstBool { dst, value } => {
                 Self::write_register(frame, *dst, Value::Bool(*value))?;
                 frame.pc += 1;
             }
-            Instruction::LoadConstant { dst, constant } => {
-                let value = self.load_constant(executable, runtime, constant.0)?;
-                Self::write_register(frame, *dst, value)?;
-                frame.pc += 1;
-            }
-            Instruction::BinaryOp {
-                dst, op, lhs, rhs, ..
-            } => {
-                let lhs = Self::read_register(frame, *lhs)?;
-                let rhs = Self::read_register(frame, *rhs)?;
-                let value = ValueOps::new(&mut self.object_heap).binary(*op, lhs, rhs)?;
-                Self::write_register(frame, *dst, value)?;
-                frame.pc += 1;
-            }
-            Instruction::CompareOp {
-                dst, op, lhs, rhs, ..
-            } => {
-                let lhs = Self::read_register(frame, *lhs)?;
-                let rhs = Self::read_register(frame, *rhs)?;
-                let value = ValueOps::new(&mut self.object_heap).compare(*op, lhs, rhs)?;
-                Self::write_register(frame, *dst, value)?;
-                frame.pc += 1;
-            }
-            Instruction::UnaryOp { dst, op, src } => {
-                let value = Self::read_register(frame, *src)?;
-                let result = ValueOps::new(&mut self.object_heap).unary(*op, value)?;
-                Self::write_register(frame, *dst, result)?;
-                frame.pc += 1;
-            }
-            Instruction::BooleanOp {
-                dst, op, lhs, rhs, ..
-            } => {
-                let lhs = super::registers::read_bool(frame, *lhs)?;
-                let rhs = super::registers::read_bool(frame, *rhs)?;
-                let value = match op {
-                    BooleanOperator::And => lhs && rhs,
-                    BooleanOperator::Or => lhs || rhs,
-                };
-                Self::write_register(frame, *dst, Value::Bool(value))?;
-                frame.pc += 1;
-            }
-            Instruction::BuildTuple { dst, items } => {
-                let values = super::registers::read_values(frame, items)?;
-                let value = ObjectOps::new(&mut self.object_heap).tuple(values)?;
-                Self::write_register(frame, *dst, value)?;
-                frame.pc += 1;
-            }
-            Instruction::BuildList { dst, items } => {
-                let values = super::registers::read_values(frame, items)?;
-                let value = ObjectOps::new(&mut self.object_heap).list(values)?;
-                Self::write_register(frame, *dst, value)?;
-                frame.pc += 1;
-            }
-            Instruction::BuildDict { dst, entries } => {
-                let mut values = Vec::with_capacity(entries.len());
-                for (key, value) in entries {
-                    values.push((
-                        Self::read_register(frame, *key)?,
-                        Self::read_register(frame, *value)?,
-                    ));
-                }
-                let value = ObjectOps::new(&mut self.object_heap).dict(values)?;
-                Self::write_register(frame, *dst, value)?;
-                frame.pc += 1;
-            }
-            Instruction::GetItem { dst, object, key } => {
-                let object = Self::read_register(frame, *object)?;
-                let key = Self::read_register(frame, *key)?;
-                let value = ObjectOps::new(&mut self.object_heap).get_item(object, key)?;
-                Self::write_register(frame, *dst, value)?;
-                frame.pc += 1;
-            }
-            Instruction::SetItem {
-                object, key, value, ..
-            } => {
-                let object = Self::read_register(frame, *object)?;
-                let key = Self::read_register(frame, *key)?;
-                let value = Self::read_register(frame, *value)?;
-                ObjectOps::new(&mut self.object_heap).set_item(object, key, value)?;
-                frame.pc += 1;
-            }
-            Instruction::Length { dst, object } => {
-                let object = Self::read_register(frame, *object)?;
-                let value = ObjectOps::new(&mut self.object_heap).length(object)?;
-                Self::write_register(frame, *dst, value)?;
-                frame.pc += 1;
-            }
-            Instruction::LoadCurrentFunction { dst } => {
-                let value = self.load_current_function(executable, runtime)?;
-                Self::write_register(frame, *dst, value)?;
+            Instruction::ConstNone { dst } => {
+                Self::write_register(frame, *dst, Value::None)?;
                 frame.pc += 1;
             }
             Instruction::Call {
@@ -179,13 +138,136 @@ impl Vm {
                 args,
                 ..
             } => {
+                if self.execute_adaptive_object_instruction(
+                    executable,
+                    &mut frame.registers,
+                    frame.pc,
+                    instruction,
+                )? {
+                    runtime.profile.observe_instruction(
+                        frame.pc,
+                        instruction,
+                        &frame.registers,
+                        &self.object_heap,
+                    );
+                    frame.pc += 1;
+                    return Ok(None);
+                }
+                if runtime.jit.is_some()
+                    && super::native_jit::leaf::execute_numeric_leaf_call(
+                        self,
+                        runtime,
+                        &mut frame.registers,
+                        frame.pc,
+                        instruction,
+                    )?
+                {
+                    runtime.profile.observe_instruction(
+                        frame.pc,
+                        instruction,
+                        &frame.registers,
+                        &self.object_heap,
+                    );
+                    frame.pc += 1;
+                    return Ok(None);
+                }
+                self.jit_report.record_interpreter_guest_call();
                 let callable = Self::read_register(frame, *callable)?;
-                let arguments = super::registers::read_values(frame, args)?;
-                let function = self.callable(callable)?;
+                let arguments = args
+                    .iter()
+                    .map(|register| Self::read_register(frame, *register))
+                    .collect::<Result<Vec<_>, String>>()?;
+                let value =
+                    self.invoke_callable(executable, runtime, frame.pc, callable, &arguments)?;
+                Self::write_register(frame, *dst, value)?;
+                runtime.profile.observe_instruction(
+                    frame.pc,
+                    instruction,
+                    &frame.registers,
+                    &self.object_heap,
+                );
+                frame.pc += 1;
+            }
+            Instruction::CallMethod {
+                dst,
+                receiver,
+                name,
+                args,
+            } => {
+                if self.execute_adaptive_object_instruction(
+                    executable,
+                    &mut frame.registers,
+                    frame.pc,
+                    instruction,
+                )? {
+                    runtime.profile.observe_instruction(
+                        frame.pc,
+                        instruction,
+                        &frame.registers,
+                        &self.object_heap,
+                    );
+                    frame.pc += 1;
+                    return Ok(None);
+                }
+                self.jit_report.record_interpreter_guest_call();
+                let (receiver, function) = self.prepared_method(
+                    runtime,
+                    frame.pc,
+                    Self::read_register(frame, *receiver)?,
+                    name,
+                )?;
+                let mut arguments = Vec::with_capacity(args.len() + 1);
+                arguments.push(Value::Object(receiver));
+                arguments.extend(
+                    args.iter()
+                        .map(|register| Self::read_register(frame, *register))
+                        .collect::<Result<Vec<_>, String>>()?,
+                );
                 let value = self
-                    .invoke(executable, runtime, &function, &arguments)?
+                    .invoke(executable, runtime, function.as_ref(), &arguments)?
                     .value;
                 Self::write_register(frame, *dst, value)?;
+                runtime.profile.observe_instruction(
+                    frame.pc,
+                    instruction,
+                    &frame.registers,
+                    &self.object_heap,
+                );
+                frame.pc += 1;
+            }
+            instruction @ (Instruction::ConstFloat { .. }
+            | Instruction::LoadConstant { .. }
+            | Instruction::BinaryOp { .. }
+            | Instruction::CompareOp { .. }
+            | Instruction::UnaryOp { .. }
+            | Instruction::BooleanOp { .. }
+            | Instruction::BuildTuple { .. }
+            | Instruction::BuildList { .. }
+            | Instruction::BuildDict { .. }
+            | Instruction::GetItem { .. }
+            | Instruction::GetAttr { .. }
+            | Instruction::GetSlice { .. }
+            | Instruction::SetItem { .. }
+            | Instruction::SetAttr { .. }
+            | Instruction::SetSlice { .. }
+            | Instruction::ListAppend { .. }
+            | Instruction::ListInsert { .. }
+            | Instruction::ListPop { .. }
+            | Instruction::Length { .. }
+            | Instruction::LoadCurrentFunction { .. }) => {
+                self.execute_runtime_instruction(
+                    executable,
+                    runtime,
+                    &mut frame.registers,
+                    frame.pc,
+                    instruction,
+                )?;
+                runtime.profile.observe_instruction(
+                    frame.pc,
+                    instruction,
+                    &frame.registers,
+                    &self.object_heap,
+                );
                 frame.pc += 1;
             }
             Instruction::AddI64 { dst, lhs, rhs } => {
@@ -210,7 +292,41 @@ impl Vm {
                 Self::write_register(frame, *dst, value)?;
                 frame.pc += 1;
             }
-            Instruction::Jump { target } => frame.pc = *target,
+            Instruction::Jump { target } => {
+                let adaptive_result = self.adaptive_v2.as_ref().and_then(|adaptive| {
+                    adaptive.try_execute_preheader_loop(
+                        executable,
+                        frame.pc,
+                        *target,
+                        &frame.registers,
+                        &mut self.object_heap,
+                    )
+                });
+                if let Some(result) = adaptive_result {
+                    match result? {
+                        crate::adaptive_v2::integration::LoopExecution::Return(value) => {
+                            return Ok(Some(value));
+                        }
+                        crate::adaptive_v2::integration::LoopExecution::Resume {
+                            target,
+                            registers,
+                        } => {
+                            for (register, value) in registers {
+                                let slot = frame
+                                    .registers
+                                    .get_mut(usize::from(register))
+                                    .ok_or_else(|| {
+                                        "adaptive-v2 preheader resume register overflow".to_owned()
+                                    })?;
+                                *slot = value;
+                            }
+                            frame.pc = target;
+                        }
+                    }
+                } else {
+                    frame.pc = *target;
+                }
+            }
             Instruction::Branch { cond, yes, no } => {
                 frame.pc = if super::registers::read_bool(frame, *cond)? {
                     *yes

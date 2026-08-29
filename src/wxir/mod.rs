@@ -2,6 +2,7 @@
 
 pub mod builder;
 pub mod ir;
+pub(crate) mod optimizer;
 pub mod printer;
 pub mod types;
 pub mod verifier;
@@ -9,7 +10,7 @@ pub mod verifier;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use builder::build_verified_region;
+pub(crate) use builder::build_profiled_region;
 pub use builder::{WxBuildError, build_region};
 pub use ir::*;
 pub use printer::print_function;

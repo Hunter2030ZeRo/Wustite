@@ -10,6 +10,8 @@ pub enum BinaryOperator {
     Subtract,
     Multiply,
     Divide,
+    FloorDivide,
+    Power,
 }
 
 /// Source-language comparison preserved by the semantic WVM ISA.
@@ -48,6 +50,9 @@ pub enum Instruction {
     ConstBool {
         dst: Register,
         value: bool,
+    },
+    ConstNone {
+        dst: Register,
     },
     LoadConstant {
         dst: Register,
@@ -102,10 +107,48 @@ pub enum Instruction {
         object: Register,
         key: Register,
     },
+    GetAttr {
+        dst: Register,
+        object: Register,
+        name: String,
+    },
+    GetSlice {
+        dst: Register,
+        object: Register,
+        start: Option<Register>,
+        stop: Option<Register>,
+        step: Option<Register>,
+    },
     SetItem {
         object: Register,
         key: Register,
         value: Register,
+    },
+    SetAttr {
+        object: Register,
+        name: String,
+        value: Register,
+    },
+    SetSlice {
+        object: Register,
+        start: Option<Register>,
+        stop: Option<Register>,
+        step: Option<Register>,
+        value: Register,
+    },
+    ListAppend {
+        list: Register,
+        value: Register,
+    },
+    ListInsert {
+        list: Register,
+        index: Register,
+        value: Register,
+    },
+    ListPop {
+        dst: Register,
+        list: Register,
+        index: Register,
     },
     Length {
         dst: Register,
@@ -117,6 +160,12 @@ pub enum Instruction {
     Call {
         dst: Register,
         callable: Register,
+        args: Vec<Register>,
+    },
+    CallMethod {
+        dst: Register,
+        receiver: Register,
+        name: String,
         args: Vec<Register>,
     },
     /// Legacy typed opcode retained while existing hand-authored executables

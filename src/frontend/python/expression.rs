@@ -2,12 +2,16 @@ use std::collections::HashSet;
 
 use rustpython_parser::ast::{self, BoolOp, Constant, UnaryOp};
 
-use super::hir::{HirExpression, HirExpressionKind};
-use super::{Compiler, PythonFrontendError, error_at, location_of};
+use super::hir::{self, HirExpression, HirExpressionKind};
+use super::{Compiler, PythonFrontendError, error_at, location_of, statements};
 use crate::bytecode::{BooleanOperator, UnaryOperator};
 
-mod literals;
+mod call;
+mod comprehension;
+pub(super) mod literals;
+mod slice;
 
+use comprehension::ComprehensionScope;
 use literals::{binary_operator, compare_operator};
 
 impl Compiler<'_> {
@@ -56,9 +60,15 @@ impl Compiler<'_> {
             ast::Expr::Name(name) if name.id.as_str() == current_name => {
                 HirExpressionKind::CurrentFunction
             }
+            ast::Expr::Name(name) if let Some(value) = self.module_constant(name.id.as_str()) => {
+                return self.lower_expression(&value, current_name, local_names, initialized_names);
+            }
             ast::Expr::Name(name) if self.has_function(name.id.as_str()) => {
                 let function = self.compile_named(name.id.as_str(), Some(name))?;
                 HirExpressionKind::Function(Box::new(function))
+            }
+            ast::Expr::Name(name) if self.has_class(name.id.as_str()) => {
+                HirExpressionKind::Class(Box::new(self.compile_class(name.id.as_str())?))
             }
             ast::Expr::Name(name) => HirExpressionKind::Name(name.id.to_string()),
             ast::Expr::BinOp(binary) => HirExpressionKind::Binary {
@@ -127,6 +137,14 @@ impl Compiler<'_> {
                 local_names,
                 initialized_names,
             )?),
+            ast::Expr::ListComp(comprehension) => self.lower_list_comprehension(
+                comprehension,
+                ComprehensionScope {
+                    current_name,
+                    local_names,
+                    initialized_names,
+                },
+            )?,
             ast::Expr::Dict(dict) => HirExpressionKind::Dict(
                 dict.keys
                     .iter()
@@ -152,19 +170,46 @@ impl Compiler<'_> {
                     })
                     .collect::<Result<_, PythonFrontendError>>()?,
             ),
-            ast::Expr::Subscript(subscript) => HirExpressionKind::GetItem {
-                object: Box::new(self.lower_expression(
+            ast::Expr::Subscript(subscript) => {
+                let object = Box::new(self.lower_expression(
                     &subscript.value,
                     current_name,
                     local_names,
                     initialized_names,
-                )?),
-                key: Box::new(self.lower_expression(
-                    &subscript.slice,
+                )?);
+                if let ast::Expr::Slice(slice) = subscript.slice.as_ref() {
+                    let (start, stop, step) = self.lower_slice_parts(
+                        slice,
+                        current_name,
+                        local_names,
+                        initialized_names,
+                    )?;
+                    HirExpressionKind::GetSlice {
+                        object,
+                        start: start.map(Box::new),
+                        stop: stop.map(Box::new),
+                        step: step.map(Box::new),
+                    }
+                } else {
+                    HirExpressionKind::GetItem {
+                        object,
+                        key: Box::new(self.lower_expression(
+                            &subscript.slice,
+                            current_name,
+                            local_names,
+                            initialized_names,
+                        )?),
+                    }
+                }
+            }
+            ast::Expr::Attribute(attribute) => HirExpressionKind::GetAttr {
+                object: Box::new(self.lower_expression(
+                    &attribute.value,
                     current_name,
                     local_names,
                     initialized_names,
                 )?),
+                name: attribute.attr.to_string(),
             },
             ast::Expr::Call(call) => {
                 self.lower_call(call, current_name, local_names, initialized_names)?
@@ -191,45 +236,5 @@ impl Compiler<'_> {
             .iter()
             .map(|item| self.lower_expression(item, current_name, local_names, initialized_names))
             .collect()
-    }
-
-    fn lower_call(
-        &mut self,
-        call: &ast::ExprCall,
-        current_name: &str,
-        local_names: &HashSet<String>,
-        initialized_names: &HashSet<String>,
-    ) -> Result<HirExpressionKind, PythonFrontendError> {
-        if !call.keywords.is_empty() {
-            return Err(error_at(
-                self.source,
-                call,
-                "keyword arguments are unsupported",
-            ));
-        }
-        if matches!(call.func.as_ref(), ast::Expr::Name(name) if name.id.as_str() == "len") {
-            if call.args.len() != 1 {
-                return Err(error_at(
-                    self.source,
-                    call,
-                    "len requires exactly one argument",
-                ));
-            }
-            return Ok(HirExpressionKind::Length(Box::new(self.lower_expression(
-                &call.args[0],
-                current_name,
-                local_names,
-                initialized_names,
-            )?)));
-        }
-        Ok(HirExpressionKind::Call {
-            callable: Box::new(self.lower_expression(
-                &call.func,
-                current_name,
-                local_names,
-                initialized_names,
-            )?),
-            args: self.lower_items(&call.args, current_name, local_names, initialized_names)?,
-        })
     }
 }

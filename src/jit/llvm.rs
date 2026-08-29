@@ -1,6 +1,7 @@
 mod helpers;
 mod instructions;
 mod lowering;
+mod native_calls;
 mod state_buffer;
 
 use std::fmt;
@@ -111,6 +112,11 @@ fn compile_function(
     let execution_engine = module
         .create_jit_execution_engine(OptimizationLevel::Aggressive)
         .map_err(llvm_error)?;
+    for (name, address) in super::runtime::symbols() {
+        if let Some(function) = module.get_function(name) {
+            execution_engine.add_global_mapping(&function, address.expose_provenance());
+        }
+    }
     // SAFETY: [Categories 3, 5, 8, and 14 — finalized LLVM JIT ABI]
     // Lowering declares `symbol` as NativeRegionEntry and JitFunction retains
     // the execution engine, so the entry cannot outlive its executable code.

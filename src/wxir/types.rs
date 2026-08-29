@@ -10,6 +10,8 @@ pub enum WxScalarType {
     I64,
     F32,
     F64,
+    /// Opaque token naming a live WVM register value. It is never dereferenceable.
+    RuntimeHandle,
     Ptr,
 }
 
@@ -57,6 +59,7 @@ impl fmt::Display for WxScalarType {
             Self::I64 => "i64",
             Self::F32 => "f32",
             Self::F64 => "f64",
+            Self::RuntimeHandle => "handle",
             Self::Ptr => "ptr",
         };
         formatter.write_str(name)

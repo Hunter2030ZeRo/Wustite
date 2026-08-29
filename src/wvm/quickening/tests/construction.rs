@@ -5,7 +5,7 @@ use crate::structure_map::{OperationSiteId, SlotType, StructureMapBuilder, TypeF
 use super::super::QuickCode;
 
 fn exact(ty: SlotType) -> TypeFact {
-    TypeFact::Exact(ty)
+    TypeFact::Proven(ty)
 }
 
 fn executable(

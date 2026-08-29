@@ -38,6 +38,7 @@ fn help_describes_commands_and_options() {
         "--hot-threshold",
         "--trace-jit",
         "--json",
+        "--jit-policy",
     ] {
         assert!(run_help.contains(option));
     }
@@ -51,6 +52,7 @@ fn help_describes_commands_and_options() {
     let bench = run_cli(&["bench", "--help"]);
     assert!(bench.status.success());
     assert!(stdout(&bench).contains("--backend"));
+    assert!(stdout(&bench).contains("--jit-policy"));
 }
 
 #[test]
@@ -226,6 +228,35 @@ fn json_run_is_one_typed_document_with_jit_snapshots() {
     assert_eq!(document["runs"][1]["jit"]["compiled_regions"], 0);
     assert_eq!(document["runs"][1]["jit"]["native_executions"], 1);
     assert_eq!(document["runs"][1]["jit"]["last_exit_kind"], "region_exit");
+    assert_eq!(
+        document["runs"][1]["jit"]["helper_calls"],
+        serde_json::json!({
+            "call": 0,
+            "get_item": 0,
+            "set_item": 0,
+            "length": 0,
+            "object_access": 0,
+        })
+    );
+    assert_eq!(
+        document["runs"][1]["jit"]["guest_calls"],
+        serde_json::json!({
+            "direct_native": 0,
+            "interpreter_fallback": 0,
+        })
+    );
+    assert_eq!(
+        document["runs"][1]["jit"]["exits"],
+        serde_json::json!({
+            "region_exit": 1,
+            "replay_instruction": 0,
+            "deopt": 0,
+        })
+    );
+    assert_eq!(
+        document["runs"][1]["jit"]["calls"],
+        serde_json::json!({"main": 1})
+    );
 }
 
 #[test]

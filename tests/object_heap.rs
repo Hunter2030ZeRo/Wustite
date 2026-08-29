@@ -64,13 +64,13 @@ fn object_kinds_and_containers_preserve_nested_references() {
     let mut heap = ObjectHeap::new();
     let child = heap.allocate(string_object("child")).unwrap();
     let tuple = heap
-        .allocate(Object::Tuple(vec![
+        .allocate(Object::tuple(vec![
             Value::Object(child),
             Value::SmallInt(7),
         ]))
         .unwrap();
     let list = heap
-        .allocate(Object::List(vec![Value::Object(child)]))
+        .allocate(Object::list(vec![Value::Object(child)]))
         .unwrap();
     let dict = heap
         .allocate(Object::Dict(vec![(
@@ -89,9 +89,11 @@ fn object_kinds_and_containers_preserve_nested_references() {
 
     // Then: nested ObjectRefs remain intact and point at the original child.
     assert!(
-        matches!(tuple_value, Object::Tuple(values) if values == &vec![Value::Object(child), Value::SmallInt(7)])
+        matches!(tuple_value, Object::Tuple(values) if values.to_vec() == vec![Value::Object(child), Value::SmallInt(7)])
     );
-    assert!(matches!(list_value, Object::List(values) if values == &vec![Value::Object(child)]));
+    assert!(
+        matches!(list_value, Object::List(values) if values.to_vec() == vec![Value::Object(child)])
+    );
     assert!(
         matches!(dict_value, Object::Dict(entries) if entries == &vec![(Value::Object(child), Value::Bool(true))])
     );

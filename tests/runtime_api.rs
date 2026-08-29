@@ -274,10 +274,7 @@ fn different_executables_keep_independent_persistent_runtimes() {
 fn errors_preserve_frontend_locations_and_cached_executables() {
     let mut runtime = adaptive_runtime(5);
     let frontend_error = runtime
-        .compile_function(
-            "def main():\n    if 1 < 2:\n        return 1\n    return 0\n",
-            "main",
-        )
+        .compile_function("def main():\n    raise 1\n    return 0\n", "main")
         .err()
         .unwrap();
     let RuntimeError::Frontend(frontend_error) = frontend_error else {

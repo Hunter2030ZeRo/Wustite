@@ -1,5 +1,7 @@
 use super::*;
 
+mod scalars;
+
 impl RegionBuilder<'_> {
     pub(super) fn build_block(&mut self, start_pc: usize) -> Result<(), WxBuildError> {
         let spec =
@@ -58,46 +60,58 @@ impl RegionBuilder<'_> {
                     )?;
                     pc += 1;
                 }
-                Instruction::BinaryOp {
-                    dst,
-                    op: BinaryOperator::Add,
-                    lhs,
-                    rhs,
-                    site,
-                } => {
-                    self.require_operation_facts(
+                instruction @ Instruction::BinaryOp { .. } => {
+                    self.lower_binary_operation(
+                        &mut instructions,
+                        &mut environment,
                         pc,
-                        *site,
-                        TypeFact::Exact(SlotType::SmallInt),
-                        TypeFact::Exact(SlotType::SmallInt),
-                        TypeFact::Exact(SlotType::SmallInt),
+                        instruction,
                     )?;
-                    self.emit_i64_add(&mut instructions, &mut environment, pc, *dst, *lhs, *rhs)?;
                     pc += 1;
                 }
-                Instruction::CompareOp {
-                    dst,
-                    op: CompareOperator::Lt,
-                    lhs,
-                    rhs,
-                    site,
-                } => {
-                    self.require_operation_facts(
+                instruction @ Instruction::CompareOp { .. } => {
+                    self.lower_compare_operation(
+                        &mut instructions,
+                        &mut environment,
                         pc,
-                        *site,
-                        TypeFact::Exact(SlotType::SmallInt),
-                        TypeFact::Exact(SlotType::SmallInt),
-                        TypeFact::Exact(SlotType::Bool),
+                        instruction,
                     )?;
-                    self.emit_i64_lt(&mut instructions, &mut environment, pc, *dst, *lhs, *rhs)?;
                     pc += 1;
                 }
                 Instruction::AddI64 { dst, lhs, rhs } => {
-                    self.emit_i64_add(&mut instructions, &mut environment, pc, *dst, *lhs, *rhs)?;
+                    if self.i64_operation_requires_runtime(&environment, *dst, *lhs, *rhs) {
+                        self.emit_runtime_call(
+                            &mut instructions,
+                            &mut environment,
+                            pc,
+                            &self.executable.bytecode().code[pc],
+                        )?;
+                    } else {
+                        self.emit_i64_checked(
+                            &mut instructions,
+                            &mut environment,
+                            WxIntOverflowOp::Add,
+                            (pc, [*dst, *lhs, *rhs]),
+                        )?;
+                    }
                     pc += 1;
                 }
                 Instruction::LtI64 { dst, lhs, rhs } => {
-                    self.emit_i64_lt(&mut instructions, &mut environment, pc, *dst, *lhs, *rhs)?;
+                    if self.i64_operation_requires_runtime(&environment, *dst, *lhs, *rhs) {
+                        self.emit_runtime_call(
+                            &mut instructions,
+                            &mut environment,
+                            pc,
+                            &self.executable.bytecode().code[pc],
+                        )?;
+                    } else {
+                        self.emit_i64_compare(
+                            &mut instructions,
+                            &mut environment,
+                            WxIntCompareOp::SignedLt,
+                            (pc, [*dst, *lhs, *rhs]),
+                        )?;
+                    }
                     pc += 1;
                 }
                 Instruction::Move { dst, src } => {
@@ -105,7 +119,16 @@ impl RegionBuilder<'_> {
                         .get(src)
                         .copied()
                         .ok_or(WxBuildError::MissingRegister { pc, register: *src })?;
-                    environment.insert(*dst, value);
+                    if self.move_requires_runtime(*dst, value) {
+                        self.emit_runtime_call(
+                            &mut instructions,
+                            &mut environment,
+                            pc,
+                            &self.executable.bytecode().code[pc],
+                        )?;
+                    } else {
+                        environment.insert(*dst, value);
+                    }
                     pc += 1;
                 }
                 Instruction::Jump { target } => {
@@ -126,25 +149,93 @@ impl RegionBuilder<'_> {
                         no,
                     };
                 }
-                instruction @ (Instruction::ConstFloat { .. }
-                | Instruction::LoadConstant { .. }
-                | Instruction::BinaryOp { .. }
-                | Instruction::CompareOp { .. }
-                | Instruction::UnaryOp { .. }
-                | Instruction::BooleanOp { .. }
-                | Instruction::BuildTuple { .. }
-                | Instruction::BuildList { .. }
-                | Instruction::BuildDict { .. }
-                | Instruction::GetItem { .. }
+                Instruction::ConstFloat { dst, value } => {
+                    self.emit_constant(
+                        &mut instructions,
+                        &mut environment,
+                        *dst,
+                        WxScalarType::F64,
+                        super::super::ir::WxConstant::F64(*value),
+                    )?;
+                    pc += 1;
+                }
+                instruction @ Instruction::LoadConstant { .. } => {
+                    if let Some(resume_pc) =
+                        self.try_inline_numeric_leaf(&mut instructions, &mut environment, pc)?
+                    {
+                        pc = resume_pc;
+                    } else {
+                        self.emit_runtime_call(
+                            &mut instructions,
+                            &mut environment,
+                            pc,
+                            instruction,
+                        )?;
+                        pc += 1;
+                    }
+                }
+                instruction @ Instruction::UnaryOp { .. } => {
+                    self.lower_unary_operation(
+                        &mut instructions,
+                        &mut environment,
+                        pc,
+                        instruction,
+                    )?;
+                    pc += 1;
+                }
+                instruction @ Instruction::BooleanOp { .. } => {
+                    self.lower_boolean_operation(
+                        &mut instructions,
+                        &mut environment,
+                        pc,
+                        instruction,
+                    )?;
+                    pc += 1;
+                }
+                instruction @ (Instruction::BuildTuple { .. } | Instruction::BuildList { .. }) => {
+                    if let Some(resume_pc) = self.try_virtualize_container_access(
+                        &mut instructions,
+                        &mut environment,
+                        pc,
+                    )? {
+                        pc = resume_pc;
+                    } else {
+                        self.emit_runtime_call(
+                            &mut instructions,
+                            &mut environment,
+                            pc,
+                            instruction,
+                        )?;
+                        pc += 1;
+                    }
+                }
+                instruction @ (Instruction::GetItem { .. }
+                | Instruction::GetSlice { .. }
                 | Instruction::SetItem { .. }
-                | Instruction::Length { .. }
+                | Instruction::SetSlice { .. }
+                | Instruction::ListAppend { .. }
+                | Instruction::ListInsert { .. }
+                | Instruction::ListPop { .. }
+                | Instruction::Length { .. }) => {
+                    self.emit_sequence_call(&mut instructions, &mut environment, pc, instruction)?;
+                    pc += 1;
+                }
+                instruction @ (Instruction::ConstNone { .. }
+                | Instruction::BuildDict { .. }
+                | Instruction::GetAttr { .. }
+                | Instruction::SetAttr { .. }
                 | Instruction::LoadCurrentFunction { .. }
                 | Instruction::Call { .. }
-                | Instruction::Return { .. }) => {
-                    return Err(WxBuildError::UnsupportedInstruction {
-                        pc,
-                        instruction: unsupported_instruction_name(instruction),
-                    });
+                | Instruction::CallMethod { .. }) => {
+                    self.emit_runtime_call(&mut instructions, &mut environment, pc, instruction)?;
+                    pc += 1;
+                }
+                Instruction::Return { .. } => {
+                    let target = self.return_target(pc, &environment)?;
+                    break WxTerminator::Jump {
+                        target: target.block,
+                        arguments: target.arguments,
+                    };
                 }
             }
         };
@@ -160,45 +251,5 @@ impl RegionBuilder<'_> {
             terminator,
         });
         Ok(())
-    }
-}
-
-fn unsupported_instruction_name(instruction: &Instruction) -> &'static str {
-    match instruction {
-        Instruction::ConstFloat { .. } => "ConstFloat",
-        Instruction::LoadConstant { .. } => "LoadConstant",
-        Instruction::BinaryOp { op, .. } => match op {
-            BinaryOperator::Add => "BinaryOp::Add",
-            BinaryOperator::Subtract => "BinaryOp::Subtract",
-            BinaryOperator::Multiply => "BinaryOp::Multiply",
-            BinaryOperator::Divide => "BinaryOp::Divide",
-        },
-        Instruction::CompareOp { op, .. } => match op {
-            CompareOperator::Eq => "CompareOp::Eq",
-            CompareOperator::NotEq => "CompareOp::NotEq",
-            CompareOperator::Lt => "CompareOp::Lt",
-            CompareOperator::Le => "CompareOp::Le",
-            CompareOperator::Gt => "CompareOp::Gt",
-            CompareOperator::Ge => "CompareOp::Ge",
-        },
-        Instruction::UnaryOp { .. } => "UnaryOp",
-        Instruction::BooleanOp { .. } => "BooleanOp",
-        Instruction::BuildTuple { .. } => "BuildTuple",
-        Instruction::BuildList { .. } => "BuildList",
-        Instruction::BuildDict { .. } => "BuildDict",
-        Instruction::GetItem { .. } => "GetItem",
-        Instruction::SetItem { .. } => "SetItem",
-        Instruction::Length { .. } => "Length",
-        Instruction::LoadCurrentFunction { .. } => "LoadCurrentFunction",
-        Instruction::Call { .. } => "Call",
-        Instruction::Return { .. } => "Return",
-        Instruction::ConstSmallInt { .. }
-        | Instruction::ConstBool { .. }
-        | Instruction::ConstI64 { .. }
-        | Instruction::AddI64 { .. }
-        | Instruction::LtI64 { .. }
-        | Instruction::Jump { .. }
-        | Instruction::Branch { .. }
-        | Instruction::Move { .. } => "supported instruction",
     }
 }

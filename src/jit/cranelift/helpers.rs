@@ -13,6 +13,8 @@ pub(super) fn clif_type(ty: WxType) -> Result<Type, CompileError> {
     match ty {
         WxType::Scalar(WxScalarType::I1) => Ok(types::I8),
         WxType::Scalar(WxScalarType::I64) => Ok(types::I64),
+        WxType::Scalar(WxScalarType::F64) => Ok(types::F64),
+        WxType::Scalar(WxScalarType::RuntimeHandle | WxScalarType::Ptr) => Ok(types::I64),
         _ => Err(CompileError::UnsupportedType(ty)),
     }
 }

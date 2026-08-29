@@ -1,4 +1,5 @@
 use super::{Object, ObjectError, ObjectHeap, ObjectRef};
+use crate::object::SequenceObject;
 use crate::value::Value;
 use num_bigint::BigInt;
 use num_traits::FromPrimitive;
@@ -6,15 +7,25 @@ use num_traits::FromPrimitive;
 impl ObjectHeap {
     pub(super) fn validate_host_object(&self, object: &Object) -> Result<(), ObjectError> {
         match object {
-            Object::String(_) | Object::BigInt(_) | Object::Function(_) => Ok(()),
+            Object::String(_) | Object::BigInt(_) | Object::Function(_) | Object::Class(_) => {
+                Ok(())
+            }
             Object::Tuple(values) | Object::List(values) => self.validate_values(values),
             Object::Dict(entries) => self.validate_host_dictionary(entries),
+            Object::Instance(instance) => {
+                self.validate_value(Value::Object(instance.class()))?;
+                for (_, value) in &instance.fields {
+                    self.validate_value(*value)?;
+                }
+                Ok(())
+            }
+            Object::BoundMethod(method) => self.validate_value(Value::Object(method.receiver())),
         }
     }
 
     pub(super) fn validate_value(&self, value: Value) -> Result<(), ObjectError> {
         match value {
-            Value::SmallInt(_) | Value::Float(_) | Value::Bool(_) => Ok(()),
+            Value::SmallInt(_) | Value::Float(_) | Value::Bool(_) | Value::None => Ok(()),
             Value::Object(reference) => self.get(reference).map(|_| ()),
             Value::Uninitialized => Err(ObjectError::UninitializedValue),
         }
@@ -34,22 +45,27 @@ impl ObjectHeap {
         Ok(())
     }
 
-    fn validate_values(&self, values: &[Value]) -> Result<(), ObjectError> {
-        for value in values {
-            self.validate_value(*value)?;
+    fn validate_values(&self, values: &SequenceObject) -> Result<(), ObjectError> {
+        for value in values.iter() {
+            self.validate_value(value)?;
         }
         Ok(())
     }
 
     fn validate_hashable_key(&self, key: Value) -> Result<(), ObjectError> {
         match key {
-            Value::SmallInt(_) | Value::Float(_) | Value::Bool(_) => Ok(()),
+            Value::SmallInt(_) | Value::Float(_) | Value::Bool(_) | Value::None => Ok(()),
             Value::Uninitialized => Err(ObjectError::UninitializedValue),
             Value::Object(reference) => match self.get(reference)? {
-                Object::String(_) | Object::BigInt(_) | Object::Function(_) => Ok(()),
+                Object::String(_)
+                | Object::BigInt(_)
+                | Object::Function(_)
+                | Object::Class(_)
+                | Object::Instance(_)
+                | Object::BoundMethod(_) => Ok(()),
                 Object::Tuple(values) => {
-                    for value in values {
-                        self.validate_hashable_key(*value)?;
+                    for value in values.iter() {
+                        self.validate_hashable_key(value)?;
                     }
                     Ok(())
                 }
@@ -69,6 +85,7 @@ impl ObjectHeap {
                 Ok(integer_float_equal(&BigInt::from(rhs), lhs))
             }
             (Value::Bool(lhs), Value::Bool(rhs)) => Ok(lhs == rhs),
+            (Value::None, Value::None) => Ok(true),
             (Value::Object(lhs), Value::Object(rhs)) => self.host_object_keys_equal(lhs, rhs),
             (Value::SmallInt(lhs), Value::Object(rhs)) => {
                 self.object_key_matches_integer(rhs, &BigInt::from(lhs))
@@ -81,6 +98,7 @@ impl ObjectHeap {
             (Value::Uninitialized, _) | (_, Value::Uninitialized) => {
                 Err(ObjectError::UninitializedValue)
             }
+            (Value::None, _) | (_, Value::None) => Ok(false),
             (Value::SmallInt(_), Value::Bool(_))
             | (Value::Bool(_), Value::SmallInt(_))
             | (Value::Float(_), Value::Bool(_))
@@ -106,7 +124,10 @@ impl ObjectHeap {
             | (Object::Function(_), _)
             | (Object::Tuple(_), _)
             | (Object::List(_), _)
-            | (Object::Dict(_), _) => Ok(false),
+            | (Object::Dict(_), _)
+            | (Object::Class(_), _)
+            | (Object::Instance(_), _)
+            | (Object::BoundMethod(_), _) => Ok(false),
         }
     }
 
@@ -121,7 +142,10 @@ impl ObjectHeap {
             | Object::Tuple(_)
             | Object::List(_)
             | Object::Dict(_)
-            | Object::Function(_) => Ok(false),
+            | Object::Function(_)
+            | Object::Class(_)
+            | Object::Instance(_)
+            | Object::BoundMethod(_) => Ok(false),
         }
     }
 
@@ -136,16 +160,23 @@ impl ObjectHeap {
             | Object::Tuple(_)
             | Object::List(_)
             | Object::Dict(_)
-            | Object::Function(_) => Ok(false),
+            | Object::Function(_)
+            | Object::Class(_)
+            | Object::Instance(_)
+            | Object::BoundMethod(_) => Ok(false),
         }
     }
 
-    fn host_tuple_keys_equal(&self, lhs: &[Value], rhs: &[Value]) -> Result<bool, ObjectError> {
+    fn host_tuple_keys_equal(
+        &self,
+        lhs: &SequenceObject,
+        rhs: &SequenceObject,
+    ) -> Result<bool, ObjectError> {
         if lhs.len() != rhs.len() {
             return Ok(false);
         }
-        for (lhs, rhs) in lhs.iter().zip(rhs) {
-            if !self.host_keys_equal(*lhs, *rhs)? {
+        for (lhs, rhs) in lhs.iter().zip(rhs.iter()) {
+            if !self.host_keys_equal(lhs, rhs)? {
                 return Ok(false);
             }
         }

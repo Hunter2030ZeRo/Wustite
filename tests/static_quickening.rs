@@ -10,7 +10,7 @@ use wustite::wvm::Vm;
 use wustite::wxir::WxExitKind;
 
 fn exact(ty: SlotType) -> TypeFact {
-    TypeFact::Exact(ty)
+    TypeFact::Proven(ty)
 }
 
 fn site(
@@ -217,6 +217,10 @@ fn semantic_jit_replay_promotes_then_falls_back_for_bigint() {
     let bytecode_before = executable.bytecode().clone();
     let structure_before = executable.structure_map().clone();
     let mut vm = Vm::with_hot_threshold(0);
+
+    for _ in 0..7 {
+        vm.execute(&executable).unwrap();
+    }
 
     for expected_attempts in [1, 0] {
         let result = vm.execute(&executable).unwrap();

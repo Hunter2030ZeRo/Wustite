@@ -31,6 +31,11 @@ impl Lowerer {
                     .push(Instruction::ConstBool { dst, value: *value });
                 Ok((dst, SlotType::Bool))
             }
+            HirExpressionKind::None => {
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::ConstNone { dst });
+                Ok((dst, SlotType::Any))
+            }
             HirExpressionKind::String(value) => self.lower_constant(
                 ExecutableConstant::String(value.clone()),
                 SlotType::Object(ObjectKind::String),
@@ -44,6 +49,11 @@ impl Lowerer {
             HirExpressionKind::Function(function) => self.lower_constant(
                 ExecutableConstant::Function(function.clone()),
                 SlotType::Object(ObjectKind::Function),
+                expression,
+            ),
+            HirExpressionKind::Class(class) => self.lower_constant(
+                ExecutableConstant::Class((**class).clone()),
+                SlotType::Object(ObjectKind::Class),
                 expression,
             ),
             HirExpressionKind::CurrentFunction => {
@@ -98,7 +108,7 @@ impl Lowerer {
                         self.code.len(),
                         type_fact(lhs_ty),
                         type_fact(rhs_ty),
-                        TypeFact::Exact(SlotType::Bool),
+                        TypeFact::Proven(SlotType::Bool),
                     )
                     .map_err(|error| PythonFrontendError::new(error, Some(expression.location)))?;
                 self.code.push(Instruction::CompareOp {
@@ -115,12 +125,52 @@ impl Lowerer {
             }
             HirExpressionKind::Tuple(items) => self.lower_collection(items, expression, true),
             HirExpressionKind::List(items) => self.lower_collection(items, expression, false),
+            HirExpressionKind::ListComprehension { .. } => {
+                self.lower_list_comprehension(expression)
+            }
             HirExpressionKind::Dict(entries) => self.lower_dict(entries, expression),
             HirExpressionKind::GetItem { object, key } => {
                 let (object, _) = self.lower_expression(object)?;
                 let (key, _) = self.lower_expression(key)?;
                 let dst = self.allocate_register(expression.location)?;
                 self.code.push(Instruction::GetItem { dst, object, key });
+                Ok((dst, SlotType::Any))
+            }
+            HirExpressionKind::GetAttr { object, name } => {
+                let (object, _) = self.lower_expression(object)?;
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::GetAttr {
+                    dst,
+                    object,
+                    name: name.clone(),
+                });
+                Ok((dst, SlotType::Any))
+            }
+            HirExpressionKind::GetSlice {
+                object,
+                start,
+                stop,
+                step,
+            } => {
+                let (object, _) = self.lower_expression(object)?;
+                let start = self.lower_optional_expression(start.as_deref())?;
+                let stop = self.lower_optional_expression(stop.as_deref())?;
+                let step = self.lower_optional_expression(step.as_deref())?;
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::GetSlice {
+                    dst,
+                    object,
+                    start,
+                    stop,
+                    step,
+                });
+                Ok((dst, SlotType::Any))
+            }
+            HirExpressionKind::ListPop { list, index } => {
+                let (list, _) = self.lower_expression(list)?;
+                let (index, _) = self.lower_expression(index)?;
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::ListPop { dst, list, index });
                 Ok((dst, SlotType::Any))
             }
             HirExpressionKind::Length(object) => {
@@ -136,6 +186,22 @@ impl Lowerer {
                 self.code.push(Instruction::Call {
                     dst,
                     callable,
+                    args,
+                });
+                Ok((dst, SlotType::Any))
+            }
+            HirExpressionKind::CallMethod {
+                receiver,
+                name,
+                args,
+            } => {
+                let (receiver, _) = self.lower_expression(receiver)?;
+                let args = self.lower_registers(args)?;
+                let dst = self.allocate_register(expression.location)?;
+                self.code.push(Instruction::CallMethod {
+                    dst,
+                    receiver,
+                    name: name.clone(),
                     args,
                 });
                 Ok((dst, SlotType::Any))
@@ -178,13 +244,22 @@ impl Lowerer {
         })?;
         Ok((variable.register, ty))
     }
+
+    pub(super) fn lower_optional_expression(
+        &mut self,
+        expression: Option<&HirExpression>,
+    ) -> Result<Option<Register>, PythonFrontendError> {
+        expression
+            .map(|value| self.lower_expression(value).map(|(register, _)| register))
+            .transpose()
+    }
 }
 
 fn type_fact(ty: SlotType) -> TypeFact {
     if ty == SlotType::Any {
         TypeFact::Unknown
     } else {
-        TypeFact::Exact(ty)
+        TypeFact::Proven(ty)
     }
 }
 
@@ -195,6 +270,7 @@ fn binary_result_type(
 ) -> SlotType {
     if is_numeric(lhs) && is_numeric(rhs) {
         if op == crate::bytecode::BinaryOperator::Divide
+            || op == crate::bytecode::BinaryOperator::Power
             || lhs == SlotType::Float
             || rhs == SlotType::Float
         {
@@ -208,6 +284,10 @@ fn binary_result_type(
         }
     } else if op == crate::bytecode::BinaryOperator::Add && lhs == rhs && is_sequence(lhs) {
         lhs
+    } else if op == crate::bytecode::BinaryOperator::Multiply
+        && ((is_sequence(lhs) && is_integer(rhs)) || (is_integer(lhs) && is_sequence(rhs)))
+    {
+        if is_sequence(lhs) { lhs } else { rhs }
     } else {
         SlotType::Any
     }
@@ -224,5 +304,12 @@ const fn is_sequence(ty: SlotType) -> bool {
     matches!(
         ty,
         SlotType::Object(ObjectKind::String | ObjectKind::Tuple | ObjectKind::List)
+    )
+}
+
+const fn is_integer(ty: SlotType) -> bool {
+    matches!(
+        ty,
+        SlotType::SmallInt | SlotType::Object(ObjectKind::BigInt)
     )
 }

@@ -13,9 +13,22 @@ pub mod verifier;
 pub mod wvm;
 pub mod wxir;
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "adaptive v2 remains private until migration activation"
+    )
+)]
+mod adaptive_v2;
+
 pub use jit::CompilerBackend;
 pub use metrics::{CompilationMetrics, ExecutionMetrics};
 pub use object::{Object, ObjectRef};
+pub use planner::JitPolicy;
 pub use runtime::{
-    ExecutableInfo, ExecutionMode, RegionInfo, Runtime, RuntimeConfig, RuntimeError, RuntimeValue,
+    AdaptiveReadinessSourceCounts, AdaptiveRegionReport, AdaptiveReport, ExecutableInfo,
+    ExecutionMode, RegionInfo, RootedResult, Runtime, RuntimeConfig, RuntimeCore, RuntimeError,
+    RuntimeValue, SharedRuntime,
 };
+pub use wvm::Vm;

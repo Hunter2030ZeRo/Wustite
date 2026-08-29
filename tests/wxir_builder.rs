@@ -6,8 +6,8 @@ use wustite::structure_map::{
 };
 use wustite::wvm::Vm;
 use wustite::wxir::{
-    self, WxBuildError, WxExitKind, WxGuardMode, WxInstKind, WxIntOverflowOp, WxScalarType,
-    WxTerminator, WxType, build_region,
+    self, WxExitKind, WxGuardMode, WxInstKind, WxIntOverflowOp, WxScalarType, WxTerminator, WxType,
+    build_region,
 };
 
 fn sum_function() -> ExecutableFunction {
@@ -211,7 +211,7 @@ fn sum_region_lowers_to_verified_ssa() {
 }
 
 #[test]
-fn return_inside_region_is_rejected_without_panicking() {
+fn return_inside_region_becomes_a_replay_exit_without_panicking() {
     let function = Function {
         register_count: 1,
         code: vec![
@@ -253,11 +253,135 @@ fn return_inside_region_is_rejected_without_panicking() {
         summary: region.summary,
     };
 
-    assert_eq!(
-        build_region(&executable, &plan),
-        Err(WxBuildError::UnsupportedInstruction {
-            pc: 0,
-            instruction: "Return",
-        })
+    let function = build_region(&executable, &plan).unwrap();
+    wxir::verify(&function).unwrap();
+    assert_eq!(function.side_exits.len(), 1);
+    assert_eq!(function.side_exits[0].kind, WxExitKind::ReplayInstruction);
+    assert_eq!(function.side_exits[0].resume_pc, 0);
+    assert!(function.blocks.iter().any(|block| {
+        matches!(
+            block.terminator,
+            WxTerminator::SideExit { exit, .. } if exit == function.side_exits[0].id
+        )
+    }));
+}
+
+#[test]
+fn branch_local_temporaries_do_not_become_join_parameters() {
+    // Given: two branches define different dead temporaries before rejoining a loop.
+    let function = Function {
+        register_count: 7,
+        code: vec![
+            Instruction::LtI64 {
+                dst: 3,
+                lhs: 0,
+                rhs: 1,
+            },
+            Instruction::Branch {
+                cond: 3,
+                yes: 2,
+                no: 9,
+            },
+            Instruction::LtI64 {
+                dst: 4,
+                lhs: 0,
+                rhs: 2,
+            },
+            Instruction::Branch {
+                cond: 4,
+                yes: 4,
+                no: 6,
+            },
+            Instruction::AddI64 {
+                dst: 5,
+                lhs: 0,
+                rhs: 2,
+            },
+            Instruction::Jump { target: 7 },
+            Instruction::AddI64 {
+                dst: 6,
+                lhs: 0,
+                rhs: 2,
+            },
+            Instruction::AddI64 {
+                dst: 0,
+                lhs: 0,
+                rhs: 2,
+            },
+            Instruction::Jump { target: 0 },
+            Instruction::Return { src: 0 },
+        ],
+    };
+    let mut structure_map = StructureMapBuilder::new();
+    let region = structure_map.begin_region(
+        0,
+        vec![
+            StateSlot {
+                register: 0,
+                ty: SlotType::SmallInt,
+            },
+            StateSlot {
+                register: 1,
+                ty: SlotType::SmallInt,
+            },
+            StateSlot {
+                register: 2,
+                ty: SlotType::SmallInt,
+            },
+        ],
     );
+    structure_map
+        .finish_region(
+            region,
+            RegionKind::Loop { backedge: 8 },
+            vec![RegionExit { target: 9 }],
+        )
+        .unwrap();
+    let structure_map = structure_map
+        .finish(&function.code, function.register_count)
+        .unwrap();
+    let executable = ExecutableFunction::new_with_parameters(
+        function,
+        structure_map,
+        [("counter", 0), ("limit", 1), ("one", 2)]
+            .into_iter()
+            .map(|(name, register)| ExecutableParameter {
+                name: name.to_owned(),
+                register,
+                ty: SlotType::SmallInt,
+            })
+            .collect(),
+    );
+    let region = executable.structure_map().region(RegionId(0)).unwrap();
+    let plan = JitPlan {
+        region_id: RegionId(0),
+        header: 0,
+        backedge: 8,
+        exits: vec![RegionExit { target: 9 }],
+        live_slots: region.entry_summary.clone(),
+        blocks: region.blocks.clone(),
+        summary: region.summary,
+    };
+
+    // When: the diamond-shaped region is lowered to WXIR.
+    let wxir = build_region(&executable, &plan).unwrap();
+
+    // Then: lowering succeeds because dead branch-local values are absent at the join.
+    wxir::verify(&wxir).unwrap();
+    let join = wxir
+        .blocks
+        .iter()
+        .find(|block| {
+            block.instructions.iter().any(|instruction| {
+                matches!(
+                    instruction.kind,
+                    WxInstKind::IntegerBinaryWithOverflow {
+                        op: WxIntOverflowOp::Add,
+                        ..
+                    }
+                )
+            }) && matches!(block.terminator, WxTerminator::Jump { target, .. } if target == wxir.entry)
+        })
+        .unwrap();
+    assert_eq!(join.parameters.len(), 3);
 }

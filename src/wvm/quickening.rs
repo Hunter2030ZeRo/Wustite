@@ -58,8 +58,8 @@ pub(super) fn execute_quick(
 
 impl QuickCode {
     pub(super) fn new(executable: &ExecutableFunction) -> Self {
-        let small = TypeFact::Exact(SlotType::SmallInt);
-        let boolean = TypeFact::Exact(SlotType::Bool);
+        let small = TypeFact::Proven(SlotType::SmallInt);
+        let boolean = TypeFact::Proven(SlotType::Bool);
         let slots = executable
             .bytecode()
             .code
@@ -118,6 +118,14 @@ impl QuickCode {
                     op: BinaryOperator::Divide,
                     ..
                 }
+                | Instruction::BinaryOp {
+                    op: BinaryOperator::FloorDivide,
+                    ..
+                }
+                | Instruction::BinaryOp {
+                    op: BinaryOperator::Power,
+                    ..
+                }
                 | Instruction::CompareOp {
                     op: CompareOperator::Eq,
                     ..
@@ -141,6 +149,7 @@ impl QuickCode {
                 | Instruction::ConstSmallInt { .. }
                 | Instruction::ConstFloat { .. }
                 | Instruction::ConstBool { .. }
+                | Instruction::ConstNone { .. }
                 | Instruction::LoadConstant { .. }
                 | Instruction::ConstI64 { .. }
                 | Instruction::UnaryOp { .. }
@@ -149,10 +158,18 @@ impl QuickCode {
                 | Instruction::BuildList { .. }
                 | Instruction::BuildDict { .. }
                 | Instruction::GetItem { .. }
+                | Instruction::GetAttr { .. }
+                | Instruction::GetSlice { .. }
                 | Instruction::SetItem { .. }
+                | Instruction::SetAttr { .. }
+                | Instruction::SetSlice { .. }
+                | Instruction::ListAppend { .. }
+                | Instruction::ListInsert { .. }
+                | Instruction::ListPop { .. }
                 | Instruction::Length { .. }
                 | Instruction::LoadCurrentFunction { .. }
                 | Instruction::Call { .. }
+                | Instruction::CallMethod { .. }
                 | Instruction::AddI64 { .. }
                 | Instruction::LtI64 { .. }
                 | Instruction::Jump { .. }

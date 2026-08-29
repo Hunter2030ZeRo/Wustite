@@ -1,7 +1,8 @@
 use std::fmt;
 
 use crate::bytecode::Register;
-use crate::structure_map::RegionId;
+use crate::object::SequenceStrategy;
+use crate::structure_map::{EffectSummary, RegionId};
 
 use super::types::WxType;
 
@@ -57,12 +58,20 @@ pub struct WxBlockParam {
     pub ty: WxType,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WxRuntimeInput {
+    pub register: Register,
+    pub value: WxValueId,
+    pub ty: WxType,
+}
+
 /// Modular integer binary operations with one result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WxIntBinaryOp {
     Add,
     Sub,
     Mul,
+    FloorDiv,
     And,
     Or,
     Xor,
@@ -72,6 +81,8 @@ pub enum WxIntBinaryOp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WxIntOverflowOp {
     Add,
+    Sub,
+    Mul,
 }
 
 /// Determines which boolean guard outcome leaves the compiled region.
@@ -79,6 +90,15 @@ pub enum WxIntOverflowOp {
 pub enum WxGuardMode {
     ExitWhenTrue,
     ExitWhenFalse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WxSequenceMutation {
+    GetSlice,
+    SetSlice,
+    Append,
+    Insert,
+    Pop,
 }
 
 /// Floating-point binary operations.
@@ -211,6 +231,52 @@ pub enum WxInstKind {
         callee: String,
         arguments: Vec<WxValueId>,
         parameter_types: Vec<WxType>,
+    },
+    RuntimeCall {
+        pc: u32,
+        inputs: Vec<WxRuntimeInput>,
+        output: Option<Register>,
+        effects: EffectSummary,
+    },
+    GuardSequence {
+        object: Register,
+        value: WxValueId,
+    },
+    SequenceLength {
+        pc: u32,
+        object: Register,
+        inputs: Vec<WxRuntimeInput>,
+        output: Register,
+        strategy: Option<SequenceStrategy>,
+        profiled: bool,
+    },
+    SequenceGet {
+        pc: u32,
+        object: Register,
+        inputs: Vec<WxRuntimeInput>,
+        output: Register,
+        strategy: Option<SequenceStrategy>,
+        profiled: bool,
+    },
+    SequenceSet {
+        pc: u32,
+        object: Register,
+        inputs: Vec<WxRuntimeInput>,
+        strategy: Option<SequenceStrategy>,
+        profiled: bool,
+    },
+    SequenceMutate {
+        pc: u32,
+        object: Register,
+        operation: WxSequenceMutation,
+        inputs: Vec<WxRuntimeInput>,
+        output: Option<Register>,
+        strategy: Option<SequenceStrategy>,
+        profiled: bool,
+    },
+    MaterializeSequence {
+        object: Register,
+        value: WxValueId,
     },
 }
 

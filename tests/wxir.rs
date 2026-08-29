@@ -265,14 +265,14 @@ fn guard_rejects_region_exit_metadata() {
 }
 
 #[test]
-fn side_exit_terminator_rejects_replay_metadata() {
+fn side_exit_terminator_rejects_deopt_metadata() {
     let mut function = valid_function();
-    function.side_exits[0].kind = WxExitKind::ReplayInstruction;
+    function.side_exits[0].kind = WxExitKind::Deopt;
 
     assert!(
         wxir::verify(&function)
             .unwrap_err()
-            .contains("side-exit terminator requires RegionExit")
+            .contains("side-exit terminator requires RegionExit or ReplayInstruction")
     );
 }
 

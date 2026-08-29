@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 
 use crate::bytecode::{BinaryOperator, CompareOperator, UnaryOperator};
 use crate::object::{Object, ObjectHeap};
@@ -10,6 +11,7 @@ use super::equality;
 
 #[path = "numeric_semantics_core.rs"]
 pub(super) mod numeric_semantics;
+mod sequence;
 use numeric_semantics::{Number, compare_numbers, is_zero, number_to_big, number_to_f64};
 
 pub(super) struct ValueOps<'a> {
@@ -32,6 +34,11 @@ impl<'a> ValueOps<'a> {
         {
             return Ok(value);
         }
+        if op == BinaryOperator::Multiply
+            && let Some(value) = self.sequence_repeat(lhs, rhs)?
+        {
+            return Ok(value);
+        }
         let lhs_number = self.number(lhs)?;
         let rhs_number = self.number(rhs)?;
         match op {
@@ -39,6 +46,8 @@ impl<'a> ValueOps<'a> {
             BinaryOperator::Subtract => self.subtract(lhs_number, rhs_number),
             BinaryOperator::Multiply => self.multiply(lhs_number, rhs_number),
             BinaryOperator::Divide => self.divide(lhs_number, rhs_number),
+            BinaryOperator::FloorDivide => self.floor_divide(lhs_number, rhs_number),
+            BinaryOperator::Power => self.power(lhs_number, rhs_number),
         }
     }
 
@@ -55,7 +64,7 @@ impl<'a> ValueOps<'a> {
                 Ok(object) => Err(format!("cannot negate {}", object_name(object))),
                 Err(error) => Err(error.to_string()),
             },
-            (UnaryOperator::Negate, Value::Bool(_) | Value::Uninitialized) => {
+            (UnaryOperator::Negate, Value::Bool(_) | Value::None | Value::Uninitialized) => {
                 Err(format!("cannot negate {}", value_name(self.heap, value)))
             }
             (UnaryOperator::Not, other) => Err(format!(
@@ -151,6 +160,37 @@ impl<'a> ValueOps<'a> {
         Ok(Value::Float(value))
     }
 
+    fn floor_divide(&mut self, lhs: Number, rhs: Number) -> Result<Value, String> {
+        if is_zero(&rhs) {
+            return Err("division by zero".to_string());
+        }
+        if matches!(lhs, Number::Float(_)) || matches!(rhs, Number::Float(_)) {
+            return Ok(Value::Float(
+                (number_to_f64(&lhs)? / number_to_f64(&rhs)?).floor(),
+            ));
+        }
+        let lhs = number_to_big(lhs)?;
+        let rhs = number_to_big(rhs)?;
+        let quotient = &lhs / &rhs;
+        let remainder = &lhs % &rhs;
+        let value = if remainder != BigInt::from(0) && lhs.sign() != rhs.sign() {
+            quotient - 1
+        } else {
+            quotient
+        };
+        if let Some(value) = value.to_i64() {
+            Ok(Value::SmallInt(value))
+        } else {
+            self.allocate_big(value)
+        }
+    }
+
+    fn power(&mut self, lhs: Number, rhs: Number) -> Result<Value, String> {
+        let base = number_to_f64(&lhs)?;
+        let exponent = number_to_f64(&rhs)?;
+        Ok(Value::Float(base.powf(exponent)))
+    }
+
     fn number(&self, value: Value) -> Result<Number, String> {
         self.number_optional(value)?.ok_or_else(|| {
             format!(
@@ -169,28 +209,8 @@ impl<'a> ValueOps<'a> {
                 Ok(_) => Ok(None),
                 Err(error) => Err(error.to_string()),
             },
-            Value::Bool(_) | Value::Uninitialized => Ok(None),
+            Value::Bool(_) | Value::None | Value::Uninitialized => Ok(None),
         }
-    }
-
-    fn sequence_add(&mut self, lhs: Value, rhs: Value) -> Result<Option<Value>, String> {
-        let (Value::Object(lhs_ref), Value::Object(rhs_ref)) = (lhs, rhs) else {
-            return Ok(None);
-        };
-        let result = match (self.heap.get(lhs_ref), self.heap.get(rhs_ref)) {
-            (Ok(Object::String(lhs)), Ok(Object::String(rhs))) => {
-                Some(Object::String(format!("{lhs}{rhs}")))
-            }
-            (Ok(Object::Tuple(lhs)), Ok(Object::Tuple(rhs))) => {
-                Some(Object::Tuple(lhs.iter().chain(rhs).copied().collect()))
-            }
-            (Ok(Object::List(lhs)), Ok(Object::List(rhs))) => {
-                Some(Object::List(lhs.iter().chain(rhs).copied().collect()))
-            }
-            (Err(error), _) | (_, Err(error)) => return Err(error.to_string()),
-            _ => None,
-        };
-        result.map(|object| self.allocate(object)).transpose()
     }
 
     fn compare_strings(&self, lhs: Value, rhs: Value) -> Result<Ordering, String> {
@@ -223,6 +243,7 @@ pub(super) fn value_name(heap: &ObjectHeap, value: Value) -> &'static str {
         Value::SmallInt(_) => "SmallInt",
         Value::Float(_) => "float",
         Value::Bool(_) => "bool",
+        Value::None => "none",
         Value::Object(reference) => heap.get(reference).map_or("invalid object", object_name),
         Value::Uninitialized => "uninitialized",
     }
@@ -236,41 +257,12 @@ const fn object_name(object: &Object) -> &'static str {
         Object::List(_) => "list",
         Object::Dict(_) => "dict",
         Object::Function(_) => "function",
+        Object::Class(_) => "class",
+        Object::Instance(_) => "instance",
+        Object::BoundMethod(_) => "bound method",
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn smallint_add_returns_immediate_when_in_range() {
-        let mut heap = ObjectHeap::new();
-        let mut ops = ValueOps::new(&mut heap);
-
-        assert_eq!(ops.smallint_add(40, 2).unwrap(), Value::SmallInt(42));
-        assert_eq!(ops.smallint_add(-40, -2).unwrap(), Value::SmallInt(-42));
-    }
-
-    #[test]
-    fn smallint_add_promotes_both_overflow_directions() {
-        let mut heap = ObjectHeap::new();
-        let upper = ValueOps::new(&mut heap).smallint_add(i64::MAX, 1).unwrap();
-        let lower = ValueOps::new(&mut heap).smallint_add(i64::MIN, -1).unwrap();
-
-        let Value::Object(upper) = upper else {
-            panic!("upper overflow did not allocate a BigInt")
-        };
-        let Value::Object(lower) = lower else {
-            panic!("lower overflow did not allocate a BigInt")
-        };
-        assert_eq!(
-            heap.get(upper).unwrap(),
-            &Object::BigInt(BigInt::from(i64::MAX) + 1)
-        );
-        assert_eq!(
-            heap.get(lower).unwrap(),
-            &Object::BigInt(BigInt::from(i64::MIN) - 1)
-        );
-    }
-}
+#[path = "arithmetic/tests.rs"]
+mod tests;

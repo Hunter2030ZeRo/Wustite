@@ -21,6 +21,38 @@ pub(super) fn lower_parameters(
         .collect()
 }
 
+pub(super) fn lower_method_parameters(
+    source: &str,
+    function: &ast::StmtFunctionDef,
+) -> Result<Vec<HirParameter>, PythonFrontendError> {
+    let parameters = function
+        .args
+        .posonlyargs
+        .iter()
+        .chain(&function.args.args)
+        .collect::<Vec<_>>();
+    let Some((receiver, rest)) = parameters.split_first() else {
+        return Err(error_at(
+            source,
+            function,
+            "methods require a receiver parameter",
+        ));
+    };
+    let mut names = HashSet::new();
+    names.insert(receiver.def.arg.to_string());
+    let mut lowered = vec![HirParameter {
+        name: receiver.def.arg.to_string(),
+        ty: SlotType::Object(ObjectKind::Instance),
+        location: location_of(source, &receiver.def),
+    }];
+    lowered.extend(
+        rest.iter()
+            .map(|argument| lower_parameter(source, &argument.def, &mut names))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    Ok(lowered)
+}
+
 fn lower_parameter(
     source: &str,
     parameter: &ast::Arg,

@@ -3,17 +3,21 @@ use std::collections::HashMap;
 use cranelift_codegen::ir::{InstBuilder, MemFlagsData, types};
 use cranelift_frontend::FunctionBuilder;
 
-use crate::wxir::{WxFunction, WxTerminator};
+use crate::bytecode::Register;
+use crate::object::SequenceStrategy;
+use crate::wxir::{WxFunction, WxInstKind, WxTerminator, WxValueId};
 
 use super::CompileError;
 use super::RegionLayout;
 use super::helpers::{block_for, clif_type, exit_block_for, lower_values, offset_i32, value_for};
-use super::instructions::lower_instruction;
+use super::instructions::{NativeRuntime, lower_instruction};
+use super::native_calls::RuntimeFunctions;
 
 pub(super) fn lower_function(
     builder: &mut FunctionBuilder<'_>,
     function: &WxFunction,
     layout: &RegionLayout,
+    runtime_functions: &RuntimeFunctions,
 ) -> Result<(), CompileError> {
     let mem_flags = MemFlagsData::new();
 
@@ -52,12 +56,31 @@ pub(super) fn lower_function(
         .first()
         .copied()
         .ok_or_else(|| CompileError::InvalidFunction("missing native state pointer".to_string()))?;
+    let runtime_context = builder
+        .block_params(prologue)
+        .get(1)
+        .copied()
+        .ok_or_else(|| {
+            CompileError::InvalidFunction("missing native runtime context".to_string())
+        })?;
+    let runtime_error_block = builder.create_block();
 
     let entry_block = function
         .blocks
         .iter()
         .find(|block| block.id == function.entry)
         .ok_or_else(|| CompileError::InvalidFunction("missing WXIR entry block".to_string()))?;
+    let mut sequence_views = HashMap::new();
+    for (value, register, strategy) in direct_sequence_candidates(function) {
+        let view = runtime_functions.lower_sequence_view(
+            builder,
+            runtime_context,
+            runtime_error_block,
+            register,
+            strategy,
+        )?;
+        sequence_views.insert(value, view);
+    }
     let mut entry_arguments = Vec::with_capacity(entry_block.parameters.len());
     for parameter in &entry_block.parameters {
         let state = function
@@ -86,7 +109,19 @@ pub(super) fn lower_function(
     for block in &function.blocks {
         builder.switch_to_block(block_for(&blocks, block.id)?);
         for instruction in &block.instructions {
-            lower_instruction(builder, function, &exit_blocks, &mut values, instruction)?;
+            lower_instruction(
+                builder,
+                function,
+                &exit_blocks,
+                &NativeRuntime {
+                    functions: runtime_functions,
+                    context: runtime_context,
+                    error_block: runtime_error_block,
+                    sequence_views: &sequence_views,
+                },
+                &mut values,
+                instruction,
+            )?;
         }
 
         match &block.terminator {
@@ -134,5 +169,81 @@ pub(super) fn lower_function(
         builder.ins().return_(&[exit_id]);
     }
 
+    builder.switch_to_block(runtime_error_block);
+    let error_exit = builder.ins().iconst(types::I32, i64::from(u32::MAX));
+    builder.ins().return_(&[error_exit]);
+
     Ok(())
+}
+
+fn direct_sequence_candidates(
+    function: &WxFunction,
+) -> Vec<(WxValueId, Register, SequenceStrategy)> {
+    let instructions = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .collect::<Vec<_>>();
+    if instructions
+        .iter()
+        .any(|instruction| match &instruction.kind {
+            WxInstKind::RuntimeCall { effects, .. } => {
+                effects.may_mutate || effects.may_call_unknown || effects.may_access_global_state
+            }
+            WxInstKind::Call { .. }
+            | WxInstKind::SequenceMutate { .. }
+            | WxInstKind::MaterializeSequence { .. } => true,
+            _ => false,
+        })
+    {
+        return Vec::new();
+    }
+    let mut result = Vec::new();
+    for instruction in &instructions {
+        let (object, inputs, strategy) = match &instruction.kind {
+            WxInstKind::SequenceLength {
+                object,
+                inputs,
+                strategy: Some(strategy),
+                ..
+            }
+            | WxInstKind::SequenceGet {
+                object,
+                inputs,
+                strategy: Some(strategy),
+                ..
+            }
+            | WxInstKind::SequenceSet {
+                object,
+                inputs,
+                strategy: Some(strategy),
+                ..
+            } if matches!(
+                strategy,
+                SequenceStrategy::Bool | SequenceStrategy::I64 | SequenceStrategy::F64
+            ) =>
+            {
+                (*object, inputs, *strategy)
+            }
+            _ => continue,
+        };
+        let Some(value) = inputs
+            .iter()
+            .find(|input| input.register == object)
+            .map(|input| input.value)
+        else {
+            continue;
+        };
+        if !function
+            .entry_state
+            .iter()
+            .any(|state| state.register == object)
+        {
+            continue;
+        }
+        if !result.iter().any(|(candidate, _, _)| *candidate == value) {
+            result.push((value, object, strategy));
+        }
+    }
+    result
 }

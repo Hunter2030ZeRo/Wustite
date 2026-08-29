@@ -70,9 +70,9 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
     ] {
         let site = structure_map.operation_site(id).unwrap();
         assert_eq!(site.pc, pc);
-        assert_eq!(site.lhs, TypeFact::Exact(SlotType::SmallInt));
-        assert_eq!(site.rhs, TypeFact::Exact(SlotType::SmallInt));
-        assert_eq!(site.result, TypeFact::Exact(result));
+        assert_eq!(site.lhs, TypeFact::Proven(SlotType::SmallInt));
+        assert_eq!(site.rhs, TypeFact::Proven(SlotType::SmallInt));
+        assert_eq!(site.result, TypeFact::Proven(result));
     }
 
     assert_eq!(
@@ -153,33 +153,37 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
 }
 
 #[test]
-fn frontend_rejects_unsupported_or_unsafe_loop_syntax_with_locations() {
+fn frontend_rejects_invalid_loop_syntax_with_locations() {
     let unsupported = compile_python_function(
-        "def main():\n    if 1 < 2:\n        return 1\n    return 0\n",
+        "def main():\n    for value in reversed([1, 2, 3]):\n        value = value + 1\n    return 0\n",
         "main",
     )
     .err()
     .unwrap();
     assert_eq!(unsupported.location().unwrap().line, 2);
-    assert!(unsupported.message().contains("unsupported"));
+    assert!(unsupported.message().contains("enumerate"));
 
-    let introduced = compile_python_function(
-        "def main():\n    x = 0\n    while x < 1:\n        y = 1\n        x = x + 1\n    return x\n",
+    let zero_step = compile_python_function(
+        "def main():\n    for value in range(0, 10, 0):\n        value = value + 1\n    return 0\n",
         "main",
     )
     .err()
     .unwrap();
-    assert_eq!(introduced.location().unwrap().line, 4);
-    assert!(introduced.message().contains("first introduced"));
+    assert_eq!(zero_step.location().unwrap().line, 2);
+    assert!(zero_step.message().contains("step cannot be zero"));
 
-    let nested = compile_python_function(
-        "def main():\n    x = 0\n    while x < 1:\n        while x < 1:\n            x = x + 1\n    return x\n",
+    let unsupported_continue = compile_python_function(
+        "def main():\n    while True:\n        continue\n    return 0\n",
         "main",
     )
     .err()
     .unwrap();
-    assert_eq!(nested.location().unwrap().line, 4);
-    assert!(nested.message().contains("nested while"));
+    assert_eq!(unsupported_continue.location().unwrap().line, 3);
+    assert!(
+        unsupported_continue
+            .message()
+            .contains("unsupported Python statement")
+    );
 }
 
 #[test]

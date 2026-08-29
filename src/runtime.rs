@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::executable::{ExecutableFunction, ExecutableId, ExecutableParameter};
@@ -7,13 +8,20 @@ use crate::frontend::{PythonFrontendError, compile_python_function};
 use crate::jit::CompilerBackend;
 use crate::metrics::{CompilationMetrics, ExecutionMetrics};
 use crate::object::{Object, ObjectError, ObjectKind, ObjectRef};
-use crate::profiler::Profile;
+use crate::profiler::{Profile, ProfileArtifact};
 use crate::structure_map::{RegionId, RegionKind, StateSlot};
 use crate::value::Value;
 use crate::wvm::{DEFAULT_HOT_THRESHOLD, JitReport, Vm};
 
+mod adaptive_report;
+mod options;
+mod shared;
 mod value;
 
+pub use adaptive_report::{
+    AdaptiveReadinessSourceCounts, AdaptiveRegionReport, AdaptiveReport, RuntimeCore,
+};
+pub use shared::{RootedResult, SharedRuntime};
 pub use value::RuntimeValue;
 
 /// Selects interpreter-only execution or a specific native compilation policy.
@@ -136,8 +144,41 @@ impl Runtime {
         Self { vm, config }
     }
 
+    pub fn new_adaptive_v2(config: RuntimeConfig) -> Self {
+        let vm = match config.execution_mode {
+            ExecutionMode::Interpreter => Vm::adaptive_v2_interpreter(),
+            ExecutionMode::AdaptiveJit => Vm::with_adaptive_v2_backend(
+                config.hot_threshold,
+                crate::wvm::DEFAULT_TIER2_THRESHOLD,
+                CompilerBackend::Tiered,
+            ),
+            ExecutionMode::Jit(backend) => Vm::with_adaptive_v2_backend(
+                config.hot_threshold,
+                crate::wvm::DEFAULT_TIER2_THRESHOLD,
+                backend,
+            ),
+        };
+        Self { vm, config }
+    }
+
+    pub(crate) fn with_shared_adaptive_v2(
+        config: RuntimeConfig,
+        adaptive: Arc<crate::adaptive_v2::integration::AdaptiveVm>,
+    ) -> Self {
+        let vm = Vm::with_shared_adaptive_v2_backend(
+            config.hot_threshold,
+            crate::wvm::DEFAULT_TIER2_THRESHOLD,
+            adaptive,
+        );
+        Self { vm, config }
+    }
+
     pub fn config(&self) -> &RuntimeConfig {
         &self.config
+    }
+
+    pub(crate) const fn adaptive_execution_id(&self) -> u64 {
+        self.vm.adaptive_execution_id()
     }
 
     /// Allocates an object owned by this runtime's VM heap.
@@ -288,8 +329,42 @@ impl Runtime {
         self.vm.jit_report()
     }
 
+    pub fn last_adaptive_report(&self) -> Option<&AdaptiveReport> {
+        self.vm.adaptive_report()
+    }
+
+    #[doc(hidden)]
+    pub fn begin_adaptive_report_batch(&mut self) {
+        self.vm.begin_adaptive_report_batch();
+    }
+
+    #[doc(hidden)]
+    pub fn end_adaptive_report_batch(&mut self) {
+        self.vm.end_adaptive_report_batch();
+    }
+
     pub fn profile_for(&self, executable: &ExecutableFunction) -> Option<&Profile> {
         self.vm.profile_for(executable)
+    }
+
+    pub fn seed_profile(
+        &mut self,
+        executable: &ExecutableFunction,
+        artifact: &ProfileArtifact,
+        fingerprint: &str,
+    ) -> Result<(), RuntimeError> {
+        self.vm
+            .seed_profile(executable, artifact, fingerprint)
+            .map_err(RuntimeError::Execution)
+    }
+
+    pub fn profile_artifact(
+        &self,
+        executable: &ExecutableFunction,
+        fingerprint: String,
+    ) -> Option<ProfileArtifact> {
+        self.profile_for(executable)
+            .map(|profile| profile.artifact(fingerprint))
     }
 }
 

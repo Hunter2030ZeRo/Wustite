@@ -1,33 +1,50 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::adaptive_v2::integration::AdaptiveVm;
 use crate::bytecode::Register;
 use crate::executable::{ExecutableFunction, ExecutableId};
 use crate::jit::CompilerBackend;
 use crate::object::{Object, ObjectError, ObjectHeap, ObjectKind, ObjectRef};
-use crate::profiler::Profile;
+use crate::planner::JitPolicy;
+use crate::profiler::{Profile, ProfileArtifact, RegionProfileSchema};
 use crate::structure_map::RegionId;
 use crate::value::Value;
 use crate::verifier::verify;
-use crate::wxir::WxExitKind;
 
 use self::quickening::QuickCode;
 
 mod arguments;
 mod arithmetic;
 mod callables;
+mod config;
 mod equality;
 mod interpreter;
+mod jit_report;
 mod jit_runtime;
+mod native_jit;
 mod objects;
 mod quickening;
 mod registers;
+mod runtime_dispatch;
+
+pub use self::jit_report::{
+    JitCallSites, JitExits, JitFailure, JitFailureStage, JitGuestCalls, JitHelperCalls, JitReport,
+    JitRuntimeOps,
+};
+pub(crate) use self::native_jit::{match_reverse_prefix, temporary_is_dead};
 
 /// Default observed region entries before synchronous tier-up.
 pub const DEFAULT_HOT_THRESHOLD: u64 = 1_000;
 pub const DEFAULT_TIER2_THRESHOLD: u64 = 10;
 
 const MAX_GUEST_CALL_DEPTH: usize = 128;
+static NEXT_EXECUTION_ID: AtomicU64 = AtomicU64::new(1);
+
+fn next_execution_id() -> u64 {
+    NEXT_EXECUTION_ID.fetch_add(1, Ordering::Relaxed)
+}
 
 pub(super) struct Frame {
     pc: usize,
@@ -41,18 +58,29 @@ pub struct Vm {
     tier2_threshold: u64,
     compiler_backend: Option<CompilerBackend>,
     jit_report: JitReport,
+    jit_policy: JitPolicy,
+    dump_wxir: bool,
     runtimes: HashMap<ExecutableId, FunctionRuntime>,
     last_executed: Option<ExecutableId>,
     object_heap: ObjectHeap,
     call_depth: usize,
+    frame_pool: HashMap<usize, Vec<Frame>>,
+    verified_functions: HashSet<ExecutableId>,
+    adaptive_v2: Option<Arc<AdaptiveVm>>,
+    adaptive_execution_id: u64,
+    last_adaptive_report: Option<crate::runtime::AdaptiveReport>,
+    defer_adaptive_report_sync: bool,
 }
 
 pub(super) struct FunctionRuntime {
     profile: Profile,
+    profile_schemas: Vec<RegionProfileSchema>,
     jit: Option<jit_runtime::JitRuntime>,
     constants: Vec<Option<Value>>,
     current_function: Option<Value>,
     quick_code: Arc<QuickCode>,
+    leaf_calls: Vec<Option<native_jit::leaf::PreparedLeafCall>>,
+    call_sites: Vec<callables::PreparedCallSite>,
 }
 
 impl FunctionRuntime {
@@ -82,65 +110,32 @@ impl FunctionRuntime {
         compiler_backend: Option<CompilerBackend>,
     ) -> Self {
         Self {
-            profile: Profile::new(executable.structure_map().regions().len()),
+            profile: Profile::new(
+                executable.structure_map().regions().len(),
+                executable.bytecode().code.len(),
+            ),
+            profile_schemas: executable
+                .structure_map()
+                .regions()
+                .iter()
+                .enumerate()
+                .filter_map(|(index, _)| {
+                    RegionProfileSchema::from_structure_map(
+                        executable.structure_map(),
+                        RegionId(index),
+                    )
+                })
+                .collect(),
             jit: compiler_backend.map(|backend| jit_runtime::JitRuntime::new(executable, backend)),
             constants: vec![None; executable.constants().len()],
             current_function: None,
             quick_code,
-        }
-    }
-}
-
-/// Stage at which one region was disabled for the current execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JitFailureStage {
-    BuildWxir,
-    Compile,
-    CompileTier2,
-    Execute,
-}
-
-impl JitFailureStage {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::BuildWxir => "build_wxir",
-            Self::Compile => "compile",
-            Self::CompileTier2 => "compile_tier2",
-            Self::Execute => "execute",
-        }
-    }
-}
-
-/// Preserved diagnostic for a failed synchronous tier-up operation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JitFailure {
-    pub region_id: RegionId,
-    pub stage: JitFailureStage,
-    pub reason: String,
-}
-
-/// Observable tier-up activity for the latest execute invocation, including failures.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct JitReport {
-    pub compilation_attempts: u64,
-    pub compiled_regions: u64,
-    pub tier2_compilation_attempts: u64,
-    pub tier2_compiled_regions: u64,
-    pub disabled_regions: u64,
-    pub native_executions: u64,
-    pub tier2_native_executions: u64,
-    pub last_resume_pc: Option<usize>,
-    pub last_exit_kind: Option<WxExitKind>,
-    pub failures: Vec<JitFailure>,
-}
-
-impl JitReport {
-    pub const fn last_exit_kind_name(&self) -> Option<&'static str> {
-        match self.last_exit_kind {
-            Some(WxExitKind::RegionExit) => Some("region_exit"),
-            Some(WxExitKind::ReplayInstruction) => Some("replay_instruction"),
-            Some(WxExitKind::Deopt) => Some("deopt"),
-            None => None,
+            leaf_calls: (0..executable.bytecode().code.len())
+                .map(|_| None)
+                .collect(),
+            call_sites: (0..executable.bytecode().code.len())
+                .map(|_| callables::PreparedCallSite::default())
+                .collect(),
         }
     }
 }
@@ -150,57 +145,6 @@ pub struct ExecutionResult {
 }
 
 impl Vm {
-    pub fn new() -> Self {
-        Self::with_hot_threshold(DEFAULT_HOT_THRESHOLD)
-    }
-
-    /// Creates a VM that tiers up after this many observed region entries.
-    pub fn with_hot_threshold(hot_threshold: u64) -> Self {
-        Self::with_tier_thresholds(hot_threshold, DEFAULT_TIER2_THRESHOLD)
-    }
-
-    pub fn with_tier_thresholds(hot_threshold: u64, tier2_threshold: u64) -> Self {
-        Self::with_compiler_backend(hot_threshold, tier2_threshold, CompilerBackend::Tiered)
-    }
-
-    pub fn with_compiler_backend(
-        hot_threshold: u64,
-        tier2_threshold: u64,
-        compiler_backend: CompilerBackend,
-    ) -> Self {
-        Self {
-            hot_threshold,
-            tier2_threshold,
-            compiler_backend: Some(compiler_backend),
-            jit_report: JitReport::default(),
-            runtimes: HashMap::new(),
-            last_executed: None,
-            object_heap: ObjectHeap::new(),
-            call_depth: 0,
-        }
-    }
-
-    pub fn interpreter() -> Self {
-        Self {
-            hot_threshold: u64::MAX,
-            tier2_threshold: u64::MAX,
-            compiler_backend: None,
-            jit_report: JitReport::default(),
-            runtimes: HashMap::new(),
-            last_executed: None,
-            object_heap: ObjectHeap::new(),
-            call_depth: 0,
-        }
-    }
-
-    pub fn set_hot_threshold(&mut self, hot_threshold: u64) {
-        self.hot_threshold = hot_threshold;
-    }
-
-    pub fn set_tier2_threshold(&mut self, tier2_threshold: u64) {
-        self.tier2_threshold = tier2_threshold;
-    }
-
     pub fn profile(&self) -> Option<&Profile> {
         self.last_executed
             .and_then(|id| self.runtimes.get(&id))
@@ -213,8 +157,48 @@ impl Vm {
             .map(|runtime| &runtime.profile)
     }
 
+    pub fn seed_profile(
+        &mut self,
+        executable: &ExecutableFunction,
+        artifact: &ProfileArtifact,
+        fingerprint: &str,
+    ) -> Result<(), String> {
+        let runtime = self.runtimes.entry(executable.id()).or_insert_with(|| {
+            FunctionRuntime::with_compiler_backend(executable, self.compiler_backend)
+        });
+        runtime.profile.seed_from_artifact(artifact, fingerprint)
+    }
+
     pub fn jit_report(&self) -> &JitReport {
         &self.jit_report
+    }
+
+    pub fn adaptive_report(&self) -> Option<&crate::runtime::AdaptiveReport> {
+        self.last_adaptive_report.as_ref()
+    }
+
+    pub(crate) const fn adaptive_execution_id(&self) -> u64 {
+        self.adaptive_execution_id
+    }
+
+    fn sync_adaptive_report(&mut self) {
+        if self.call_depth != 0 || self.defer_adaptive_report_sync {
+            return;
+        }
+        let report = self.adaptive_v2.as_ref().map(|adaptive| adaptive.report());
+        if report.is_some() {
+            self.last_adaptive_report = report;
+        }
+    }
+
+    pub(crate) fn begin_adaptive_report_batch(&mut self) {
+        self.sync_adaptive_report();
+        self.defer_adaptive_report_sync = true;
+    }
+
+    pub(crate) fn end_adaptive_report_batch(&mut self) {
+        self.defer_adaptive_report_sync = false;
+        self.sync_adaptive_report();
     }
 
     pub fn allocate_object(&mut self, object: Object) -> Result<ObjectRef, ObjectError> {
@@ -253,8 +237,31 @@ impl Vm {
             ));
         }
         self.call_depth += 1;
-        let result = self.execute_function_at_depth(executable, function_arguments);
+        let result = self.execute_function_at_depth(executable, function_arguments, false);
         self.call_depth -= 1;
+        self.sync_adaptive_report();
+        result
+    }
+
+    pub(super) fn execute_prepared_function(
+        &mut self,
+        executable: &ExecutableFunction,
+        function_arguments: &[Value],
+    ) -> Result<ExecutionResult, String> {
+        if self.call_depth >= MAX_GUEST_CALL_DEPTH {
+            return Err(format!(
+                "guest call depth limit of {MAX_GUEST_CALL_DEPTH} exceeded"
+            ));
+        }
+        self.call_depth += 1;
+        self.jit_report.call_sites.prepared_call_hit = self
+            .jit_report
+            .call_sites
+            .prepared_call_hit
+            .saturating_add(1);
+        let result = self.execute_function_at_depth(executable, function_arguments, true);
+        self.call_depth -= 1;
+        self.sync_adaptive_report();
         result
     }
 
@@ -262,17 +269,69 @@ impl Vm {
         &mut self,
         executable: &ExecutableFunction,
         function_arguments: &[Value],
+        prepared: bool,
     ) -> Result<ExecutionResult, String> {
-        verify(executable)?;
-        let registers =
-            arguments::initialize_registers(executable, function_arguments, &self.object_heap)?;
+        self.jit_report.record_function_call(executable.name());
         let id = executable.id();
+        if !prepared || !self.verified_functions.contains(&id) {
+            verify(executable)?;
+            self.verified_functions.insert(id);
+        }
+        let register_count = executable.bytecode().register_count;
+        let mut frame = self
+            .frame_pool
+            .get_mut(&register_count)
+            .and_then(Vec::pop)
+            .unwrap_or_else(|| Frame {
+                pc: 0,
+                registers: vec![Value::Uninitialized; register_count],
+                suppress_osr_pc: None,
+                suppressed_regions: HashSet::new(),
+            });
+        frame.pc = 0;
+        frame.suppress_osr_pc = None;
+        frame.suppressed_regions.clear();
+        if let Err(error) = arguments::initialize_registers(
+            executable,
+            function_arguments,
+            &self.object_heap,
+            &mut frame.registers,
+        ) {
+            frame.registers.fill(Value::Uninitialized);
+            self.frame_pool
+                .entry(register_count)
+                .or_default()
+                .push(frame);
+            return Err(error);
+        }
+        let adaptive_result = self.adaptive_v2.as_ref().and_then(|adaptive| {
+            adaptive.try_execute_entry(
+                self.adaptive_execution_id,
+                executable,
+                function_arguments,
+                &mut self.object_heap,
+            )
+        });
+        if let Some(result) = adaptive_result {
+            frame.registers.fill(Value::Uninitialized);
+            self.frame_pool
+                .entry(register_count)
+                .or_default()
+                .push(frame);
+            self.last_executed = Some(id);
+            return result.map(|value| ExecutionResult { value });
+        }
         let compiler_backend = self.compiler_backend;
         let mut runtime = self.runtimes.remove(&id).unwrap_or_else(|| {
             FunctionRuntime::with_compiler_backend(executable, compiler_backend)
         });
-        let result = self.execute_with_runtime(executable, &mut runtime, registers);
+        let result = self.execute_with_runtime(executable, &mut runtime, &mut frame);
         self.runtimes.insert(id, runtime);
+        frame.registers.fill(Value::Uninitialized);
+        self.frame_pool
+            .entry(register_count)
+            .or_default()
+            .push(frame);
         self.last_executed = Some(id);
         result
     }

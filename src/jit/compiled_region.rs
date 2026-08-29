@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::ffi::c_void;
 use std::fmt;
 
 use crate::bytecode::Register;
@@ -8,8 +9,9 @@ use crate::wxir::{
 };
 
 use super::layout::RegionLayout;
+use super::runtime::{NativeCallContext, NativeDispatch};
 
-pub(crate) type NativeRegionEntry = unsafe extern "C" fn(*mut u8) -> u32;
+pub(crate) type NativeRegionEntry = unsafe extern "C" fn(*mut u8, *mut c_void) -> u32;
 
 pub(crate) enum NativeRegionCode {
     Cranelift(NativeRegionEntry),
@@ -21,18 +23,18 @@ pub(crate) enum NativeRegionCode {
 }
 
 impl NativeRegionCode {
-    unsafe fn call(&self, state: *mut u8) -> u32 {
+    unsafe fn call(&self, state: *mut u8, context: *mut c_void) -> u32 {
         match self {
             Self::Cranelift(entry) => {
                 // SAFETY: [Categories 3, 5, 6, 8, 10, 14] The caller supplies
                 // the live RegionLayout-sized state buffer required by this ABI.
-                unsafe { entry(state) }
+                unsafe { entry(state, context) }
             }
             #[cfg(feature = "inkwell")]
             Self::Llvm { entry, .. } => {
                 // SAFETY: [Categories 3, 5, 6, 8, 10, 14] JitFunction retains
                 // its LLVM execution engine and has the NativeRegionEntry ABI.
-                unsafe { entry.call(state) }
+                unsafe { entry.call(state, context) }
             }
         }
     }
@@ -62,6 +64,7 @@ pub enum ExecuteError {
     },
     InvalidExitId(u32),
     Layout(String),
+    Runtime(String),
 }
 
 impl fmt::Display for ExecuteError {
@@ -87,6 +90,7 @@ impl fmt::Display for ExecuteError {
                 write!(formatter, "native code returned invalid exit {exit}")
             }
             Self::Layout(error) => formatter.write_str(error),
+            Self::Runtime(error) => formatter.write_str(error),
         }
     }
 }
@@ -116,13 +120,23 @@ impl CompiledRegion {
 
     /// Marshals WVM registers, executes native code, and restores exit state.
     pub fn execute(&mut self, registers: &mut [Value]) -> Result<RegionExecution, ExecuteError> {
+        let mut dispatch = UnsupportedNativeDispatch;
+        self.execute_with_dispatch(registers, &mut dispatch)
+    }
+
+    pub(crate) fn execute_with_dispatch(
+        &mut self,
+        registers: &mut [Value],
+        dispatch: &mut dyn NativeDispatch,
+    ) -> Result<RegionExecution, ExecuteError> {
+        let mut context = NativeCallContext::new(registers, dispatch);
         self.state_buffer.fill(0);
         for state in &self.entry_state {
-            let value = registers
-                .get(usize::from(state.register))
-                .copied()
+            let value = context
+                .registers()
+                .get_mut(usize::from(state.register))
                 .ok_or(ExecuteError::MissingRegister(state.register))?;
-            let word = value_to_word(state.register, state.ty, value)?;
+            let word = encode_state_value(state.register, state.ty, value)?;
             let index = self
                 .layout
                 .word_index(state.register)
@@ -133,7 +147,14 @@ impl CompiledRegion {
         // SAFETY: [Categories 3, 5, 6, 8, 10, 14] `entry` has the declared C ABI,
         // NativeRegionCode retains backend code ownership, RegionLayout bounds
         // buffer accesses, and generated code cannot unwind.
-        let raw_exit = unsafe { self.code.call(self.state_buffer.as_mut_ptr().cast::<u8>()) };
+        let context_pointer = (&mut context as *mut NativeCallContext<'_>).cast::<c_void>();
+        let raw_exit = unsafe {
+            self.code
+                .call(self.state_buffer.as_mut_ptr().cast::<u8>(), context_pointer)
+        };
+        if let Some(error) = context.take_error() {
+            return Err(ExecuteError::Runtime(error));
+        }
         let exit = WxExitId(raw_exit);
         let metadata = self
             .side_exits
@@ -146,14 +167,14 @@ impl CompiledRegion {
                 .layout
                 .word_index(state.register)
                 .map_err(|error| ExecuteError::Layout(error.to_string()))?;
-            let value = word_to_value(state.ty, self.state_buffer[index]).ok_or(
-                ExecuteError::InvalidRegisterType {
+            let value = decode_state_value(state.ty, self.state_buffer[index], context.registers())
+                .ok_or(ExecuteError::InvalidRegisterType {
                     register: state.register,
                     expected: state.ty,
                     actual: "unsupported native value",
-                },
-            )?;
-            let register = registers
+                })?;
+            let register = context
+                .registers()
                 .get_mut(usize::from(state.register))
                 .ok_or(ExecuteError::MissingRegister(state.register))?;
             *register = value;
@@ -172,12 +193,18 @@ impl CompiledRegion {
     }
 }
 
-fn value_to_word(register: Register, expected: WxType, value: Value) -> Result<u64, ExecuteError> {
-    match (expected, value) {
+fn encode_state_value(
+    register: Register,
+    expected: WxType,
+    value: &mut Value,
+) -> Result<u64, ExecuteError> {
+    match (expected, *value) {
         (WxType::Scalar(WxScalarType::I1), Value::Bool(value)) => Ok(u64::from(value)),
         (WxType::Scalar(WxScalarType::I64), Value::SmallInt(value)) => {
             Ok(u64::from_ne_bytes(value.to_ne_bytes()))
         }
+        (WxType::Scalar(WxScalarType::F64), Value::Float(value)) => Ok(value.to_bits()),
+        (WxType::Scalar(WxScalarType::RuntimeHandle), _) => Ok(u64::from(register)),
         (_, value) => Err(ExecuteError::EntryTypeMismatch {
             register,
             expected,
@@ -186,13 +213,25 @@ fn value_to_word(register: Register, expected: WxType, value: Value) -> Result<u
     }
 }
 
-fn word_to_value(ty: WxType, word: u64) -> Option<Value> {
+fn decode_state_value(ty: WxType, word: u64, registers: &[Value]) -> Option<Value> {
     match ty {
         WxType::Scalar(WxScalarType::I1) => Some(Value::Bool(word != 0)),
         WxType::Scalar(WxScalarType::I64) => {
             Some(Value::SmallInt(i64::from_ne_bytes(word.to_ne_bytes())))
         }
+        WxType::Scalar(WxScalarType::F64) => Some(Value::Float(f64::from_bits(word))),
+        WxType::Scalar(WxScalarType::RuntimeHandle) => {
+            registers.get(usize::try_from(word).ok()?).copied()
+        }
         _ => None,
+    }
+}
+
+struct UnsupportedNativeDispatch;
+
+impl NativeDispatch for UnsupportedNativeDispatch {
+    fn execute(&mut self, _registers: &mut [Value], _pc: usize) -> Result<(), String> {
+        Err("compiled region requires a WVM native dispatch context".to_string())
     }
 }
 
@@ -202,6 +241,26 @@ fn value_name(value: Value) -> &'static str {
         Value::Float(_) => "float",
         Value::Object(_) => "object",
         Value::Bool(_) => "bool",
+        Value::None => "none",
         Value::Uninitialized => "uninitialized",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn handle_state_round_trips_a_live_register() {
+        // Given: a live WVM value encoded through the runtime-handle ABI.
+        let mut value = Value::SmallInt(42);
+        let ty = WxType::Scalar(WxScalarType::RuntimeHandle);
+
+        // When: native state encoding records and resolves its register handle.
+        let word = encode_state_value(0, ty, &mut value).unwrap();
+        let decoded = decode_state_value(ty, word, std::slice::from_ref(&value));
+
+        // Then: the exact register value survives the handle round trip.
+        assert_eq!(decoded, Some(Value::SmallInt(42)));
     }
 }

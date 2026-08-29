@@ -3,6 +3,9 @@ from __future__ import annotations
 import platform
 import sys
 from time import perf_counter_ns
+from typing import Callable
+
+from adaptive_contracts import ContractError, fixture_from_identifier, parse_and_validate_result
 
 
 def format_duration(nanoseconds: int) -> str:
@@ -31,14 +34,14 @@ def main() -> None:
     iterations = int(sys.argv[3]) if len(sys.argv) >= 4 else 100
 
     if warmup < 0:
-        raise ValueError("warmup must be non-negative")
+        raise ContractError("warmup must be non-negative")
     if iterations <= 0:
-        raise ValueError("iterations must be positive")
+        raise ContractError("iterations must be positive")
 
     with open(source_path, "r", encoding="utf-8") as file:
         source = file.read()
 
-    namespace: dict[str, object] = {
+    namespace: dict[str, str | Callable[[], int | float]] = {
         "__name__": "wustite_benchmark_target",
     }
 
@@ -49,37 +52,33 @@ def main() -> None:
 
     target = namespace.get("main")
     if not callable(target):
-        raise RuntimeError("source does not define a callable main()")
+        raise ContractError("source does not define a callable main()")
 
-    expected = 500_000_500_000
+    fixture = fixture_from_identifier(source_path)
 
     cold_started = perf_counter_ns()
     cold_result = target()
     cold_time = perf_counter_ns() - cold_started
 
-    if cold_result != expected:
-        raise RuntimeError(
-            f"unexpected cold result: {cold_result!r}; expected {expected}"
-        )
+    validated_cold = parse_and_validate_result(fixture, repr(cold_result))
+    print(f"Cold sample: result={validated_cold!r} validated=true")
 
-    for _ in range(warmup):
+    for index in range(warmup):
         result = target()
-        if result != expected:
-            raise RuntimeError(
-                f"unexpected warmup result: {result!r}; expected {expected}"
-            )
+        validated = parse_and_validate_result(fixture, repr(result))
+        print(f"Warmup sample {index + 1}: result={validated!r} validated=true")
 
     samples: list[int] = []
 
-    for _ in range(iterations):
+    for index in range(iterations):
         started = perf_counter_ns()
         result = target()
         elapsed = perf_counter_ns() - started
-
-        if result != expected:
-            raise RuntimeError(
-                f"unexpected result: {result!r}; expected {expected}"
-            )
+        validated = parse_and_validate_result(fixture, repr(result))
+        print(
+            f"Measured sample {index + 1}: result={validated!r} "
+            f"duration={format_duration(elapsed)} validated=true"
+        )
 
         samples.append(elapsed)
 
