@@ -62,7 +62,7 @@ fn compare_to_float(
 }
 
 #[test]
-fn mixed_bigint_and_float_equality_is_exact_beyond_f64_integer_precision() {
+fn mixed_bigint_float_equality_exact_beyond_f64_int_precision() {
     // Given: adjacent integers that collapse to the same f64 at 2^53.
     // When: the VM compares the exact BigInt to the rounded float.
     let value = compare_to_float(
@@ -80,7 +80,7 @@ fn mixed_bigint_and_float_equality_is_exact_beyond_f64_integer_precision() {
 }
 
 #[test]
-fn mixed_bigint_and_float_ordering_is_exact_beyond_f64_integer_precision() {
+fn mixed_bigint_float_ordering_exact_beyond_f64_int_precision() {
     // Given: a BigInt one greater than an exactly represented f64.
     // When: the VM orders the BigInt against the float.
     let value = compare_to_float(
@@ -98,7 +98,7 @@ fn mixed_bigint_and_float_ordering_is_exact_beyond_f64_integer_precision() {
 }
 
 #[test]
-fn mixed_smallint_and_float_equality_is_exact_beyond_f64_integer_precision() {
+fn mixed_smallint_float_equality_exact_beyond_f64_int_precision() {
     // Given: a SmallInt one greater than the rounded float at 2^53.
     // When: the VM compares them for equality.
     let value = compare_to_float(
@@ -114,7 +114,7 @@ fn mixed_smallint_and_float_equality_is_exact_beyond_f64_integer_precision() {
 }
 
 #[test]
-fn nan_is_not_equal_to_itself() {
+fn nan_unequal_to_self() {
     // Given: two NaN float operands.
     // When: the VM compares them for equality.
     let value = compare_nan(CompareOperator::Eq).unwrap();
@@ -123,7 +123,7 @@ fn nan_is_not_equal_to_itself() {
 }
 
 #[test]
-fn nan_ordering_returns_a_controlled_error() {
+fn nan_ordering_returns_controlled_error() {
     // Given: two NaN float operands.
     // When: the VM attempts to order them.
     let error = compare_nan(CompareOperator::Lt).unwrap_err();
@@ -158,7 +158,7 @@ fn compare_nan(op: CompareOperator) -> Result<Value, String> {
 }
 
 #[test]
-fn numerically_distinct_bigint_and_float_remain_distinct_dict_keys() {
+fn numerically_distinct_bigint_float_distinct_dict_keys() {
     // Given: a BigInt and float that lossy conversion would conflate.
     let function = executable(
         5,
@@ -192,7 +192,7 @@ fn numerically_distinct_bigint_and_float_remain_distinct_dict_keys() {
 }
 
 #[test]
-fn huge_bigint_plus_float_returns_a_controlled_error() {
+fn huge_bigint_plus_float_returns_controlled_error() {
     // Given: a 400-digit BigInt that cannot become a finite f64.
     let function = binary_with_huge_bigint(BinaryOperator::Add, false);
     // When: the VM adds a float to it.
@@ -204,7 +204,7 @@ fn huge_bigint_plus_float_returns_a_controlled_error() {
 }
 
 #[test]
-fn huge_bigint_divided_by_itself_is_one() {
+fn huge_bigint_divided_itself_one() {
     // Given: the same 400-digit BigInt as dividend and divisor.
     let function = binary_with_huge_bigint(BinaryOperator::Divide, true);
     // When: the VM divides the exact integers before float conversion.
@@ -214,7 +214,7 @@ fn huge_bigint_divided_by_itself_is_one() {
 }
 
 #[test]
-fn huge_bigint_divided_by_one_returns_a_controlled_error() {
+fn huge_bigint_divided_one_returns_controlled_error() {
     // Given: a 400-digit BigInt divided by one.
     let function = binary_with_huge_bigint(BinaryOperator::Divide, false);
     // When: the quotient cannot fit in a finite f64.

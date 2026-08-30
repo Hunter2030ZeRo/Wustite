@@ -79,7 +79,7 @@ fn cyclic_recipe(shape: (u64, u64, u64)) -> DeoptRecipe {
 }
 
 #[test]
-fn forced_deopt_reconstructs_inline_frames_aliases_cycles_fields_and_list_order() {
+fn forced_deopt_restores_frames_aliases_fields_and_lists() {
     let heap = GcHeap::new(GcConfig {
         collect_every_allocation: true,
         promotion_age: 1,
@@ -119,7 +119,7 @@ fn forced_deopt_reconstructs_inline_frames_aliases_cycles_fields_and_list_order(
 }
 
 #[test]
-fn allocation_helper_and_malformed_frame_failures_publish_no_partial_graph() {
+fn alloc_helper_malformed_frame_failures_publish_no_partial_graph() {
     let heap = GcHeap::new(GcConfig {
         allocation_limit: Some(2),
         ..GcConfig::default()
@@ -168,7 +168,7 @@ fn allocation_helper_and_malformed_frame_failures_publish_no_partial_graph() {
 }
 
 #[test]
-fn stale_shape_dependency_and_cross_runtime_handles_are_rejected_before_materialization() {
+fn deopt_rejects_stale_shapes_and_foreign_handles() {
     let heap = GcHeap::new(GcConfig::default());
     let foreign_heap = GcHeap::new(GcConfig::default());
     let foreign = foreign_heap.allocate(GcObject::new()).expect("foreign");
@@ -212,7 +212,7 @@ fn stale_shape_dependency_and_cross_runtime_handles_are_rejected_before_material
 }
 
 #[test]
-fn resume_after_spills_undefined_dead_and_repeated_deopts_are_observable() {
+fn deopt_resume_handles_spills_and_repeats() {
     let heap = GcHeap::new(GcConfig::default());
     let values = BTreeMap::new();
     let spills = BTreeMap::from([(4, RuntimeAtom::FloatBits(0x7ff8_1234_5678_9abc))]);

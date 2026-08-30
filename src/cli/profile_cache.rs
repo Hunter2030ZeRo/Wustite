@@ -192,7 +192,7 @@ mod tests {
     use super::fingerprint;
 
     #[test]
-    fn fingerprint_is_exact_for_source_and_entry_function() {
+    fn fingerprint_exact_source_entry_fn() {
         let baseline = fingerprint("def main():\n    return 1\n", "main", "code-v1");
         assert_eq!(
             baseline,

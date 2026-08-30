@@ -44,7 +44,7 @@ fn pyperformance_nbody_kernel_executes() {
 }
 
 #[test]
-fn list_slices_insert_and_pop_preserve_python_ordering() {
+fn list_slices_insert_pop_keep_python_ordering() {
     // Given: list slice reads, slice replacement, insert, and pop in one function.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    values = [0, 1, 2, 3]\n    reverse = values[2::-1]\n    values[1:3] = reverse\n    values.insert(1, values.pop(0))\n    return values[0] * 10000 + values[1] * 1000 + values[2] * 100 + values[3] * 10 + values[4]\n";
@@ -60,7 +60,7 @@ fn list_slices_insert_and_pop_preserve_python_ordering() {
 }
 
 #[test]
-fn break_skips_loop_else_while_normal_exit_runs_it() {
+fn break_skips_else_normal_exit_runs_else() {
     // Given: a broken range loop and a normally completed while loop.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    total = 0\n    for index in range(5):\n        if index == 3:\n            break\n        total += index\n    else:\n        total = 100\n    cursor = 0\n    while cursor < 2:\n        cursor += 1\n    else:\n        total += 10\n    return total\n";

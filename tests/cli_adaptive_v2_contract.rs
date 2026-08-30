@@ -77,7 +77,7 @@ fn assert_u64_map(value: &Value) {
 }
 
 #[test]
-fn json_run_preserves_legacy_jit_report_shape() {
+fn json_run_keeps_legacy_jit_report_shape() {
     // Given: a hot scalar loop run through the public JSON command surface.
     let output = run_cli(&[
         "run",
@@ -186,7 +186,7 @@ fn malformed_backend_fails_on_stderr() {
 }
 
 #[test]
-fn debug_jit_format_option_is_rejected() {
+fn debug_jit_format_option_rejected() {
     // Given: the unsupported JSON-diagnostic option on the legacy debug surface.
     let output = run_cli(&[
         "run",

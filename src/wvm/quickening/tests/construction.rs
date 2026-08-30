@@ -38,7 +38,7 @@ fn site(
 }
 
 #[test]
-fn quick_code_builds_only_exact_add_and_lt() {
+fn quick_code_builds_only_exact_add_lt() {
     let small = exact(SlotType::SmallInt);
     let boolean = exact(SlotType::Bool);
     let executable = executable(
@@ -88,7 +88,7 @@ fn quick_code_builds_only_exact_add_and_lt() {
 }
 
 #[test]
-fn quick_code_preserves_unknown_mismatched_and_unsupported_sites() {
+fn quick_code_keeps_unknown_mismatched_unsupported_sites() {
     let small = exact(SlotType::SmallInt);
     let float = exact(SlotType::Float);
     let cases = vec![
@@ -133,7 +133,7 @@ fn quick_code_preserves_unknown_mismatched_and_unsupported_sites() {
 }
 
 #[test]
-fn interpreter_quick_code_uses_guarded_opcodes_without_structure_facts() {
+fn quick_code_guards_without_structure_facts() {
     let small = exact(SlotType::SmallInt);
     let boolean = exact(SlotType::Bool);
     let executable = executable(

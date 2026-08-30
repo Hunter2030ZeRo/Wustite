@@ -122,7 +122,7 @@ fn handle_side_exit_snapshot() -> VerifiedSnapshot {
 }
 
 #[test]
-fn native_slots_round_trip_boolean_and_handle_tags() {
+fn native_slots_round_trip_bool_handle_tags() {
     // Given: verified Boolean and Handle constant snapshots.
     let boolean = constant_snapshot(Constant::Boolean(true), ValueType::Bool);
     let handle = constant_snapshot(Constant::HandleBits(41), ValueType::Handle);
@@ -150,7 +150,7 @@ fn native_slots_round_trip_boolean_and_handle_tags() {
 }
 
 #[test]
-fn native_handle_side_exit_preserves_packed_generation() {
+fn native_handle_side_exit_keeps_packed_generation() {
     // Given: a verified Handle side exit and a local stable token with nonzero generation.
     let snapshot = handle_side_exit_snapshot();
     let token = (7_u64 << 32) | 41;
@@ -169,7 +169,7 @@ fn native_handle_side_exit_preserves_packed_generation() {
 }
 
 #[test]
-fn float_bits_round_trip_through_native_codegen() {
+fn float_bits_round_trip_via_native_codegen() {
     // Given: a verified F64 snapshot inside the native scalar capability matrix.
     let snapshot = constant_snapshot(Constant::FloatBits(1.5_f64.to_bits()), ValueType::F64);
 
@@ -188,7 +188,7 @@ fn float_bits_round_trip_through_native_codegen() {
 }
 
 #[test]
-fn undefined_borrowed_view_is_rejected_before_native_codegen() {
+fn undefined_borrowed_view_rejected_pre_native_codegen() {
     // Given: a verified borrowed-view placeholder with no stable native ABI.
     let snapshot = constant_snapshot(Constant::UndefinedDead, ValueType::BorrowedView);
 
@@ -200,7 +200,7 @@ fn undefined_borrowed_view_is_rejected_before_native_codegen() {
 }
 
 #[test]
-fn side_exit_publishes_value_and_complete_resume_identifiers() {
+fn side_exit_publishes_value_complete_resume_identifiers() {
     // Given: a verified ResumeAfter side exit with deopt and root-map metadata.
     let snapshot = side_exit_snapshot();
     let code = NativeCompiler::new()
@@ -222,7 +222,7 @@ fn side_exit_publishes_value_and_complete_resume_identifiers() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn llvm_and_cranelift_publish_identical_side_exit_state() {
+fn llvm_cranelift_publish_identical_side_exit_state() {
     // Given: one verified Handle side-exit snapshot and a nonzero-generation stable token.
     let snapshot = handle_side_exit_snapshot();
     let token = (13_u64 << 32) | 91;

@@ -3,7 +3,7 @@ use super::super::types::{HeapAdapterError, PayloadKind};
 use crate::adaptive_v2::heap::GcConfig;
 
 #[test]
-fn collect_before_allocation_prunes_payload_that_died_in_implicit_collection() {
+fn collect_pre_alloc_prunes_payload_died_in_implicit_collection() {
     // Given: collect-before-allocation mode and dead object, list, and callable roots.
     let runtime = AdaptiveHeapRuntime::new(GcConfig {
         collect_every_allocation: true,

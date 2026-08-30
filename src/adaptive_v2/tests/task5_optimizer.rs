@@ -52,7 +52,7 @@ fn foldable_snapshot() -> VerifiedSnapshot {
 }
 
 #[test]
-fn propagation_pass_creates_reverified_snapshot_and_preserves_semantics() {
+fn propagation_pass_creates_reverified_snapshot_keeps_semantics() {
     // Given: an immutable snapshot with two constant operands and an add.
     let original = foldable_snapshot();
 
@@ -84,7 +84,7 @@ fn propagation_pass_creates_reverified_snapshot_and_preserves_semantics() {
 }
 
 #[test]
-fn inapplicable_passes_report_explicit_no_op_analysis() {
+fn inapplicable_passes_report_noop() {
     // Given: a scalar-only snapshot with no barriers or heap operations.
     let original = foldable_snapshot();
 
@@ -179,7 +179,7 @@ fn multiply(left: i64, right: i64) -> i64 {
 }
 
 #[test]
-fn every_pipeline_stage_performs_a_real_bounded_transform() {
+fn every_pipeline_stage_performs_real_bounded_transform() {
     let direct = seal(
         Block::new(
             BlockId::new(0),
@@ -428,7 +428,7 @@ fn object_set_get(with_barrier: bool) -> VerifiedSnapshot {
 }
 
 #[test]
-fn scalar_replacement_forwards_multiple_fields_from_one_nonescaping_object() {
+fn scalar_replacement_forwards_nonescaping_fields() {
     let point = SafepointId::new(12);
     let snapshot = seal(
         Block::new(
@@ -540,7 +540,7 @@ fn duplicate_adds() -> VerifiedSnapshot {
 }
 
 #[test]
-fn ordinary_tier1_selects_existing_licm_gvn_snapshot_without_mutating_input() {
+fn tier1_selects_licm_gvn_without_input_mutation() {
     let original = duplicate_adds();
     let original_id = original.id();
     let original_body = original.body().clone();
@@ -620,7 +620,7 @@ fn ordinary_tier1_selects_existing_licm_gvn_snapshot_without_mutating_input() {
 }
 
 #[test]
-fn separate_compilers_dump_distinct_tier1_snapshots_without_overwrite() {
+fn separate_compilers_keep_distinct_tier1_dumps() {
     struct ClifDumpGuard {
         directory: std::path::PathBuf,
     }
@@ -640,7 +640,8 @@ fn separate_compilers_dump_distinct_tier1_snapshots_without_overwrite() {
     }
 
     const CHILD: &str = "WUSTITE_ADAPTIVE_V2_SYMBOL_TEST_CHILD";
-    const TEST_NAME: &str = "adaptive_v2::tests::task5_optimizer::separate_compilers_dump_distinct_tier1_snapshots_without_overwrite";
+    const TEST_NAME: &str =
+        "adaptive_v2::tests::task5_optimizer::separate_compilers_keep_distinct_tier1_dumps";
     if std::env::var_os(CHILD).is_none() {
         let directory = std::env::temp_dir().join(format!(
             "wustite-adaptive-v2-symbol-test-{}",
@@ -700,7 +701,7 @@ fn separate_compilers_dump_distinct_tier1_snapshots_without_overwrite() {
 }
 
 #[test]
-fn unknown_helper_barrier_prevents_heap_forwarding() {
+fn helper_barrier_blocks_heap_forwarding() {
     let snapshot = object_set_get(true);
     let optimized = OptimizerPipeline
         .run(&snapshot, 5)
@@ -802,7 +803,7 @@ fn counted_loop(blocked: bool) -> VerifiedSnapshot {
 }
 
 #[test]
-fn licm_hoists_only_from_effect_free_loop_latches() {
+fn licm_hoists_effect_free_latches() {
     let original = counted_loop(false);
     let before = replay(
         &original,
@@ -840,7 +841,7 @@ fn licm_hoists_only_from_effect_free_loop_latches() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn licm_selected_multiblock_snapshot_has_exact_tier_parity() {
+fn licm_selected_multiblock_snapshot_exact_tier_parity() {
     let original = counted_loop(false);
     let original_id = original.id();
     let mut compiler = NativeCompiler::new();

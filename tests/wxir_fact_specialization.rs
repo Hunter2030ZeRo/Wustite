@@ -87,7 +87,7 @@ fn lower(fact: TypeFact) -> wustite::wxir::WxFunction {
 }
 
 #[test]
-fn typed_ssa_inputs_allow_guarded_and_unknown_operation_facts_to_lower_directly() {
+fn typed_ssa_lowers_guarded_and_unknown_facts() {
     // Given: the same runtime-typed entry state with Guardable and Unknown operation facts.
     let guarded = lower(Fact::Guardable(SlotType::SmallInt));
     let unknown = lower(Fact::Unknown);

@@ -79,7 +79,7 @@ fn sum_function() -> ExecutableFunction {
 }
 
 #[test]
-fn sum_region_lowers_to_verified_ssa() {
+fn sum_region_verified_ssa() {
     let executable = sum_function();
     let mut vm = Vm::new();
     vm.execute(&executable).unwrap();
@@ -211,7 +211,7 @@ fn sum_region_lowers_to_verified_ssa() {
 }
 
 #[test]
-fn return_inside_region_becomes_a_replay_exit_without_panicking() {
+fn region_return_replays_without_panic() {
     let function = Function {
         register_count: 1,
         code: vec![
@@ -267,7 +267,7 @@ fn return_inside_region_becomes_a_replay_exit_without_panicking() {
 }
 
 #[test]
-fn branch_local_temporaries_do_not_become_join_parameters() {
+fn branch_temps_stay_out_of_join_params() {
     // Given: two branches define different dead temporaries before rejoining a loop.
     let function = Function {
         register_count: 7,

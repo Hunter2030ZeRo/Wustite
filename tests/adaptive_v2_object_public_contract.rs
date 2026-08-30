@@ -18,7 +18,7 @@ def main(values: list):
 "#;
 
 #[test]
-fn adaptive_write_is_visible_to_unsupported_wvm_consumers_and_public_object_api() {
+fn adaptive_write_visible_to_wvm_and_public_api() {
     // Given: a host-owned public list passed into an adaptive-v2 function.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,
@@ -41,7 +41,7 @@ fn adaptive_write_is_visible_to_unsupported_wvm_consumers_and_public_object_api(
 }
 
 #[test]
-fn unsupported_aliasing_call_hands_adapter_ownership_back_before_mutation() {
+fn aliasing_call_returns_ownership_pre_mutation() {
     // Given: a host list first mapped and mutated by the adaptive adapter.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,

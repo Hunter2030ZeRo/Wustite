@@ -8,7 +8,7 @@ use wustite::structure_map::{
 use wustite::wxir::{WxInstKind, build_region};
 
 #[test]
-fn mixed_integer_float_comparison_preserves_exact_runtime_semantics() {
+fn mixed_int_float_comparison_keeps_exact_runtime_semantics() {
     // Given: a proven mixed comparison that cannot safely round the integer to f64.
     let function = Function {
         register_count: 3,

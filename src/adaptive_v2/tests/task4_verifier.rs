@@ -30,7 +30,7 @@ fn constant(id: u32, ty: ValueType) -> Instruction {
 }
 
 #[test]
-fn verifier_rejects_duplicate_undefined_and_use_before_definitions() {
+fn verifier_rejects_duplicate_undefined_use_pre_definitions() {
     let duplicate = draft(vec![Block::new(
         BlockId::new(0),
         vec![],
@@ -76,7 +76,7 @@ fn verifier_rejects_duplicate_undefined_and_use_before_definitions() {
 }
 
 #[test]
-fn verifier_rejects_non_dominating_uses_bad_types_cfg_and_phi_edges() {
+fn verifier_rejects_non_dominating_uses_bad_types_cfg_phi_edges() {
     let blocks = vec![
         Block::new(
             BlockId::new(0),
@@ -174,7 +174,7 @@ fn verifier_rejects_non_dominating_uses_bad_types_cfg_and_phi_edges() {
 }
 
 #[test]
-fn verifier_rejects_bad_effect_guard_exit_and_operation_dependencies() {
+fn verifier_rejects_bad_effect_guard_exit_op_deps() {
     let point = super::super::wxir_v2::ir::SafepointId::new(1);
     let bad_effect = draft(vec![Block::new(
         BlockId::new(0),
@@ -247,7 +247,7 @@ fn verifier_rejects_bad_effect_guard_exit_and_operation_dependencies() {
 }
 
 #[test]
-fn verifier_rejects_missing_surplus_roots_and_stale_dependencies() {
+fn verifier_rejects_missing_surplus_roots_stale_deps() {
     let mut missing = rooted_helper_draft();
     missing.body.root_maps[0].roots.clear();
     assert_eq!(
@@ -275,7 +275,7 @@ fn verifier_rejects_missing_surplus_roots_and_stale_dependencies() {
 }
 
 #[test]
-fn verifier_rejects_borrowed_views_across_every_forbidden_barrier() {
+fn verifier_rejects_borrows_at_barriers() {
     for (index, effect) in [
         Effect::Allocation,
         Effect::Helper,
@@ -317,7 +317,7 @@ fn verifier_rejects_borrowed_views_across_every_forbidden_barrier() {
 }
 
 #[test]
-fn verifier_checks_dependency_identity_and_allows_distinct_same_kind_dependencies() {
+fn verifier_checks_dep_identity_allows_distinct_same_kind_deps() {
     let mut wrong_executable = draft(vec![Block::new(
         BlockId::new(0),
         vec![],
@@ -362,7 +362,7 @@ fn verifier_checks_dependency_identity_and_allows_distinct_same_kind_dependencie
 }
 
 #[test]
-fn verifier_tracks_only_live_borrows_and_precise_spill_virtual_roots() {
+fn verifier_tracks_only_live_borrows_precise_spill_virtual_roots() {
     let point = super::super::wxir_v2::ir::SafepointId::new(1);
     let mut dead_before_barrier = rooted_helper_draft();
     dead_before_barrier.body.blocks[0].instructions.insert(
@@ -447,7 +447,7 @@ fn verifier_tracks_only_live_borrows_and_precise_spill_virtual_roots() {
 }
 
 #[test]
-fn verifier_rejects_unbound_branch_parameters_and_missing_backedge_recipe() {
+fn verifier_rejects_unbound_branch_params_missing_backedge_recipe() {
     for parameterized in [BlockId::new(1), BlockId::new(2)] {
         let blocks = vec![
             Block::new(

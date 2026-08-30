@@ -216,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn reverse_prefix_matcher_preserves_exact_pair_and_dead_temporary() {
+    fn reverse_prefix_matcher_keeps_exact_pair_dead_temp() {
         let code = pair();
         let pattern = match_reverse_prefix(&code, 0).expect("exact adjacent pair");
         assert_eq!(pattern.object, 0);
@@ -227,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn reverse_prefix_matcher_rejects_alias_and_liveness_near_misses() {
+    fn reverse_prefix_matcher_rejects_alias_liveness_near_misses() {
         let mut wrong_target = pair();
         let Instruction::SetSlice { object, .. } = &mut wrong_target[1] else {
             unreachable!()

@@ -2296,7 +2296,7 @@ mod concurrency_tests {
     use crate::object::{Object, ObjectHeap};
 
     #[test]
-    fn object_shard_checkout_model_releases_the_mutex_and_restores_owned_state() {
+    fn object_shard_checkout_model_releases_mutex_restores_owned_state() {
         let shard = Arc::new(ObjectShard {
             state: Mutex::new(Some(ObjectShardState {
                 osr: object_osr::ObjectOsr::new(
@@ -2319,7 +2319,7 @@ mod concurrency_tests {
     }
 
     #[test]
-    fn object_shard_checkout_restores_owned_state_when_execution_panics() {
+    fn object_shard_restores_state_after_panic() {
         // Given: a shard whose owned adapter state has been checked out without retaining its lock.
         let shard = ObjectShard {
             state: Mutex::new(Some(ObjectShardState {
@@ -2344,7 +2344,7 @@ mod concurrency_tests {
     }
 
     #[test]
-    fn native_handle_scope_distinguishes_equal_slots_from_different_heaps() {
+    fn handle_scope_separates_heap_slots() {
         // Given: two authoritative heaps whose first objects have the same numeric slot.
         let mut first_heap = ObjectHeap::new();
         let mut second_heap = ObjectHeap::new();
@@ -2374,7 +2374,7 @@ mod concurrency_tests {
     }
 
     #[test]
-    fn native_handle_scope_rejects_tokens_after_the_invocation_ends() {
+    fn handle_scope_rejects_expired_tokens() {
         // Given: one stable token minted for a completed native invocation.
         let mut heap = ObjectHeap::new();
         let reference = heap.allocate(Object::list(Vec::new())).expect("object");
@@ -2403,7 +2403,7 @@ mod concurrency_tests {
     }
 
     #[test]
-    fn native_handle_scope_rejects_capacity_overflow_without_losing_live_roots() {
+    fn handle_scope_overflow_keeps_live_roots() {
         // Given: a one-slot invocation scope and two distinct authoritative objects.
         let mut heap = ObjectHeap::new();
         let first = heap

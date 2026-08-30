@@ -11,7 +11,7 @@ fn assert_rejected<T>(result: Result<T, ObjectError>) {
 }
 
 #[test]
-fn allocation_returns_a_readable_handle_and_kind() {
+fn alloc_returns_readable_handle_kind() {
     // Given: an empty object heap and a string object.
     let mut heap = ObjectHeap::new();
 
@@ -24,7 +24,7 @@ fn allocation_returns_a_readable_handle_and_kind() {
 }
 
 #[test]
-fn stale_handles_are_rejected_after_remove_and_slot_reuse() {
+fn stale_handles_rejected_after_slot_reuse() {
     // Given: a live object and its generational handle.
     let mut heap = ObjectHeap::new();
     let stale = heap.allocate(string_object("old")).unwrap();
@@ -43,7 +43,7 @@ fn stale_handles_are_rejected_after_remove_and_slot_reuse() {
 }
 
 #[test]
-fn handles_cannot_be_used_with_a_different_heap() {
+fn handles_reject_foreign_heap() {
     // Given: a reference allocated by one heap and a separate heap.
     let mut owner = ObjectHeap::new();
     let foreign = owner.allocate(string_object("private")).unwrap();
@@ -59,7 +59,7 @@ fn handles_cannot_be_used_with_a_different_heap() {
 }
 
 #[test]
-fn object_kinds_and_containers_preserve_nested_references() {
+fn object_kinds_containers_keep_nested_refs() {
     // Given: a heap containing a child string and values of each container kind.
     let mut heap = ObjectHeap::new();
     let child = heap.allocate(string_object("child")).unwrap();

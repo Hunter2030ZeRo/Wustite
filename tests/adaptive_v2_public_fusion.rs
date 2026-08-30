@@ -21,7 +21,7 @@ fn run(path: &str) -> Output {
 }
 
 #[test]
-fn live_public_object_traces_use_fused_native_entries() {
+fn public_object_traces_use_fused_entries() {
     // Given: the three public object-heavy programs executed by the real CLI.
     let cases = [
         ("benchmarks/adaptive_shape_objects.py", 4_096),

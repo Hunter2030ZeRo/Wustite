@@ -148,7 +148,7 @@ fn multiblock_object_list_call_snapshot() -> VerifiedSnapshot {
 }
 
 #[test]
-fn cranelift_executes_object_list_and_direct_call_with_operation_helpers() {
+fn cranelift_executes_object_list_direct_call_op_helpers() {
     // Given: a verified object/list/call trace and private helper runtime.
     let snapshot = object_list_call_snapshot();
     let mut runtime = NativeRuntime::default();
@@ -181,7 +181,7 @@ fn cranelift_executes_object_list_and_direct_call_with_operation_helpers() {
 }
 
 #[test]
-fn cranelift_helpers_mutate_the_shared_adaptive_heap_adapter() {
+fn cranelift_helpers_mutate_shared_adaptive_heap_adapter() {
     // Given: one verified trace and object/list/call payloads in the production heap adapter.
     let snapshot = object_list_call_snapshot();
     let mut runtime = AdaptiveNativeContext::new(GcConfig {
@@ -222,7 +222,7 @@ fn cranelift_helpers_mutate_the_shared_adaptive_heap_adapter() {
 }
 
 #[test]
-fn shared_cranelift_code_overlaps_object_list_call_helpers_and_preserves_gc_roots() {
+fn shared_cranelift_helpers_overlap_and_keep_gc_roots() {
     use std::sync::{Arc, Condvar, Mutex, mpsc};
     use std::time::Duration;
 
@@ -308,7 +308,7 @@ fn shared_cranelift_code_overlaps_object_list_call_helpers_and_preserves_gc_root
 }
 
 #[test]
-fn operation_helper_error_is_not_reported_as_native_success() {
+fn helper_error_blocks_native_success() {
     // Given: compiled helper code and a runtime missing the object handle.
     let snapshot = object_list_call_snapshot();
     let mut runtime = NativeRuntime::default();
@@ -336,7 +336,7 @@ fn operation_helper_error_is_not_reported_as_native_success() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn llvm_and_cranelift_share_object_list_call_helper_abi_and_snapshot() {
+fn llvm_cranelift_share_object_list_call_helper_abi_snapshot() {
     // Given: one verified helper snapshot and equivalent fresh heaps for both tiers.
     let snapshot = object_list_call_snapshot();
     let mut compiler = NativeCompiler::new();
@@ -378,7 +378,7 @@ fn llvm_and_cranelift_share_object_list_call_helper_abi_and_snapshot() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn llvm_cfg_matches_cranelift_for_multiblock_object_list_call() {
+fn llvm_cfg_matches_cranelift_multiblock_object_list_call() {
     let snapshot = multiblock_object_list_call_snapshot();
     let arguments = [
         NativeValue::Handle(1),

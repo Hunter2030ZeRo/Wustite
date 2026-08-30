@@ -7,7 +7,7 @@ use wustite::structure_map::{RegionId, RegionKind, SlotType, StateSlot, Structur
 use wustite::wxir::{self, WxInstKind, WxScalarType, WxTerminator, WxType, build_region};
 
 #[test]
-fn load_constant_becomes_a_native_runtime_call() {
+fn load_constant_becomes_native_runtime_call() {
     let function = Function {
         register_count: 2,
         code: vec![

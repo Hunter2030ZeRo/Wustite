@@ -7,7 +7,7 @@ use wustite::structure_map::{
 use wustite::wxir::{WxConstant, WxInstKind, build_region, verify};
 
 #[test]
-fn local_tuple_length_eliminates_allocation_and_runtime_dispatch() {
+fn local_tuple_length_eliminates_alloc_runtime_dispatch() {
     // Given: a tuple allocation used only by the immediately following length operation.
     let function = Function {
         register_count: 5,
@@ -108,7 +108,7 @@ fn local_tuple_length_eliminates_allocation_and_runtime_dispatch() {
 }
 
 #[test]
-fn local_tuple_constant_projection_reuses_the_member_ssa_value() {
+fn local_tuple_constant_projection_reuses_member_ssa_value() {
     // Given: a local tuple whose sole consumer projects a statically known member.
     let function = Function {
         register_count: 6,

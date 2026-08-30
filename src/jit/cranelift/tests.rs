@@ -74,7 +74,7 @@ fn returning_region(region_id: usize) -> WxFunction {
 
 #[test]
 #[cfg_attr(miri, ignore = "Miri cannot execute Cranelift-generated native code")]
-fn one_module_retains_multiple_regions_versions_and_old_entries() -> Result<(), String> {
+fn one_module_retains_multiple_regions_versions_old_entries() -> Result<(), String> {
     let executable_id = executable_id();
     let mut compiler = CraneliftRegionCompiler::new(executable_id);
 
@@ -110,7 +110,7 @@ fn one_module_retains_multiple_regions_versions_and_old_entries() -> Result<(), 
 
 #[test]
 #[cfg_attr(miri, ignore = "Miri cannot execute Cranelift-generated native code")]
-fn failed_compile_burns_its_region_version() -> Result<(), String> {
+fn failed_compile_burns_region_version() -> Result<(), String> {
     let executable_id = executable_id();
     let mut compiler = CraneliftRegionCompiler::new(executable_id);
 

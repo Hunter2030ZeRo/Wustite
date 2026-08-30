@@ -15,7 +15,7 @@ fn stderr(output: &Output) -> String {
 }
 
 #[test]
-fn structure_map_is_the_default_jit_policy() {
+fn structure_map_default_jit_policy() {
     // Given: a threshold that runtime profiling cannot reach.
     let output = run_cli(&[
         "run",
@@ -35,7 +35,7 @@ fn structure_map_is_the_default_jit_policy() {
 }
 
 #[test]
-fn profile_jit_policy_waits_for_the_hot_threshold() {
+fn profile_jit_policy_waits_hot_threshold() {
     // Given: profile-guided planning and a threshold that the loop cannot reach.
     let output = run_cli(&[
         "run",
@@ -57,7 +57,7 @@ fn profile_jit_policy_waits_for_the_hot_threshold() {
 }
 
 #[test]
-fn structure_map_jit_policy_can_be_selected_explicitly() {
+fn structure_map_jit_policy_selected_explicitly() {
     // Given: explicit StructureMap planning and an unreachable profile threshold.
     let output = run_cli(&[
         "run",
@@ -79,7 +79,7 @@ fn structure_map_jit_policy_can_be_selected_explicitly() {
 }
 
 #[test]
-fn structure_map_policy_compiles_after_hot_runtime_validation() {
+fn structure_map_compiles_after_hot_validation() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",

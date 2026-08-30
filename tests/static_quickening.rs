@@ -145,7 +145,7 @@ fn semantic_overflow_loop() -> ExecutableFunction {
 }
 
 #[test]
-fn exact_add_and_lt_execute_without_mutating_semantic_bytecode() {
+fn exact_add_lt_execute_bytecode_unchanged() {
     let executable = exact_add_lt();
     let clone = executable.clone();
     let bytecode_before = executable.bytecode().clone();
@@ -160,7 +160,7 @@ fn exact_add_and_lt_execute_without_mutating_semantic_bytecode() {
 }
 
 #[test]
-fn unknown_unsupported_and_runtime_mismatch_use_semantic_behavior() {
+fn unknown_unsupported_runtime_mismatch_use_semantic_behavior() {
     let function = Function {
         register_count: 6,
         code: vec![
@@ -212,7 +212,7 @@ fn unknown_unsupported_and_runtime_mismatch_use_semantic_behavior() {
 
 #[test]
 #[cfg_attr(miri, ignore)]
-fn semantic_jit_replay_promotes_then_falls_back_for_bigint() {
+fn semantic_jit_replay_promotes_falls_back_bigint() {
     let executable = semantic_overflow_loop();
     let bytecode_before = executable.bytecode().clone();
     let structure_before = executable.structure_map().clone();

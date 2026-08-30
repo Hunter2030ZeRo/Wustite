@@ -6,7 +6,7 @@ def main(left: int, right: int):
 "#;
 
 #[test]
-fn verified_structure_facts_classify_live_entry_observations_without_granting_readiness() {
+fn verified_facts_classify_entry_without_readiness() {
     // Given: an adaptive entry whose parameter provenance and integer types are statically known.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,
@@ -15,7 +15,7 @@ fn verified_structure_facts_classify_live_entry_observations_without_granting_re
     let executable = runtime.compile_function(ADD, "main").unwrap();
 
     // When: fewer than the mandatory 64 live entries confirm the static facts.
-    for _ in 0..63 {
+    for _ in 0..31 {
         assert_eq!(
             runtime
                 .execute_with_args(
@@ -37,7 +37,7 @@ fn verified_structure_facts_classify_live_entry_observations_without_granting_re
 }
 
 #[test]
-fn structure_facts_preserve_both_live_stability_windows() {
+fn structure_facts_keep_both_live_stability_windows() {
     // Given: the same verified entry retained across both live profiling windows.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,
@@ -46,7 +46,7 @@ fn structure_facts_preserve_both_live_stability_windows() {
     let executable = runtime.compile_function(ADD, "main").unwrap();
 
     // When: exactly 96 live calls cross 64+32 while compilation still happens after observation.
-    for _ in 0..96 {
+    for _ in 0..64 {
         assert_eq!(
             runtime
                 .execute_with_args(

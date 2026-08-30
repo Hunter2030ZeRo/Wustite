@@ -31,7 +31,7 @@ fn interpreter_runtime() -> Runtime {
 }
 
 #[test]
-fn direct_guest_recursion_returns_an_execution_error_at_the_call_depth_limit() {
+fn direct_guest_recursion_returns_exec_error_at_call_depth_limit() {
     // Given: a directly recursive closureless guest function.
     let mut runtime = interpreter_runtime();
     let executable = runtime
@@ -48,7 +48,7 @@ fn direct_guest_recursion_returns_an_execution_error_at_the_call_depth_limit() {
 }
 
 #[test]
-fn finite_nested_guest_calls_succeed_after_a_depth_limit_error() {
+fn nested_calls_recover_after_depth_error() {
     // Given: a runtime whose prior recursive execution exhausted the guest call-depth budget.
     let mut runtime = interpreter_runtime();
     let recursive = runtime
@@ -67,7 +67,7 @@ fn finite_nested_guest_calls_succeed_after_a_depth_limit_error() {
 }
 
 #[test]
-fn same_function_nested_activations_keep_interpreter_profile_inert() {
+fn same_fn_nested_activations_keep_interpreter_profile_inert() {
     // Given: a recursive function that enters one loop in every activation.
     let mut runtime = interpreter_runtime();
     let executable = runtime

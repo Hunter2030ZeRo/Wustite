@@ -124,7 +124,7 @@ fn duplicate_value_id_is_rejected() {
 }
 
 #[test]
-fn non_boolean_branch_condition_is_rejected() {
+fn non_bool_branch_condition_rejected() {
     let mut function = valid_function();
     function.blocks[0].terminator = WxTerminator::Branch {
         condition: WxValueId(0),
@@ -142,7 +142,7 @@ fn non_boolean_branch_condition_is_rejected() {
 }
 
 #[test]
-fn block_argument_type_mismatch_is_rejected() {
+fn block_arg_type_mismatch_rejected() {
     let mut function = valid_function();
     function.blocks[1].parameters[0].ty = WxType::Scalar(WxScalarType::F64);
 
@@ -154,7 +154,7 @@ fn block_argument_type_mismatch_is_rejected() {
 }
 
 #[test]
-fn non_pointer_load_address_is_rejected() {
+fn non_pointer_load_address_rejected() {
     let mut function = valid_function();
     function.blocks[0].instructions.push(WxInst {
         results: vec![WxInstResult {
@@ -174,7 +174,7 @@ fn non_pointer_load_address_is_rejected() {
 }
 
 #[test]
-fn duplicate_side_exit_register_is_rejected() {
+fn duplicate_side_exit_reg_rejected() {
     let mut function = valid_function();
     function.side_exits[0].state.push(WxStateValue {
         register: 0,
@@ -193,7 +193,7 @@ fn duplicate_side_exit_register_is_rejected() {
 }
 
 #[test]
-fn invalid_checked_integer_result_signature_is_rejected() {
+fn invalid_checked_int_result_signature_rejected() {
     let mut function = valid_function();
     function.blocks[0].instructions.insert(
         1,
@@ -265,7 +265,7 @@ fn guard_rejects_region_exit_metadata() {
 }
 
 #[test]
-fn side_exit_terminator_rejects_deopt_metadata() {
+fn side_exit_terminator_rejects_deopt_meta() {
     let mut function = valid_function();
     function.side_exits[0].kind = WxExitKind::Deopt;
 
@@ -302,7 +302,7 @@ fn replay_instruction_guard_is_valid() {
 }
 
 #[test]
-fn vector_masks_are_valid_but_pointer_lanes_are_rejected() {
+fn vector_masks_accept_bool_reject_pointer() {
     let function_with_parameter = |ty| WxFunction {
         origin: WxRegionOrigin {
             region_id: RegionId(0),

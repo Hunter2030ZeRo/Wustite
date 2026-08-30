@@ -54,7 +54,7 @@ fn function(instructions: Vec<WxInst>, returns: Vec<WxValueId>) -> WxFunction {
 }
 
 #[test]
-fn optimizer_canonicalizes_constants_cses_expressions_and_removes_dead_values() {
+fn optimizer_folds_cses_and_dce() {
     // Given: duplicate constants, duplicate pure additions, and one dead definition.
     let mut function = function(
         vec![
@@ -86,7 +86,7 @@ fn optimizer_canonicalizes_constants_cses_expressions_and_removes_dead_values() 
 }
 
 #[test]
-fn optimizer_preserves_runtime_barriers_and_values_live_on_both_sides() {
+fn optimizer_keeps_barrier_live_values() {
     // Given: equal expressions separated by a runtime state synchronization barrier.
     let mut function = function(
         vec![
@@ -124,7 +124,7 @@ fn optimizer_preserves_runtime_barriers_and_values_live_on_both_sides() {
 }
 
 #[test]
-fn optimizer_eliminates_repeated_checked_arithmetic_and_its_guard() {
+fn optimizer_eliminates_repeat_checked_arithmetic_guard() {
     // Given: identical checked additions guarded twice without an intervening effect.
     let checked = |value, overflow| WxInst {
         results: vec![

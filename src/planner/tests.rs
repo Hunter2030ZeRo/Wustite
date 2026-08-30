@@ -5,7 +5,7 @@ use crate::structure_map::{RegionExit, RegionKind, StructureMapBuilder};
 use super::{JitPolicy, RegionPlanRequest, plan_region, select_hot_loop};
 
 #[test]
-fn equally_hot_loops_prefer_proven_lower_effect_risk() {
+fn hot_loops_prefer_low_risk_proof() {
     // Given: equally hot pure and unknown-call loops in one finalized StructureMap.
     let mut builder = StructureMapBuilder::new();
     let pure = builder.begin_region(0, vec![]);
@@ -54,7 +54,7 @@ fn equally_hot_loops_prefer_proven_lower_effect_risk() {
 }
 
 #[test]
-fn both_runtime_policies_require_hot_and_ready_profiles() {
+fn both_runtime_policies_require_hot_ready_profiles() {
     let mut builder = StructureMapBuilder::new();
     let region = builder.begin_region(0, vec![]);
     builder

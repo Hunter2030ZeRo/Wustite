@@ -13,7 +13,7 @@ def main(value: int):
 "#;
 
 #[test]
-fn hir_and_wvm_lowering_compose_parameter_constant_call_and_escape_facts() {
+fn hir_wvm_lowering_compose_param_constant_call_escape_facts() {
     // Given: HIR with a typed parameter, function constant, aggregate, projection, and call.
     let executable = compile_python_function(SOURCE, "main").unwrap();
 

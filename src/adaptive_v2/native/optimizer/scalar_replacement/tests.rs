@@ -132,7 +132,7 @@ fn body(shape: (u64, u64, u64)) -> SnapshotBody {
 }
 
 #[test]
-fn forced_deopt_keeps_one_virtual_for_all_aliases_and_fields() {
+fn forced_deopt_keeps_one_virtual_all_aliases_fields() {
     // Given: a nonescaping object live at a guard through two aliasing registers.
     let (shapes, shape) = shapes();
     let mut body = body(shape);
@@ -197,7 +197,7 @@ fn forced_deopt_keeps_one_virtual_for_all_aliases_and_fields() {
 }
 
 #[test]
-fn scalar_replacement_crosses_a_jump_phi_with_identical_field_state() {
+fn scalar_replacement_crosses_jump_phi_identical_field_state() {
     // Given: the only incoming phi value aliases an object initialized in its dominator.
     let (_shapes, shape) = shapes();
     let mut body = body(shape);
@@ -260,7 +260,7 @@ fn scalar_replacement_crosses_a_jump_phi_with_identical_field_state() {
 }
 
 #[test]
-fn scalar_replacement_rejects_a_backedge_region() {
+fn scalar_replacement_rejects_backedge_region() {
     // Given: an otherwise replaceable allocation whose region ends in a loop backedge.
     let (_shapes, shape) = shapes();
     let mut body = body(shape);
@@ -348,7 +348,7 @@ fn diamond_body(shape: (u64, u64, u64), divergent: bool) -> SnapshotBody {
 }
 
 #[test]
-fn branch_merge_requires_identical_virtual_field_state() {
+fn branch_merge_needs_same_virtual_fields() {
     // Given: one diamond with a shared state and one with a path-local mutation barrier.
     let (_shapes, shape) = shapes();
     let mut identical = diamond_body(shape, false);
@@ -383,7 +383,7 @@ fn compile_permit(schema_epoch: u64) -> crate::adaptive_v2::profile::CompilePerm
 }
 
 #[test]
-fn nonescaping_object_executes_natively_without_object_helpers() {
+fn nonescaping_object_runs_native_helper_free() {
     // Given: a state-dependent object store/get with a reconstructible guard exit.
     let (_shapes, shape) = shapes();
     let mut optimized = body(shape);

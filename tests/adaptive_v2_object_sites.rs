@@ -217,7 +217,7 @@ fn runtime() -> Runtime {
 }
 
 #[test]
-fn actual_python_shape_sites_enter_direct_machine_storage() {
+fn actual_python_shape_sites_enter_direct_native_storage() {
     // Given: the accepted shape-heavy Python fixture and one persistent adaptive runtime.
     let mut runtime = runtime();
     let executable = runtime.compile_function(SHAPES, "main").expect("compile");
@@ -253,7 +253,7 @@ fn actual_python_shape_sites_enter_direct_machine_storage() {
 }
 
 #[test]
-fn actual_python_list_read_uses_owned_direct_storage() {
+fn python_list_read_uses_owned_storage() {
     // Given: the accepted mutation-heavy list fixture and one persistent adaptive runtime.
     let mut runtime = runtime();
     let executable = runtime.compile_function(LISTS, "main").expect("compile");
@@ -289,7 +289,7 @@ fn actual_python_list_read_uses_owned_direct_storage() {
 }
 
 #[test]
-fn nbody_nested_list_reads_enter_native_loop_code() {
+fn nbody_nested_reads_enter_native_loop() {
     // Given: nbody's object lists and one persistent adaptive runtime.
     let mut runtime = runtime();
     let executable = runtime.compile_function(NBODY, "main").expect("compile");
@@ -311,7 +311,7 @@ fn nbody_nested_list_reads_enter_native_loop_code() {
 }
 
 #[test]
-fn dynamically_selected_nested_lists_use_direct_native_storage() {
+fn dynamic_nested_lists_use_native_storage() {
     // Given: a hot loop selecting two nested float-list pairs through an outer object list.
     let mut runtime = runtime();
     let executable = runtime
@@ -332,7 +332,7 @@ fn dynamically_selected_nested_lists_use_direct_native_storage() {
 }
 
 #[test]
-fn nested_storage_shape_change_rejects_native_entry_safely() {
+fn shape_change_rejects_native_entry() {
     // Given: one compiled list-backed case followed by a tuple-backed shape change.
     let mut runtime = runtime();
     let executable = runtime
@@ -354,7 +354,7 @@ fn nested_storage_shape_change_rejects_native_entry_safely() {
 }
 
 #[test]
-fn maximal_nested_loop_call_does_not_scale_machine_entries_with_inner_trip_count() {
+fn nested_call_entries_ignore_inner_trips() {
     // Given: one maximal nested-loop callee executed with N and 2N inner iterations.
     let mut runtime = runtime();
     let executable = runtime
@@ -390,7 +390,7 @@ fn maximal_nested_loop_call_does_not_scale_machine_entries_with_inner_trip_count
 }
 
 #[test]
-fn maximal_advance_call_uses_one_native_transaction_for_all_three_loops() {
+fn maximal_advance_call_uses_one_native_transaction_all_three_loops() {
     // Given: the real advance(dt, n, bodies, pairs) topology on one persistent runtime.
     let mut runtime = runtime();
     let executable = runtime
@@ -443,7 +443,7 @@ fn maximal_advance_call_uses_one_native_transaction_for_all_three_loops() {
 }
 
 #[test]
-fn scaled_production_advance_has_one_transaction_per_outer_call() {
+fn scaled_production_advance_one_transaction_per_outer_call() {
     use std::time::{Duration, Instant};
 
     let mut interpreter = Runtime::new_adaptive_v2(RuntimeConfig {
@@ -516,7 +516,7 @@ fn scaled_production_advance_has_one_transaction_per_outer_call() {
 }
 
 #[test]
-fn actual_python_method_call_enters_the_fused_function_entry() {
+fn actual_python_method_call_enters_fused_entry() {
     // Given: the accepted Python method-call fixture and persistent adaptive state.
     let mut runtime = runtime();
     let executable = runtime.compile_function(CALLS, "main").expect("compile");
@@ -558,7 +558,7 @@ fn actual_python_method_call_enters_the_fused_function_entry() {
 }
 
 #[test]
-fn fifth_live_receiver_shape_turns_the_public_site_generic() {
+fn fifth_live_receiver_shape_turns_public_site_generic() {
     // Given: one Python attribute site receiving five distinct runtime classes.
     let mut runtime = runtime();
     let executable = runtime
@@ -584,7 +584,7 @@ fn fifth_live_receiver_shape_turns_the_public_site_generic() {
 }
 
 #[test]
-fn fifth_case_evicts_compiled_site_and_releases_accounted_cache_bytes() {
+fn fifth_case_evicts_compiled_site_releases_accounted_cache_bytes() {
     let mut runtime = runtime();
     let executable = runtime
         .compile_function(COMPILED_THEN_GENERIC, "main")

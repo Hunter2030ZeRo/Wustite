@@ -15,7 +15,7 @@ fn assert_execution_error(result: Result<RuntimeValue, RuntimeError>, expected: 
 }
 
 #[test]
-fn append_insert_and_default_pop_mutate_the_same_list_object() {
+fn append_insert_default_pop_mutate_same_list_object() {
     // Given: two names referencing one list and three ordered mutations.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    values = [2, 3]\n    alias = values\n    alias.append(4)\n    values.insert(0, 1)\n    removed = alias.pop()\n    return values[0] * 100 + values[1] * 10 + removed\n";
@@ -28,7 +28,7 @@ fn append_insert_and_default_pop_mutate_the_same_list_object() {
 }
 
 #[test]
-fn insert_clips_positions_at_both_ends_and_normalizes_negative_positions() {
+fn insert_clips_ends_and_negative_positions() {
     // Given: insertions before, beyond, and just before a one-element list.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    values = [2]\n    values.insert(-100, 1)\n    values.insert(100, 4)\n    values.insert(-1, 3)\n    return values[0] * 1000 + values[1] * 100 + values[2] * 10 + values[3]\n";
@@ -41,7 +41,7 @@ fn insert_clips_positions_at_both_ends_and_normalizes_negative_positions() {
 }
 
 #[test]
-fn explicit_negative_pop_removes_the_selected_item() {
+fn explicit_negative_pop_removes_selected_item() {
     // Given: a three-element list and an explicit negative pop index.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    values = [1, 2, 3]\n    removed = values.pop(-2)\n    return removed * 100 + values[0] * 10 + values[1]\n";
@@ -54,7 +54,7 @@ fn explicit_negative_pop_removes_the_selected_item() {
 }
 
 #[test]
-fn empty_list_pop_returns_the_exact_runtime_error() {
+fn empty_list_pop_runtime_error() {
     // Given: an empty list and a default pop call.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    values = []\n    return values.pop()\n";
@@ -67,7 +67,7 @@ fn empty_list_pop_returns_the_exact_runtime_error() {
 }
 
 #[test]
-fn dictionary_replacement_and_insertion_mutate_the_same_object() {
+fn dict_replacement_insertion_mutate_same_object() {
     // Given: two names referencing a dictionary before replacement and insertion.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    values = {\"answer\": 1}\n    alias = values\n    alias[\"answer\"] = 4\n    values[\"extra\"] = 2\n    return alias[\"answer\"] * 10 + alias[\"extra\"]\n";
@@ -80,7 +80,7 @@ fn dictionary_replacement_and_insertion_mutate_the_same_object() {
 }
 
 #[test]
-fn missing_dictionary_key_returns_the_exact_runtime_error() {
+fn missing_dict_key_runtime_error() {
     // Given: a dictionary lookup for an absent key.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    values = {\"answer\": 42}\n    return values[\"missing\"]\n";

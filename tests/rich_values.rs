@@ -33,7 +33,7 @@ fn executable(
 }
 
 #[test]
-fn float_arithmetic_and_negation_preserve_float_values() {
+fn float_arithmetic_negation_keep_float_values() {
     // Given: float operands for every source-level arithmetic operation.
     let function = executable(
         9,
@@ -88,7 +88,7 @@ fn float_arithmetic_and_negation_preserve_float_values() {
 }
 
 #[test]
-fn boolean_and_comparison_operations_produce_boolean_values() {
+fn bool_comparison_ops_produce_bool_values() {
     // Given: integer comparison operands and Boolean operands.
     let function = executable(
         17,
@@ -199,7 +199,7 @@ fn boolean_and_comparison_operations_produce_boolean_values() {
 }
 
 #[test]
-fn string_constants_are_heap_objects_with_a_length() {
+fn string_constants_heap_objects_length() {
     // Given: a string constant in an executable constant pool.
     let function = executable(
         2,
@@ -223,7 +223,7 @@ fn string_constants_are_heap_objects_with_a_length() {
 }
 
 #[test]
-fn tuple_construction_and_indexing_return_the_selected_item() {
+fn tuple_build_indexing_return_selected_item() {
     // Given: three SmallInt values and an index for a new tuple.
     let function = executable(
         6,
@@ -254,7 +254,7 @@ fn tuple_construction_and_indexing_return_the_selected_item() {
 }
 
 #[test]
-fn list_mutation_and_length_are_visible_through_the_same_heap_object() {
+fn list_mutation_length_visible_via_same_heap_object() {
     // Given: three SmallInt values for a new list and a replacement value.
     let function = executable(
         8,
@@ -298,7 +298,7 @@ fn list_mutation_and_length_are_visible_through_the_same_heap_object() {
 }
 
 #[test]
-fn dict_mutation_indexing_and_length_share_one_dictionary() {
+fn dict_mutation_indexing_length_share_one_dict() {
     // Given: string keys, two initial values, and a replacement dictionary value.
     let function = executable(
         9,
@@ -352,7 +352,7 @@ fn dict_mutation_indexing_and_length_share_one_dictionary() {
 }
 
 #[test]
-fn smallint_overflow_promotes_to_bigint_for_following_arithmetic() {
+fn smallint_overflow_promotes_to_bigint_following_arithmetic() {
     // Given: a SmallInt addition that exceeds the i64 range.
     let function = executable(
         6,

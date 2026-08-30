@@ -5,7 +5,7 @@ use crate::adaptive_v2::heap::{GcConfig, GcError, GcHeap, GcObject};
 use crate::adaptive_v2::roots::RootInventory;
 
 #[test]
-fn heap_metrics_count_completed_events_across_runtime_clones() {
+fn heap_metrics_aggregate_runtime_clones() {
     // Given: collection-before-allocation and a rooted object that reaches promotion age.
     let runtime = AdaptiveHeapRuntime::new(GcConfig {
         collect_every_allocation: true,
@@ -65,7 +65,7 @@ fn heap_metrics_exclude_failed_allocations() {
 }
 
 #[test]
-fn heap_metrics_share_successful_allocations_across_threads() {
+fn heap_metrics_share_allocs_across_threads() {
     // Given: four independent clones of one runtime.
     let runtime = AdaptiveHeapRuntime::new(GcConfig::default());
     let workers: Vec<_> = (0..4)
@@ -88,7 +88,7 @@ fn heap_metrics_share_successful_allocations_across_threads() {
 }
 
 #[test]
-fn heap_metrics_count_exact_successful_managed_bytes() {
+fn heap_metrics_count_managed_bytes() {
     // Given: a heap with room for exactly one managed object.
     let runtime = AdaptiveHeapRuntime::new(GcConfig {
         allocation_limit: Some(1),
@@ -111,7 +111,7 @@ fn heap_metrics_count_exact_successful_managed_bytes() {
 }
 
 #[test]
-fn heap_metrics_include_owned_reference_capacity() {
+fn heap_metrics_include_owned_ref_capacity() {
     // Given: a managed object with owned but currently empty reference capacity.
     let references = Vec::<StableHandle>::with_capacity(4);
     let expected_bytes = u64::try_from(
@@ -130,7 +130,7 @@ fn heap_metrics_include_owned_reference_capacity() {
 }
 
 #[test]
-fn heap_metrics_count_successful_collection_pause_across_clones() {
+fn heap_metrics_share_pause_across_clones() {
     // Given: a rooted managed object and a clone sharing its heap snapshot.
     let runtime = AdaptiveHeapRuntime::new(GcConfig::default());
     let clone = runtime.clone();
@@ -155,7 +155,7 @@ fn heap_metrics_count_successful_collection_pause_across_clones() {
 }
 
 #[test]
-fn heap_metrics_exclude_interrupted_major_cycles() {
+fn heap_metrics_exclude_interrupted_gc() {
     // Given: a started major cycle that is never finished.
     let heap = GcHeap::new(GcConfig::default());
     let cycle = heap

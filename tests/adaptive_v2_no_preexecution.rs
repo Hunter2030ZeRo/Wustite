@@ -15,7 +15,7 @@ def main():
 "#;
 
 #[test]
-fn parameter_free_effectful_program_is_not_preexecuted_into_a_constant_entry() {
+fn effectful_program_skips_preexecution() {
     // Given: a closed parameter-free program whose result depends on ordered object mutations.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,

@@ -5,7 +5,7 @@ use wustite::{ExecutionMode, Runtime, RuntimeConfig, RuntimeValue};
 const SPECTRAL_NORM_SOURCE: &str = include_str!("../examples/spectral_norm.py");
 
 #[test]
-fn spectral_norm_example_compiles_and_executes_through_the_python_frontend() {
+fn spectral_norm_example_runs_via_python_frontend() {
     // Given: the unchanged spectral-norm benchmark source and an interpreter runtime.
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Interpreter,
@@ -26,7 +26,7 @@ fn spectral_norm_example_compiles_and_executes_through_the_python_frontend() {
 }
 
 #[test]
-fn floor_division_and_list_repetition_follow_python_semantics() {
+fn floor_division_list_repetition_follow_python_semantics() {
     // Given: negative floor division and list repetition in one Python expression.
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Interpreter,
@@ -45,7 +45,7 @@ fn floor_division_and_list_repetition_follow_python_semantics() {
 }
 
 #[test]
-fn tuple_assignment_enumerate_zip_and_augmented_assignment_execute() {
+fn tuple_assignment_enumerate_zip_augmented_assignment_execute() {
     // Given: the statement forms used by the spectral-norm reduction loops.
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Interpreter,
@@ -64,7 +64,7 @@ fn tuple_assignment_enumerate_zip_and_augmented_assignment_execute() {
 }
 
 #[test]
-fn module_constant_and_list_copy_feed_collection_length() {
+fn module_constant_list_copy_feed_collection_length() {
     // Given: a module constant, repeated list, and list-copy constructor.
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Interpreter,
@@ -84,7 +84,7 @@ fn module_constant_and_list_copy_feed_collection_length() {
 }
 
 #[test]
-fn fixed_non_empty_range_initializes_body_assignments() {
+fn fixed_range_initializes_body() {
     // Given: a local first assigned inside a statically non-empty range loop.
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Interpreter,
@@ -104,7 +104,7 @@ fn fixed_non_empty_range_initializes_body_assignments() {
 }
 
 #[test]
-fn nonescaping_builtin_list_copy_length_uses_the_exact_list_input() {
+fn nonescaping_builtin_list_copy_length_uses_exact_list_input() {
     let source = "def main(values: list):\n    return len(list(values))\n";
     let executable = compile_python_function(source, "main").expect("exact list parameter");
     assert!(
@@ -124,7 +124,7 @@ fn nonescaping_builtin_list_copy_length_uses_the_exact_list_input() {
 }
 
 #[test]
-fn escaping_or_nonlist_copy_is_not_scalar_replaced() {
+fn escaping_or_nonlist_copy_not_scalar_replaced() {
     let escaping = compile_python_function(
         "def main(values: list):\n    copied = list(values)\n    return len(copied)\n",
         "main",

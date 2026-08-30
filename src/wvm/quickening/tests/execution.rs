@@ -16,7 +16,7 @@ fn frame(pc: usize, registers: Vec<Value>) -> Frame {
 }
 
 #[test]
-fn quick_execution_handles_exact_smallints_and_aliases() {
+fn quick_exec_handles_exact_smallints_aliases() {
     let mut heap = ObjectHeap::new();
     for instruction in [
         QuickInstruction::Add {
@@ -102,7 +102,7 @@ fn quick_execution_handles_exact_smallints_and_aliases() {
 }
 
 #[test]
-fn quick_execution_guard_miss_is_side_effect_free() {
+fn quick_exec_guard_miss_side_effect_free() {
     let mut heap = ObjectHeap::new();
     let bigint = heap.allocate(Object::BigInt(BigInt::from(9))).unwrap();
     for mismatch in [
@@ -178,7 +178,7 @@ fn quick_execution_guard_miss_is_side_effect_free() {
 }
 
 #[test]
-fn quick_execution_handles_immediate_float_and_floor_arithmetic() {
+fn quick_exec_handles_immediate_float_floor_arithmetic() {
     let mut heap = ObjectHeap::new();
     let cases = [
         (

@@ -302,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn ffi_helpers_preserve_context_and_register_provenance() {
+    fn ffi_helpers_keep_context_reg_provenance() {
         // Given: a live call context backed by a WVM register slice.
         let mut registers = [Value::SmallInt(0), Value::Bool(false)];
         let mut dispatch = IncrementDispatch;
@@ -321,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn fused_execute_synchronizes_two_typed_inputs_in_one_boundary() {
+    fn fused_execute_syncs_two_typed_inputs_in_one_boundary() {
         // Given
         let mut registers = [Value::SmallInt(0), Value::Float(0.0)];
         let mut dispatch = IncrementDispatch;
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn fused_execute_returns_a_typed_result_through_caller_storage() {
+    fn fused_execute_returns_typed_result_via_caller_storage() {
         // Given
         let mut registers = [Value::SmallInt(0), Value::SmallInt(0)];
         let mut dispatch = IncrementDispatch;

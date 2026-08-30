@@ -1,7 +1,7 @@
 use wustite::{ExecutionMode, Runtime, RuntimeConfig, RuntimeValue};
 
 #[test]
-fn list_repeat_root_survives_native_loop_with_changed_inputs() {
+fn list_repeat_root_survives_native_loop_changed_inputs() {
     const SOURCE: &str = r#"
 def main(size: int, seed: int):
     values = [seed] * size
@@ -52,7 +52,7 @@ def main(size: int, seed: int):
 }
 
 #[test]
-fn list_repeat_entry_stays_authoritative_while_float_leaf_enters_native() {
+fn list_entry_owns_state_during_native_leaf() {
     const SOURCE: &str = r#"
 def scale(value: float):
     return value * 1.5
@@ -105,7 +105,7 @@ def main(size: int, seed: float):
 }
 
 #[test]
-fn rooted_float_list_loop_inlines_leaf_and_enters_machine_once() {
+fn rooted_float_list_loop_inlines_leaf_enters_machine_once() {
     const SOURCE: &str = r#"
 def scale(value: float, factor: float):
     return value * factor
@@ -170,7 +170,7 @@ def main(size: int, seed: float, factor: float):
 }
 
 #[test]
-fn rooted_float_loop_inlines_altered_signed_floor_leaf_exactly() {
+fn rooted_float_loop_inlines_altered_signed_floor_leaf_exact() {
     const SOURCE: &str = r#"
 def weighted(index: int, bias: int, item: float):
     return (0.5 + ((index + bias) // 3)) * item
@@ -233,7 +233,7 @@ def main(size: int, seed: float, bias: int):
 }
 
 #[test]
-fn loop_strategy_transition_selects_distinct_integer_and_float_snapshots() {
+fn loop_strategy_transition_selects_distinct_int_float_snapshots() {
     const SOURCE: &str = r#"
 def main(size: int, seed: object):
     values = [seed] * size
@@ -301,7 +301,7 @@ def main(size: int, seed: object):
 }
 
 #[test]
-fn fifth_live_loop_profile_case_becomes_generic_without_compilation_credit() {
+fn fifth_loop_case_generic_without_credit() {
     const SOURCE: &str = r#"
 def main(size: int, seed: object, marker: object):
     values = [seed] * size
@@ -342,7 +342,7 @@ def main(size: int, seed: object, marker: object):
 }
 
 #[test]
-fn empty_append_target_gets_no_credit_before_live_integer_and_float_strategies() {
+fn empty_append_waits_for_typed_profiles() {
     const SOURCE: &str = r#"
 def main(size: int, seed: object):
     result = []
@@ -438,7 +438,7 @@ def main(size: int, seed: object):
 }
 
 #[test]
-fn two_list_dynamic_reduction_call_tree_has_bounded_machine_entries() {
+fn two_list_dynamic_reduction_call_tree_bounded_machine_entries() {
     const SOURCE: &str = r#"
 def reduce_a(args: object):
     i = args[0]
@@ -546,7 +546,7 @@ def main(size: int, seed: float, alternate: bool):
 }
 
 #[test]
-fn whole_main_outer_call_tree_and_zip_reduction_compile_as_one_region() {
+fn whole_main_outer_call_tree_zip_reduction_compile_one_region() {
     const SOURCE: &str = r#"
 def reduce(args: object):
     i = args[0]
@@ -639,7 +639,7 @@ def main(size: int, seed: float, rounds: int, bias: int):
 }
 
 #[test]
-fn loopless_wrapper_owned_intermediate_compiles_as_one_invocation_transaction() {
+fn loopless_wrapper_uses_one_native_transaction() {
     const SOURCE: &str = r#"
 def reduce(args: object):
     i = args[0]
@@ -736,7 +736,7 @@ def main(size: int, seed: float, rounds: int, bias: int):
 }
 
 #[test]
-fn production_spectral_wrapper_chain_enters_one_native_region_per_invocation() {
+fn spectral_wrapper_uses_one_native_region() {
     // Given: the unchanged production spectral program has completed every live/stable gate.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,

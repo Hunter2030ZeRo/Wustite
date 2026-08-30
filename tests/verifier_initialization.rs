@@ -14,7 +14,7 @@ fn executable(register_count: usize, code: Vec<Instruction>) -> ExecutableFuncti
 }
 
 #[test]
-fn verifier_rejects_return_from_unwritten_register() {
+fn verifier_rejects_return_from_unwritten_reg() {
     // Given: bytecode whose return register has never been written.
     let function = executable(1, vec![Instruction::Return { src: 0 }]);
 
@@ -26,7 +26,7 @@ fn verifier_rejects_return_from_unwritten_register() {
 }
 
 #[test]
-fn verifier_rejects_build_list_item_from_unwritten_register() {
+fn verifier_rejects_build_list_item_from_unwritten_reg() {
     // Given: a list construction that reads an unwritten item register.
     let function = executable(
         2,
@@ -47,7 +47,7 @@ fn verifier_rejects_build_list_item_from_unwritten_register() {
 }
 
 #[test]
-fn verifier_intersects_assignments_at_branch_join() {
+fn verifier_intersects_branch_assignments() {
     // Given: r1 is written on only one path to a shared return.
     let function = ExecutableFunction::new_with_parameters(
         Function {
@@ -80,7 +80,7 @@ fn verifier_intersects_assignments_at_branch_join() {
 }
 
 #[test]
-fn verifier_treats_parameter_registers_as_initially_assigned() {
+fn verifier_treats_param_regs_initially_assigned() {
     // Given: a function that directly returns its sole parameter.
     let function = ExecutableFunction::new_with_parameters(
         Function {
@@ -103,7 +103,7 @@ fn verifier_treats_parameter_registers_as_initially_assigned() {
 }
 
 #[test]
-fn verifier_intersects_loop_entry_with_backedge_assignments() {
+fn verifier_intersects_loop_entry_backedge_assignments() {
     // Given: r1 is written on the backedge but not on the loop's first entry.
     let function = ExecutableFunction::new_with_parameters(
         Function {
@@ -136,7 +136,7 @@ fn verifier_intersects_loop_entry_with_backedge_assignments() {
 }
 
 #[test]
-fn verifier_rejects_reachable_fallthrough_without_return() {
+fn verifier_rejects_missing_return() {
     // Given: a reachable final instruction that is not a terminator.
     let function = executable(1, vec![Instruction::ConstSmallInt { dst: 0, value: 1 }]);
 

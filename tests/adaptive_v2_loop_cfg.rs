@@ -16,7 +16,7 @@ fn execute(source: &str) -> (RuntimeValue, wustite::AdaptiveReport) {
 }
 
 #[test]
-fn adaptive_loop_cfg_executes_divergent_body_and_merge_in_native_code() {
+fn adaptive_loop_cfg_executes_divergent_body_merge_native() {
     // Given: a loop whose body has two arithmetic paths that merge before the backedge.
     let source = include_str!("fixtures/adaptive_loop_branch.py");
 
@@ -34,7 +34,7 @@ fn adaptive_loop_cfg_executes_divergent_body_and_merge_in_native_code() {
 }
 
 #[test]
-fn adaptive_loop_cfg_executes_distinct_break_exit_in_native_code() {
+fn adaptive_loop_cfg_executes_distinct_break_exit_native() {
     // Given: a loop with a condition exit and a separate forward break exit.
     let source = include_str!("fixtures/adaptive_loop_break.py");
 
@@ -52,7 +52,7 @@ fn adaptive_loop_cfg_executes_distinct_break_exit_in_native_code() {
 }
 
 #[test]
-fn integer_subtract_and_multiply_loop_execute_in_native_code() {
+fn int_subtract_multiply_loop_run_native() {
     // Given: a hot integer loop using typed subtract and multiply operations.
     let source = include_str!("fixtures/adaptive_loop_integer_arithmetic.py");
 
@@ -68,7 +68,7 @@ fn integer_subtract_and_multiply_loop_execute_in_native_code() {
 }
 
 #[test]
-fn f64_divide_unary_and_boolean_loop_execute_in_native_code() {
+fn f64_divide_unary_bool_loop_run_native() {
     // Given: a hot loop carrying f64, bool, and integer header values.
     let source = include_str!("fixtures/adaptive_loop_f64.py");
 
@@ -84,7 +84,7 @@ fn f64_divide_unary_and_boolean_loop_execute_in_native_code() {
 }
 
 #[test]
-fn floor_divide_without_exact_wxir_semantics_remains_cold() {
+fn inexact_floor_divide_stays_cold() {
     // Given: signed floor division whose zero, floor, and BigInt semantics lack a WXIR opcode.
     let source = include_str!("fixtures/adaptive_loop_floor_divide.py");
 

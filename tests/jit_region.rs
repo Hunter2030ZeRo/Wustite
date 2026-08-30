@@ -235,7 +235,7 @@ fn unsupported_f32_wxir() -> WxFunction {
 }
 
 #[test]
-fn compiled_sum_region_restores_live_state_and_resume_pc() {
+fn compiled_sum_region_restores_live_state_resume_pc() {
     let executable = sum_function();
     let mut vm = Vm::new();
     assert_eq!(
@@ -262,7 +262,7 @@ fn compiled_sum_region_restores_live_state_and_resume_pc() {
 }
 
 #[test]
-fn compiled_overflow_exits_before_updating_destination() {
+fn compiled_overflow_exits_pre_updating_destination() {
     let executable = overflow_function();
     let region = executable.structure_map().region(RegionId(0)).unwrap();
     let plan = JitPlan {
@@ -297,7 +297,7 @@ fn compiled_overflow_exits_before_updating_destination() {
 }
 
 #[test]
-fn vm_automatically_tiers_up_sum_once() {
+fn vm_auto_tiers_up_sum_once() {
     let executable = sum_function();
     let mut vm = Vm::with_hot_threshold(10);
 
@@ -313,7 +313,7 @@ fn vm_automatically_tiers_up_sum_once() {
 }
 
 #[test]
-fn vm_replays_synthetic_overflow_exit_in_interpreter() {
+fn vm_replays_overflow_exit() {
     let executable = overflow_function();
     let mut vm = Vm::with_hot_threshold(0);
 
@@ -348,7 +348,7 @@ fn vm_replays_synthetic_overflow_exit_in_interpreter() {
 }
 
 #[test]
-fn vm_suppresses_cached_region_for_object_entry_without_disabling_it() {
+fn vm_suppresses_cached_region_object_entry_keeps_enabled() {
     let executable = cached_entry_type_mismatch_function();
     let mut vm = Vm::with_hot_threshold(0);
 
@@ -396,7 +396,7 @@ fn vm_suppresses_cached_region_for_object_entry_without_disabling_it() {
 }
 
 #[test]
-fn invalid_region_metadata_is_disabled_after_one_attempt() {
+fn invalid_region_meta_disables_after_attempt() {
     let executable = invalid_region_metadata_function();
     let mut vm = Vm::with_hot_threshold(0);
 
@@ -432,7 +432,7 @@ fn backend_rejects_unsupported_f32_state() {
 }
 
 #[test]
-fn high_threshold_keeps_sum_interpreter_only() {
+fn high_threshold_keeps_sum_interpreted() {
     let executable = sum_function();
     let mut vm = Vm::with_hot_threshold(102);
 

@@ -5,7 +5,7 @@ use super::super::roots::{RootInventory, RootKind};
 use super::super::value_word::{ScalarValue, ValueWord};
 
 #[test]
-fn typed_lists_widen_without_losing_bits_handles_order_or_barrier_edges() {
+fn typed_lists_widen_keeps_bits_handles_order_or_barrier_edges() {
     let heap = GcHeap::new(GcConfig {
         promotion_age: 1,
         ..GcConfig::default()
@@ -40,7 +40,7 @@ fn typed_lists_widen_without_losing_bits_handles_order_or_barrier_edges() {
 }
 
 #[test]
-fn f64_lists_preserve_nan_bits_and_mutations_invalidate_layout_keys() {
+fn f64_lists_keep_nan_bits_mutations_invalidate_layout_keys() {
     let heap = GcHeap::new(GcConfig::default());
     let mut list = TypedList::new(&heap).expect("list allocation");
     let nan_bits = 0x7ff8_1234_5678_9abc;
@@ -57,7 +57,7 @@ fn f64_lists_preserve_nan_bits_and_mutations_invalidate_layout_keys() {
 }
 
 #[test]
-fn every_pic_specializes_four_cases_then_uses_working_generic_fallback() {
+fn every_pic_specializes_four_cases_uses_working_generic_fallback() {
     let mut object_gets = Pic::<ObjectGetKey, u32>::new();
     let mut object_sets = Pic::<ObjectSetKey, u32>::new();
     let mut calls = Pic::<CallKey, u32>::new();
@@ -89,7 +89,7 @@ fn every_pic_specializes_four_cases_then_uses_working_generic_fallback() {
 }
 
 #[test]
-fn epoch_changes_miss_instead_of_returning_stale_pic_values() {
+fn epoch_changes_miss_instead_returning_stale_pic_values() {
     let mut object = Pic::<ObjectGetKey, u32>::new();
     let old = ObjectGetKey::new(7, 1, 1);
     object.observe(old, 41);
@@ -101,7 +101,7 @@ fn epoch_changes_miss_instead_of_returning_stale_pic_values() {
 }
 
 #[test]
-fn list_allocation_and_cross_heap_stable_handle_failures_are_typed() {
+fn list_alloc_foreign_handle_failure_typed() {
     let limited = GcHeap::new(GcConfig {
         allocation_limit: Some(0),
         ..GcConfig::default()

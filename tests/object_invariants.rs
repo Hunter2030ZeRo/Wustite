@@ -19,7 +19,7 @@ fn function(code: Vec<Instruction>, constants: Vec<ExecutableConstant>) -> Execu
 }
 
 #[test]
-fn containers_reject_foreign_and_stale_nested_references() {
+fn containers_reject_foreign_stale_nested_refs() {
     // Given: a reference from another heap and a reused local slot.
     let mut owner = ObjectHeap::new();
     let foreign = owner.allocate(Object::String("foreign".into())).unwrap();
@@ -41,7 +41,7 @@ fn containers_reject_foreign_and_stale_nested_references() {
 }
 
 #[test]
-fn runtime_rejects_host_created_dictionaries_before_runtime_normalization() {
+fn runtime_rejects_unnormalized_host_dicts() {
     // Given: a host-created dictionary with a duplicate key.
     let mut vm = Vm::new();
     let dictionary = Object::Dict(vec![
@@ -57,7 +57,7 @@ fn runtime_rejects_host_created_dictionaries_before_runtime_normalization() {
 }
 
 #[test]
-fn host_dictionary_rejects_equivalent_string_object_keys() {
+fn host_dict_rejects_equivalent_string_object_keys() {
     // Given: distinct heap objects containing the same hashable string key.
     let mut heap = ObjectHeap::new();
     let first = heap.allocate(Object::String("same".into())).unwrap();
@@ -75,7 +75,7 @@ fn host_dictionary_rejects_equivalent_string_object_keys() {
 }
 
 #[test]
-fn host_dictionary_handles_exact_mixed_numeric_keys() {
+fn host_dict_handles_exact_mixed_numeric_keys() {
     // Given: one equivalent mixed numeric pair and one distinct large numeric pair.
     let mut heap = ObjectHeap::new();
     let equivalent = Object::Dict(vec![
@@ -103,7 +103,7 @@ fn host_dictionary_handles_exact_mixed_numeric_keys() {
 }
 
 #[test]
-fn containers_reject_uninitialized_values_and_unhashable_dictionary_keys() {
+fn containers_reject_uninitialized_values_unhashable_dict_keys() {
     // Given: direct host-created containers with invalid nested values.
     let mut heap = ObjectHeap::new();
     let uninitialized = Object::tuple(vec![Value::Uninitialized]);
@@ -128,7 +128,7 @@ fn containers_reject_uninitialized_values_and_unhashable_dictionary_keys() {
 }
 
 #[test]
-fn bigint_sequence_indices_support_negative_indexing_and_range_errors() {
+fn bigint_sequence_indices_support_negative_indexing_range_errors() {
     // Given: a list and a BigInt constant used as its index.
     let indexed = function(
         vec![

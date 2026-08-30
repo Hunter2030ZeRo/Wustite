@@ -11,7 +11,7 @@ fn run(arguments: &[&str]) -> Output {
 }
 
 #[test]
-fn explicit_adaptive_core_emits_versioned_json_after_real_machine_entry() {
+fn adaptive_json_after_native_entry() {
     // Given: an explicit adaptive-v2 execution with enough live entry samples.
     let output = run(&[
         "run",
@@ -46,7 +46,7 @@ fn explicit_adaptive_core_emits_versioned_json_after_real_machine_entry() {
 }
 
 #[test]
-fn legacy_default_json_and_inert_command_policy_remain_unchanged() {
+fn legacy_default_json_inert_command_policy_unchanged() {
     // Given: legacy default execution and an adaptive-only option on inspect.
     let legacy = run(&[
         "run",
@@ -76,7 +76,7 @@ fn legacy_default_json_and_inert_command_policy_remain_unchanged() {
 }
 
 #[test]
-fn adaptive_human_diagnostics_are_stderr_only() {
+fn adaptive_human_diagnostics_stderr_only() {
     // Given: adaptive execution with human diagnostics enabled.
     let output = run(&[
         "run",
@@ -106,7 +106,7 @@ fn adaptive_human_diagnostics_are_stderr_only() {
 
 #[cfg(feature = "inkwell")]
 #[test]
-fn direct_llvm_is_rejected_before_adaptive_execution() {
+fn direct_llvm_rejected_pre_adaptive_exec() {
     // Given/When: adaptive-v2 is requested with an unsupported direct LLVM entry tier.
     let output = run(&[
         "run",
@@ -133,7 +133,7 @@ fn direct_llvm_is_rejected_before_adaptive_execution() {
 
 #[cfg(feature = "inkwell")]
 #[test]
-fn tiered_cli_reports_same_snapshot_llvm_promotion_after_real_execution() {
+fn tiered_cli_reports_post_exec_llvm_promotion() {
     // Given: the public CLI selects adaptive tiering for a retained scalar entry.
     let output = run(&[
         "run",
@@ -168,7 +168,7 @@ fn tiered_cli_reports_same_snapshot_llvm_promotion_after_real_execution() {
 }
 
 #[test]
-fn cranelift_cli_executes_both_guarded_loops_without_bridge_or_dispatch() {
+fn cranelift_cli_executes_both_guarded_loops_direct() {
     // Given: one public program warms a boolean callee before exercising its opposite case.
     let output = run(&[
         "run",

@@ -43,7 +43,7 @@ def helper():
 "#;
 
 #[test]
-fn initialized_parameters_and_locals_shadow_top_level_function_names() {
+fn initialized_params_locals_shadow_module_fn_names() {
     // Given: top-level functions whose names are also parameter and local names.
     let parameter = compile_python_function(SHADOWING_SOURCE, "parameter_shadow").unwrap();
     let current =
@@ -69,7 +69,7 @@ fn initialized_parameters_and_locals_shadow_top_level_function_names() {
 }
 
 #[test]
-fn repeated_top_level_helper_references_share_identity_and_remain_callable() {
+fn helper_refs_keep_identity_and_callability() {
     // Given: one helper referenced twice by a compiled top-level function.
     let executable = compile_python_function(HELPER_IDENTITY_SOURCE, "main").unwrap();
     let mut vm = Vm::with_hot_threshold(u64::MAX);
@@ -94,7 +94,7 @@ fn repeated_top_level_helper_references_share_identity_and_remain_callable() {
 }
 
 #[test]
-fn later_local_assignment_blocks_top_level_function_resolution() {
+fn later_local_assignment_blocks_module_fn_resolution() {
     // Given: a helper name which is assigned locally after its first use.
 
     // When: the compiler lowers the use before local initialization.

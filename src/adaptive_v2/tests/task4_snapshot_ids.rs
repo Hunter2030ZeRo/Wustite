@@ -38,7 +38,7 @@ fn seal(draft: SnapshotDraft) -> VerifiedSnapshot {
 }
 
 #[test]
-fn snapshot_id_is_stable_across_dependency_insertion_order_and_threads() {
+fn snapshot_id_ignores_insertion_order_and_threads() {
     let first = seal(scalar_draft(1, dependencies(7)));
     let second = seal(scalar_draft(1, dependencies(7)));
     assert_eq!(first.id(), second.id());
@@ -50,7 +50,7 @@ fn snapshot_id_is_stable_across_dependency_insertion_order_and_threads() {
 }
 
 #[test]
-fn instruction_dependency_parent_root_deopt_and_resume_changes_perturb_id() {
+fn instruction_dep_parent_root_deopt_resume_changes_perturb_id() {
     let base = seal(scalar_draft(1, dependencies(7)));
     assert_ne!(base.id(), seal(scalar_draft(2, dependencies(7))).id());
 
@@ -83,7 +83,7 @@ fn instruction_dependency_parent_root_deopt_and_resume_changes_perturb_id() {
 }
 
 #[test]
-fn immutable_snapshot_supports_concurrent_readers_without_mutation_surface() {
+fn snapshot_supports_readers_without_mutation() {
     let snapshot = seal(scalar_draft(1, dependencies(7)));
     let readers = (0..8)
         .map(|_| {
@@ -97,7 +97,7 @@ fn immutable_snapshot_supports_concurrent_readers_without_mutation_surface() {
 }
 
 #[test]
-fn frame_register_and_explicit_root_insertion_order_is_canonical() {
+fn frame_reg_explicit_root_insertion_order_canonical() {
     let mut first = rooted_helper_draft();
     first.body.deopts[0].frames[0].registers.extend([
         super::super::wxir_v2::deopt::RegisterRecipe::new(

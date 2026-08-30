@@ -4,7 +4,7 @@ use super::super::roots::RootInventory;
 use super::super::value_word::{ScalarValue, ValueWord};
 
 #[test]
-fn value_word_round_trips_immediate_boundaries_and_boxed_scalars() {
+fn value_word_roundtrips_immediate_boundaries_boxed_scalars() {
     let heap = GcHeap::new(GcConfig::default());
     for value in [
         -(1_i64 << 46) - 1,
@@ -49,7 +49,7 @@ fn value_word_round_trips_immediate_boundaries_and_boxed_scalars() {
 }
 
 #[test]
-fn handle_table_rejects_stale_cross_runtime_and_retired_slots() {
+fn handle_table_rejects_stale_foreign_retired() {
     let mut first = StableHandleTable::new(RuntimeId::new(11), 2);
     let second = StableHandleTable::<u8>::new(RuntimeId::new(12), 2);
     let handle = first.allocate(7).expect("the table should have capacity");
@@ -76,7 +76,7 @@ fn handle_table_rejects_stale_cross_runtime_and_retired_slots() {
 }
 
 #[test]
-fn copied_host_handle_is_pinned_until_explicit_release() {
+fn copied_host_handle_pinned_until_explicit_release() {
     let heap = GcHeap::new(GcConfig::default());
     let handle = heap
         .allocate(GcObject::new())
@@ -98,7 +98,7 @@ fn copied_host_handle_is_pinned_until_explicit_release() {
 }
 
 #[test]
-fn runtime_teardown_invalidates_handles_in_the_next_runtime() {
+fn runtime_teardown_invalidates_handles_in_next_runtime() {
     let handle = {
         let heap = GcHeap::new(GcConfig::default());
         heap.allocate(GcObject::new())

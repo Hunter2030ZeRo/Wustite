@@ -79,7 +79,7 @@ fn interpreter_runtime() -> Runtime {
 }
 
 #[test]
-fn scalar_control_flow_preserves_typed_values() {
+fn scalar_control_flow_keeps_typed_values() {
     // Given: typed scalar arguments and an if/else with a Boolean expression.
     let mut runtime = interpreter_runtime();
     let executable = runtime
@@ -114,7 +114,7 @@ fn scalar_control_flow_preserves_typed_values() {
 }
 
 #[test]
-fn range_and_nested_loops_execute_common_benchmark_shapes() {
+fn range_nested_loops_execute_common_benchmark_shapes() {
     // Given: nested positive ranges, a negative-step range, and nested whiles.
     let mut runtime = interpreter_runtime();
     let nested_range = runtime
@@ -160,7 +160,7 @@ fn range_and_nested_loops_execute_common_benchmark_shapes() {
 }
 
 #[test]
-fn local_function_calls_return_values_to_the_caller() {
+fn local_fn_calls_return_values_to_caller() {
     // Given: a typed helper called from another compiled Python function.
     let mut runtime = interpreter_runtime();
     let executable = runtime
@@ -178,7 +178,7 @@ fn local_function_calls_return_values_to_the_caller() {
 
 #[test]
 #[cfg_attr(miri, ignore)]
-fn frontend_loop_overflow_replays_with_arbitrary_precision() {
+fn frontend_loop_overflow_replays_arbitrary_precision() {
     // Given: frontend-generated loop bytecode that overflows i64 in native code.
     let executable = compile_python_function(OVERFLOW_SOURCE, "overflow_loop").unwrap();
     let mut vm = Vm::with_hot_threshold(0);

@@ -10,7 +10,7 @@ fn live(case: u8) -> LiveObservation {
 }
 
 #[test]
-fn live_profile_requires_exact_64_entry_and_32_stable_boundaries() {
+fn live_profile_requires_exact_64_entry_32_stable_boundaries() {
     let mut profile = AdaptiveProfile::new(7);
     profile.seed_static_hint(ProfileCase::new(1), 10_000);
     assert_eq!(profile.lifecycle(), Lifecycle::Profiling);
@@ -37,7 +37,7 @@ fn live_profile_requires_exact_64_entry_and_32_stable_boundaries() {
 }
 
 #[test]
-fn polymorphism_guardability_and_proven_facts_obey_live_global_gates() {
+fn polymorphism_guardability_proven_facts_obey_live_global_gates() {
     let mut poly = AdaptiveProfile::new(1);
     for index in 0..64 {
         poly.observe_live(live((index % 4) as u8));
@@ -83,7 +83,7 @@ fn polymorphism_guardability_and_proven_facts_obey_live_global_gates() {
 }
 
 #[test]
-fn invalidation_resets_live_readiness_and_rejects_stale_schema_evidence() {
+fn invalidation_resets_live_ready_rejects_stale_schema_evidence() {
     let mut profile = AdaptiveProfile::new(4);
     for _ in 0..64 {
         profile.observe_live(live(1));
@@ -100,7 +100,7 @@ fn invalidation_resets_live_readiness_and_rejects_stale_schema_evidence() {
 }
 
 #[test]
-fn stable_polymorphic_boundary_and_illegal_transitions_are_explicit() {
+fn stable_polymorphic_boundary_illegal_transitions_explicit() {
     let mut profile = AdaptiveProfile::new(9);
     assert!(!profile.start_recording());
     assert!(!profile.finish_recording());

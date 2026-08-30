@@ -41,7 +41,7 @@ fn adaptive_runtime(hot_threshold: u64) -> Runtime {
 }
 
 #[test]
-fn run_function_and_interpreter_mode_return_sum() {
+fn run_paths_return_sum() {
     assert_eq!(
         RuntimeConfig::default(),
         RuntimeConfig {
@@ -82,7 +82,7 @@ fn run_function_and_interpreter_mode_return_sum() {
 }
 
 #[test]
-fn cranelift_backend_stays_in_tier1_when_hot() {
+fn hot_cranelift_stays_tier1() {
     // Given: a runtime explicitly restricted to the Cranelift backend.
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Jit(CompilerBackend::Cranelift),
@@ -104,7 +104,7 @@ fn cranelift_backend_stays_in_tier1_when_hot() {
 }
 
 #[test]
-fn typed_positional_arguments_cross_the_execution_abi() {
+fn typed_positional_args_cross_abi() {
     // Given: a compiled Python function with two typed positional parameters.
     let mut runtime = adaptive_runtime(1);
     let executable = runtime.compile_function(ADD_SOURCE, "add").unwrap();
@@ -154,7 +154,7 @@ fn execution_abi_rejects_wrong_arity() {
 }
 
 #[test]
-fn execution_abi_rejects_wrong_argument_type() {
+fn abi_rejects_wrong_arg_type() {
     // Given: a function whose first positional argument is an integer.
     let mut runtime = adaptive_runtime(1);
     let executable = runtime.compile_function(ADD_SOURCE, "add").unwrap();
@@ -174,7 +174,7 @@ fn execution_abi_rejects_wrong_argument_type() {
 }
 
 #[test]
-fn run_function_with_args_accepts_boolean_parameters() {
+fn run_fn_args_accepts_bool_params() {
     // Given: a source function with one Boolean positional parameter.
     let mut runtime = adaptive_runtime(1);
 
@@ -188,7 +188,7 @@ fn run_function_with_args_accepts_boolean_parameters() {
 }
 
 #[test]
-fn function_arguments_remain_live_across_native_region_execution() {
+fn native_exec_keeps_fn_args_live() {
     // Given: a loop function whose annotated parameter is live at the JIT entry.
     let mut runtime = adaptive_runtime(1);
     let executable = runtime.compile_function(SUM_TO_SOURCE, "sum_to").unwrap();
@@ -204,7 +204,7 @@ fn function_arguments_remain_live_across_native_region_execution() {
 }
 
 #[test]
-fn repeated_execute_and_clone_reuse_native_region() {
+fn repeat_execute_clone_reuse_native() {
     let mut runtime = adaptive_runtime(10);
     let executable = runtime.compile_function(SUM_SOURCE, "main").unwrap();
 
@@ -234,7 +234,7 @@ fn repeated_execute_and_clone_reuse_native_region() {
 }
 
 #[test]
-fn different_executables_keep_independent_persistent_runtimes() {
+fn distinct_execs_keep_independent_persistent_runtimes() {
     let mut runtime = adaptive_runtime(5);
     let executable_a = runtime.compile_function(SUM_SOURCE, "main").unwrap();
     let source_b = SUM_SOURCE.replace("limit = 101", "limit = 11");
@@ -281,7 +281,7 @@ fn different_executables_keep_independent_persistent_runtimes() {
 }
 
 #[test]
-fn errors_preserve_frontend_locations_and_cached_executables() {
+fn errors_keep_frontend_locations_cached_execs() {
     let mut runtime = adaptive_runtime(5);
     let frontend_error = runtime
         .compile_function("def main():\n    raise 1\n    return 0\n", "main")
@@ -319,7 +319,7 @@ fn errors_preserve_frontend_locations_and_cached_executables() {
 }
 
 #[test]
-fn runtime_value_conversion_rejects_uninitialized_values() {
+fn value_conversion_rejects_uninitialized() {
     assert_eq!(
         RuntimeValue::try_from(Value::SmallInt(42)).unwrap(),
         RuntimeValue::SmallInt(42)
@@ -335,7 +335,7 @@ fn runtime_value_conversion_rejects_uninitialized_values() {
 }
 
 #[test]
-fn inspect_is_deterministic_and_has_no_runtime_side_effects() {
+fn inspect_deterministic_no_side_effects() {
     let mut runtime = adaptive_runtime(1);
     let executable = runtime.compile_function(SUM_SOURCE, "main").unwrap();
     assert!(runtime.profile_for(&executable).is_none());

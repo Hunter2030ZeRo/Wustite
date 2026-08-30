@@ -41,7 +41,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn float_snapshot_pair_commit_changes_both_lists_atomically() {
+    fn float_pair_commits_atomically() {
         // Given two distinct live F64 lists with current layout versions.
         let mut heap = ObjectHeap::new();
         let first = float_list(&mut heap, &[1.0]);
@@ -64,7 +64,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn float_snapshot_pair_rejects_stale_first_without_partial_commit() {
+    fn float_snapshot_pair_rejects_stale_first_atomically() {
         // Given a stale first snapshot and a current second snapshot.
         let mut heap = ObjectHeap::new();
         let first = float_list(&mut heap, &[1.0]);
@@ -91,7 +91,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn float_snapshot_pair_rejects_stale_second_without_partial_commit() {
+    fn float_snapshot_pair_rejects_stale_second_atomically() {
         // Given a current first snapshot and a stale second snapshot.
         let mut heap = ObjectHeap::new();
         let first = float_list(&mut heap, &[1.0]);
@@ -118,7 +118,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn float_snapshot_pair_rejects_the_same_handle() {
+    fn float_snapshot_pair_rejects_same_handle() {
         // Given one live F64 list supplied in both pair positions.
         let mut heap = ObjectHeap::new();
         let list = float_list(&mut heap, &[1.0]);
@@ -138,7 +138,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn integer_snapshot_pair_commit_changes_both_lists_atomically() {
+    fn int_snapshot_pair_commit_changes_both_lists_atomically() {
         let mut heap = ObjectHeap::new();
         let first = integer_list(&mut heap, &[1]);
         let second = integer_list(&mut heap, &[2]);
@@ -158,7 +158,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn integer_snapshot_pair_rejects_stale_first_without_partial_commit() {
+    fn int_snapshot_pair_rejects_stale_first_atomically() {
         let mut heap = ObjectHeap::new();
         let first = integer_list(&mut heap, &[1]);
         let second = integer_list(&mut heap, &[2]);
@@ -182,7 +182,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn integer_snapshot_pair_rejects_stale_second_without_partial_commit() {
+    fn int_snapshot_pair_rejects_stale_second_atomically() {
         let mut heap = ObjectHeap::new();
         let first = integer_list(&mut heap, &[1]);
         let second = integer_list(&mut heap, &[2]);
@@ -206,7 +206,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn integer_snapshot_pair_rejects_the_same_handle() {
+    fn int_snapshot_pair_rejects_same_handle() {
         let mut heap = ObjectHeap::new();
         let list = integer_list(&mut heap, &[1]);
         let version = heap.integer_sequence_snapshot(list).unwrap().unwrap().1;
@@ -223,7 +223,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn float_snapshot_set_rejects_one_stale_member_without_partial_commit() {
+    fn float_snapshot_set_rejects_one_stale_member_atomically() {
         // Given: three lists where only the middle transaction has a stale layout version.
         let mut heap = ObjectHeap::new();
         let first = float_list(&mut heap, &[1.0]);
@@ -254,7 +254,7 @@ mod snapshot_pair_tests {
     }
 
     #[test]
-    fn float_snapshot_set_rejects_duplicate_members_without_mutation() {
+    fn float_set_rejects_duplicates_atomically() {
         // Given: a current list repeated in one owned transaction set.
         let mut heap = ObjectHeap::new();
         let list = float_list(&mut heap, &[1.0]);

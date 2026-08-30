@@ -21,7 +21,7 @@ const SUM_SOURCE: &str = r#"def main():
 "#;
 
 #[test]
-fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
+fn python_sum_runs_in_both_wvm_tiers() {
     let executable = compile_python_function(SUM_SOURCE, "main").unwrap();
     verifier::verify(&executable).unwrap();
 
@@ -153,7 +153,7 @@ fn python_sum_compiles_and_runs_in_both_wvm_tiers() {
 }
 
 #[test]
-fn frontend_rejects_invalid_loop_syntax_with_locations() {
+fn frontend_rejects_invalid_loop_syntax_locations() {
     let unsupported = compile_python_function(
         "def main():\n    for value in reversed([1, 2, 3]):\n        value = value + 1\n    return 0\n",
         "main",
@@ -187,7 +187,7 @@ fn frontend_rejects_invalid_loop_syntax_with_locations() {
 }
 
 #[test]
-fn move_copies_values_and_verifier_checks_both_registers() {
+fn move_copies_values_verifier_checks_both_regs() {
     let executable = ExecutableFunction::new(
         Function {
             register_count: 2,

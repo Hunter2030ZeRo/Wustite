@@ -55,7 +55,7 @@ fn execution_commands_advertise_wxir_dumping() {
 }
 
 #[test]
-fn debug_jit_reports_direct_scalar_activity() {
+fn debug_jit_reports_scalar_activity() {
     // Given: a program whose loop contains a proven SmallInt multiplication.
     // When: JIT debugging is enabled through its short compatibility alias.
     let output = run_cli(&[
@@ -84,7 +84,7 @@ fn debug_jit_reports_direct_scalar_activity() {
 }
 
 #[test]
-fn run_dump_wxir_prints_each_compiled_region_to_stderr() {
+fn run_dump_wxir_prints_each_region_to_stderr() {
     // Given: a program with one JIT-compilable region.
     // When: run executes it with WXIR dumping enabled.
     let output = run_cli(&[
@@ -102,7 +102,7 @@ fn run_dump_wxir_prints_each_compiled_region_to_stderr() {
 }
 
 #[test]
-fn bench_debug_jit_reports_cold_native_activity() {
+fn bench_debug_jit_reports_cold_native() {
     // Given: the same semantically valid program with a generic native runtime call.
     // When: a minimal benchmark is run with JIT debugging enabled.
     let output = run_cli(&[
@@ -127,7 +127,7 @@ fn bench_debug_jit_reports_cold_native_activity() {
 }
 
 #[test]
-fn bench_can_bound_the_interpreter_control_independently() {
+fn bench_can_bound_interpreter_control_independently() {
     // Given: adaptive timing needs several samples while the interpreter is only a
     // correctness control for application fixtures.
     let output = run_cli(&[
@@ -158,7 +158,7 @@ fn bench_can_bound_the_interpreter_control_independently() {
 }
 
 #[test]
-fn bench_reports_the_exact_measured_adaptive_window() {
+fn bench_reports_exact_measured_adaptive_window() {
     // Given: the list macro is already hot before a three-sample measured window.
     let output = run_cli(&[
         "bench",
@@ -187,7 +187,7 @@ fn bench_reports_the_exact_measured_adaptive_window() {
 }
 
 #[test]
-fn bench_dump_wxir_prints_compiled_regions_to_stderr() {
+fn bench_dump_wxir_prints_regions_to_stderr() {
     // Given: a one-sample benchmark whose adaptive runtime compiles one region.
     // When: benchmark execution enables WXIR dumping.
     let output = run_cli(&[
@@ -209,7 +209,7 @@ fn bench_dump_wxir_prints_compiled_regions_to_stderr() {
 }
 
 #[test]
-fn nested_object_regions_report_native_activity_without_failures() {
+fn nested_objects_report_native_success() {
     // Given: spectral_norm executes JIT-eligible loops inside nested helper functions.
     // When: its JIT diagnostics are captured.
     let output = run_cli(&[

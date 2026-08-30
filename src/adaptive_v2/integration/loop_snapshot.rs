@@ -243,7 +243,7 @@ mod tests {
     use crate::{ExecutionMode, Runtime, RuntimeConfig};
 
     #[test]
-    fn loop_cfg_records_exact_scalar_backedge_state() {
+    fn loop_cfg_tracks_scalar_backedge() {
         // Given: a divergent scalar loop with one natural backedge.
         let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
             execution_mode: ExecutionMode::AdaptiveJit,
@@ -302,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn production_loop_declares_only_its_cfg_verified_preheader_body_edge() {
+    fn production_loop_declares_only_cfg_verified_preheader_body_edge() {
         // Given: the production spectral outer loop has an initial edge into its body.
         let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
             execution_mode: ExecutionMode::AdaptiveJit,

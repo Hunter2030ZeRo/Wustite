@@ -74,7 +74,7 @@ mod tests {
     use super::{RUNTIME_SLOT_ABI_VERSION, RuntimeSlot, Value};
 
     #[test]
-    fn runtime_slot_has_stable_c_layout_and_round_trips() {
+    fn runtime_slot_stable_c_layout_roundtrips() {
         assert_eq!(RUNTIME_SLOT_ABI_VERSION, 1);
         assert_eq!(size_of::<RuntimeSlot>(), 24);
         assert_eq!(align_of::<RuntimeSlot>(), 8);

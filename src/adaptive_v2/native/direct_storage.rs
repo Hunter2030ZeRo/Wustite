@@ -1358,7 +1358,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_outer_append_after_nested_loop_has_one_capacity_proof() {
+    fn nested_append_has_single_capacity_proof() {
         let proofs = super::canonical_append_proofs(
             &nested_append_body(NumericComparison::LessThan),
             |value| match value.get() {
@@ -1382,7 +1382,7 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_mutation_keeps_segment_alive_and_invalidates_version() {
+    fn concurrent_mutation_keeps_segment_alive_invalidates_version() {
         // Given: an owned integer segment lease and another context for the same runtime.
         let mut context = AdaptiveNativeContext::new(GcConfig::default());
         let list = context.allocate_list().expect("list");
@@ -1411,7 +1411,7 @@ mod tests {
     }
 
     #[test]
-    fn gc_preserves_rooted_lease_and_discarded_alias_cannot_prepare_another() {
+    fn discarded_alias_cannot_reprepare_after_gc() {
         // Given: a rooted list and an owned sidecar lease.
         let mut context = AdaptiveNativeContext::new(GcConfig::default());
         let list = context.allocate_list().expect("list");
@@ -1493,7 +1493,7 @@ mod tests {
     }
 
     #[test]
-    fn verifier_accepts_only_semantic_same_handle_mutation_chains() {
+    fn verifier_accepts_semantic_handle_chain() {
         let snapshot = list_snapshot(
             vec![
                 Instruction::new(
@@ -1522,7 +1522,7 @@ mod tests {
     }
 
     #[test]
-    fn verifier_accepts_typed_handle_copy_as_an_exact_storage_alias() {
+    fn verifier_accepts_typed_handle_copy_exact_storage_alias() {
         let snapshot = list_snapshot(
             vec![
                 Instruction::new(
@@ -1551,7 +1551,7 @@ mod tests {
     }
 
     #[test]
-    fn verifier_accepts_two_unrelated_entry_rooted_list_storage_inputs() {
+    fn verifier_accepts_two_entry_list_storages() {
         let snapshot = list_snapshot(
             vec![
                 Instruction::new(
@@ -1593,7 +1593,7 @@ mod tests {
     }
 
     #[test]
-    fn verifier_rejects_a_third_direct_storage_slot() {
+    fn verifier_rejects_third_direct_storage_slot() {
         let snapshot = list_snapshot(
             vec![
                 Instruction::new(
@@ -1624,7 +1624,7 @@ mod tests {
     }
 
     #[test]
-    fn verifier_distinguishes_one_owned_intermediate_from_two_entry_storages() {
+    fn verifier_separates_owned_and_entry_storage() {
         // Given: two authoritative entry lists and one nonescaping invocation-owned list.
         let snapshot = list_snapshot(
             vec![
@@ -1709,7 +1709,7 @@ mod tests {
     }
 
     #[test]
-    fn verifier_rejects_a_handle_phi_with_conflicting_entry_roots() {
+    fn verifier_rejects_handle_phi_conflicting_entry_roots() {
         let mut deps = dependencies(7);
         deps.push(Dependency::current(DependencyKind::ListLayout, 9, 1));
         let draft = SnapshotDraft::new(
@@ -1778,7 +1778,7 @@ mod tests {
     }
 
     #[test]
-    fn cranelift_reads_one_owned_snapshot_and_mutates_only_the_other() {
+    fn cranelift_reads_one_owned_snapshot_mutates_only_other() {
         let snapshot = list_snapshot(
             vec![
                 Instruction::new(
@@ -1833,7 +1833,7 @@ mod tests {
     }
 
     #[test]
-    fn cranelift_rejects_absent_or_mismatched_storage_receipts_before_mutation() {
+    fn cranelift_rejects_bad_receipts_pre_mutation() {
         let snapshot = list_snapshot(
             vec![
                 Instruction::new(
@@ -1922,7 +1922,7 @@ mod tests {
 
     #[cfg(feature = "inkwell")]
     #[test]
-    fn llvm_reads_one_owned_snapshot_and_mutates_only_the_other() {
+    fn llvm_reads_one_owned_snapshot_mutates_only_other() {
         let snapshot = list_snapshot(
             vec![
                 Instruction::new(
@@ -2182,7 +2182,7 @@ mod tests {
 
     #[cfg(feature = "inkwell")]
     #[test]
-    fn llvm_and_cranelift_reject_dynamic_length_above_capacity_before_mutation() {
+    fn llvm_cranelift_reject_dynamic_length_above_capacity_pre_mutation() {
         let alias = test_alias(77, 3);
         let (tier1, tier2) = compile_dynamic_set_backends();
 
@@ -2196,7 +2196,7 @@ mod tests {
 
     #[cfg(feature = "inkwell")]
     #[test]
-    fn llvm_and_cranelift_reject_null_dynamic_values_before_mutation() {
+    fn llvm_cranelift_reject_null_dynamic_values_pre_mutation() {
         const CHILD: &str = "WUSTITE_LLVM_NULL_DYNAMIC_VALUES_CHILD";
         let alias = test_alias(77, 3);
         let (tier1, tier2) = compile_dynamic_set_backends();
@@ -2234,7 +2234,7 @@ mod tests {
 
     #[cfg(feature = "inkwell")]
     #[test]
-    fn llvm_and_cranelift_reject_in_flight_dynamic_version_before_mutation() {
+    fn llvm_cranelift_reject_in_flight_dynamic_version_pre_mutation() {
         let alias = test_alias(77, 3);
         let (tier1, tier2) = compile_dynamic_set_backends();
 
@@ -2248,7 +2248,7 @@ mod tests {
 
     #[cfg(feature = "inkwell")]
     #[test]
-    fn llvm_and_cranelift_reject_dynamic_receipt_identity_before_mutation() {
+    fn llvm_cranelift_reject_dynamic_receipt_identity_pre_mutation() {
         let alias = test_alias(77, 3);
         let (tier1, tier2) = compile_dynamic_set_backends();
 
@@ -2287,7 +2287,7 @@ mod tests {
     }
 
     #[test]
-    fn dynamic_list_lookup_rejects_unknown_alias_and_bounded_set_overflow() {
+    fn dynamic_list_lookup_rejects_unknown_alias_bounded_set_overflow() {
         // Given: native code whose second list is selected by a Handle read from the first.
         let snapshot = dynamically_derived_list_snapshot();
         let code = super::super::NativeCompiler::new()
@@ -2349,7 +2349,7 @@ mod tests {
 
     #[cfg(feature = "inkwell")]
     #[test]
-    fn llvm_and_cranelift_resolve_the_same_dynamic_handle_descriptor() {
+    fn llvm_cranelift_resolve_same_dynamic_handle_descriptor() {
         // Given: one immutable snapshot with a dynamically derived list Handle.
         let snapshot = dynamically_derived_list_snapshot();
         let mut compiler = super::super::NativeCompiler::new();

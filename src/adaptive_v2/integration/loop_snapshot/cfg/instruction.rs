@@ -2728,7 +2728,7 @@ mod tests {
     use crate::structure_map::StructureMap;
 
     #[test]
-    fn dead_phi_elision_preserves_a_native_unused_value_required_by_replay() {
+    fn dead_phi_elision_keeps_native_unused_value_required_replay() {
         let executable = ExecutableFunction::new(
             Function {
                 code: vec![WvmInstruction::Return { src: 0 }],

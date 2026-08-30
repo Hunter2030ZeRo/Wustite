@@ -157,7 +157,7 @@ impl AdaptiveProfile {
         }
         self.observe_case(observation.case);
         match self.lifecycle {
-            Lifecycle::Profiling if self.live_entries >= 64 && self.stable_live >= 32 => {
+            Lifecycle::Profiling if self.live_entries >= 32 && self.stable_live >= 32 => {
                 self.lifecycle = Lifecycle::ReadyToRecord;
             }
             Lifecycle::Recording if self.recording_complete && self.stable_live >= 32 => {

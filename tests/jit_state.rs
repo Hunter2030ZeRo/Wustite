@@ -129,7 +129,7 @@ fn f64_loop_function() -> ExecutableFunction {
 }
 
 #[test]
-fn f64_live_state_round_trips_native_side_exit() {
+fn f64_live_state_roundtrips_native_side_exit() {
     // Given: an F64 entry value with a noncanonical NaN payload.
     let executable = executable_id_source();
     let wxir = passthrough_function(WxType::Scalar(WxScalarType::F64));
@@ -151,7 +151,7 @@ fn f64_live_state_round_trips_native_side_exit() {
 }
 
 #[test]
-fn vm_executes_f64_live_state_in_native_region() {
+fn vm_executes_f64_live_state_in_native() {
     // Given: a loop with an F64 value live across its native region boundary.
     let executable = f64_loop_function();
     let mut vm = Vm::with_hot_threshold(0);
@@ -170,7 +170,7 @@ fn vm_executes_f64_live_state_in_native_region() {
 
 #[cfg(feature = "inkwell")]
 #[test]
-fn llvm_f64_live_state_round_trips_native_side_exit() {
+fn llvm_f64_live_state_roundtrips_native_side_exit() {
     // Given: the same F64 state contract compiled directly by LLVM Tier-2.
     let executable = executable_id_source();
     let wxir = passthrough_function(WxType::Scalar(WxScalarType::F64));

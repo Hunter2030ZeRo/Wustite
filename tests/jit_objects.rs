@@ -19,7 +19,7 @@ fn assert_native_execution(runtime: &Runtime) {
 }
 
 #[test]
-fn object_loop_stays_inside_a_native_region() {
+fn object_loop_stays_inside_native() {
     // Given: a list-indexing loop and the Cranelift runtime with immediate tier-up.
     let source = "def main():\n    values = [1, 2, 3, 4]\n    total = 0\n    for index in range(200):\n        total += values[index // 50]\n    return total\n";
     let mut runtime = cranelift_runtime();
@@ -38,7 +38,7 @@ fn object_loop_stays_inside_a_native_region() {
 }
 
 #[test]
-fn list_mutation_stays_inside_a_native_region() {
+fn list_mutation_stays_inside_native() {
     // Given: repeated list reads and writes in a loop with immediate tier-up.
     let source = "def main():\n    values = [0]\n    for index in range(200):\n        values[0] = values[0] + 1\n    return values[0]\n";
     let mut runtime = cranelift_runtime();
@@ -52,7 +52,7 @@ fn list_mutation_stays_inside_a_native_region() {
 }
 
 #[test]
-fn native_object_error_replays_at_the_failing_instruction() {
+fn native_object_error_replays_at_failing_instruction() {
     // Given: an invalid list pop inside a loop selected for native execution.
     let source = "def main():\n    values = []\n    for index in range(2):\n        values.pop()\n    return 0\n";
     let mut runtime = cranelift_runtime();
@@ -68,7 +68,7 @@ fn native_object_error_replays_at_the_failing_instruction() {
 }
 
 #[test]
-fn spectral_norm_executes_object_regions_natively() {
+fn spectral_norm_runs_object_regions_native() {
     // Given: the spectral-norm implementation benchmark and immediate Cranelift tier-up.
     let mut runtime = cranelift_runtime();
 
@@ -84,7 +84,7 @@ fn spectral_norm_executes_object_regions_natively() {
 }
 
 #[test]
-fn spectral_norm_reprofiles_transient_numeric_entries() {
+fn spectral_norm_reprofiles_numeric_entries() {
     // Given: spectral_norm with enough profiling iterations to observe its int-to-float transition.
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Jit(CompilerBackend::Cranelift),
@@ -119,7 +119,7 @@ fn spectral_norm_reprofiles_transient_numeric_entries() {
 }
 
 #[test]
-fn compiler_kernels_branch_joins_compile_without_dead_temporary_failures() {
+fn branch_joins_compile_without_dead_temps() {
     // Given: nested compiler kernels whose diamond branches define distinct temporaries.
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Jit(CompilerBackend::Cranelift),
@@ -172,7 +172,7 @@ fn nbody_executes_object_regions_natively() {
 
 #[cfg(feature = "inkwell")]
 #[test]
-fn llvm_executes_list_indexing_inside_a_native_region() {
+fn llvm_executes_list_indexing_inside_native() {
     // Given: a list-indexing loop and direct LLVM compilation.
     let source = "def main():\n    values = [1, 2, 3, 4]\n    total = 0\n    for index in range(200):\n        total += values[index // 50]\n    return total\n";
     let mut runtime = Runtime::new(RuntimeConfig {

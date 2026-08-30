@@ -7,7 +7,7 @@ use crate::value::Value;
 use super::{Profile, ValueTag};
 
 #[test]
-fn site_result_stays_exact_when_two_cases_share_a_result_tag() {
+fn site_result_exact_for_shared_tag() {
     // Given
     let mut profile = Profile::new(1, 1);
     // When
@@ -18,7 +18,7 @@ fn site_result_stays_exact_when_two_cases_share_a_result_tag() {
 }
 
 #[test]
-fn site_result_becomes_generic_when_result_tags_diverge() {
+fn site_result_generic_for_divergent_tags() {
     // Given
     let mut profile = Profile::new(1, 1);
     // When
@@ -29,7 +29,7 @@ fn site_result_becomes_generic_when_result_tags_diverge() {
 }
 
 #[test]
-fn region_entry_tag_records_the_live_value_class() {
+fn region_entry_tag_records_live_value_class() {
     // Given
     let mut profile = Profile::new(1, 0);
     let slots = [StateSlot {
@@ -43,7 +43,7 @@ fn region_entry_tag_records_the_live_value_class() {
 }
 
 #[test]
-fn region_entry_tag_prefers_a_stable_loop_carried_type_after_initialization() {
+fn region_entry_prefers_stable_loop_type() {
     // Given
     let mut profile = Profile::new(1, 0);
     let slots = [StateSlot {
@@ -59,7 +59,7 @@ fn region_entry_tag_prefers_a_stable_loop_carried_type_after_initialization() {
 }
 
 #[test]
-fn region_profile_requires_eight_compatible_runtime_entries() {
+fn region_profile_requires_eight_compat_runtime_entries() {
     let slots = vec![StateSlot {
         register: 0,
         ty: SlotType::Any,
@@ -98,7 +98,7 @@ fn region_profile_requires_eight_compatible_runtime_entries() {
 }
 
 #[test]
-fn incompatible_entry_resets_profile_readiness_window() {
+fn incompat_entry_resets_profile_ready_window() {
     let slots = vec![StateSlot {
         register: 0,
         ty: SlotType::Any,
@@ -133,7 +133,7 @@ fn incompatible_entry_resets_profile_readiness_window() {
 }
 
 #[test]
-fn cached_candidates_do_not_replace_current_run_validation() {
+fn cached_candidates_keep_live_validation() {
     let slots = vec![StateSlot {
         register: 0,
         ty: SlotType::Any,

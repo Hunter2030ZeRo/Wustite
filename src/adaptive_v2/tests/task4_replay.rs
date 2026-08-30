@@ -184,7 +184,7 @@ fn reference(arguments: &[ReplayValue], heap: &mut ReplayHeap) -> ReplayOutcome 
 }
 
 #[test]
-fn unoptimized_trace_replay_matches_wvm_like_object_list_call_branch_model() {
+fn trace_replay_matches_object_call_branch_model() {
     let snapshot = differential_snapshot();
     for condition in [true, false] {
         let arguments = [

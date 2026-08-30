@@ -47,7 +47,7 @@ mod tests {
     use super::SymbolVersions;
 
     #[test]
-    fn names_are_exact_and_versions_are_scoped_to_each_region() -> Result<(), super::CompileError> {
+    fn names_exact_versions_scoped_to_each_region() -> Result<(), super::CompileError> {
         let executable = ExecutableFunction::new(
             Function {
                 code: Vec::new(),

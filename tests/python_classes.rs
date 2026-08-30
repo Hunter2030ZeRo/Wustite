@@ -10,7 +10,7 @@ fn interpreter_runtime() -> Runtime {
 }
 
 #[test]
-fn class_constructor_fields_direct_and_bound_methods_execute() {
+fn class_constructor_fields_direct_bound_methods_execute() {
     let mut runtime = interpreter_runtime();
     let source = include_str!("fixtures/classes.py");
 
@@ -37,7 +37,7 @@ fn cli_runs_class_fixture() {
 }
 
 #[test]
-fn object_method_loop_crosses_the_wxir_runtime_boundary() {
+fn object_method_loop_crosses_wxir_runtime_boundary() {
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Jit(CompilerBackend::Tiered),
         hot_threshold: 8,
@@ -55,7 +55,7 @@ fn object_method_loop_crosses_the_wxir_runtime_boundary() {
 }
 
 #[test]
-fn method_call_site_uses_two_shape_cases_then_megamorphic_fallback() {
+fn method_call_site_uses_two_shape_cases_megamorphic_fallback() {
     let mut runtime = interpreter_runtime();
     let executable = runtime
         .compile_function(include_str!("fixtures/classes.py"), "polymorphic_main")

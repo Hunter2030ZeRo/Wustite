@@ -737,7 +737,7 @@ mod tests {
     use super::preheader_storage_matches;
 
     #[test]
-    fn preheader_storage_match_allows_only_guarded_integer_to_float_widening() {
+    fn preheader_match_guards_int_to_float_widening() {
         // Given: one entry storage and one owned destination from a float snapshot.
         let recorded = [2, 3074];
 

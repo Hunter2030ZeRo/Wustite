@@ -11,7 +11,7 @@ fn interpreter_runtime() -> Runtime {
 }
 
 #[test]
-fn list_comprehension_maps_a_range_when_returned() {
+fn returned_range_list_comprehension() {
     // Given: a Python function whose result is produced by one range comprehension.
     let mut runtime = interpreter_runtime();
     let source = "def squares():\n    return [value * value for value in range(1, 5)]\n";
@@ -36,7 +36,7 @@ fn list_comprehension_maps_a_range_when_returned() {
 }
 
 #[test]
-fn list_comprehension_maps_a_list_argument() {
+fn list_comprehension_maps_list_arg() {
     // Given: a runtime-owned list passed to a function that comprehends its argument.
     let mut runtime = interpreter_runtime();
     let source = "def values():\n    return [2, 4, 6]\n\ndef shift(items: list):\n    return [item + 1 for item in items]\n";
@@ -62,7 +62,7 @@ fn list_comprehension_maps_a_list_argument() {
 }
 
 #[test]
-fn list_comprehension_target_does_not_replace_an_outer_local() {
+fn comprehension_target_keeps_outer_local() {
     // Given: a comprehension target that shadows an initialized function local.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    value = 9\n    mapped = [value * 2 for value in range(3)]\n    return value + len(mapped)\n";
@@ -75,7 +75,7 @@ fn list_comprehension_target_does_not_replace_an_outer_local() {
 }
 
 #[test]
-fn cli_runs_a_list_comprehension_fixture() {
+fn cli_runs_list_comprehension_fixture() {
     // Given: a Python fixture that returns a list comprehension result.
     let source = format!(
         "{}/tests/fixtures/list_comprehension.py",

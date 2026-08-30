@@ -185,7 +185,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn identical_stale_object_references_are_validated_before_equality() {
+    fn identical_stale_object_refs_validated_pre_equality() {
         // Given: an object reference whose heap slot has been vacated.
         let mut heap = ObjectHeap::new();
         let reference = heap.allocate(Object::String("stale".into())).unwrap();

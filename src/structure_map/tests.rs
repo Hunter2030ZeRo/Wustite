@@ -9,7 +9,7 @@ fn slot(register: Register) -> StateSlot {
 }
 
 #[test]
-fn finish_builds_exact_cfg_and_loop_summary_from_final_bytecode() {
+fn finish_builds_exact_cfg_loop_summary_from_final_bytecode() {
     // Given: a loop whose patched branch targets create five blocks.
     let mut builder = StructureMapBuilder::new();
     let operation = builder
@@ -147,7 +147,7 @@ fn finish_builds_exact_cfg_and_loop_summary_from_final_bytecode() {
 }
 
 #[test]
-fn ids_follow_record_and_begin_order_while_regions_finish_out_of_order() {
+fn ids_follow_record_order_despite_finish_order() {
     // Given: two operation sites and two unfinished regions.
     let mut builder = StructureMapBuilder::new();
     let first_operation = builder
@@ -187,7 +187,7 @@ fn ids_follow_record_and_begin_order_while_regions_finish_out_of_order() {
 }
 
 #[test]
-fn finish_region_rejects_unknown_and_double_finish() {
+fn finish_region_rejects_unknown_double_finish() {
     // Given: one region that has already been finished.
     let mut builder = StructureMapBuilder::new();
     let region = builder.begin_region(0, vec![]);
@@ -218,7 +218,7 @@ fn finish_rejects_unfinished_regions() {
 }
 
 #[test]
-fn finish_rejects_out_of_range_cfg_targets() {
+fn finish_rejects_out_range_cfg_targets() {
     // Given: final bytecode with a jump beyond its instruction range.
     let builder = StructureMapBuilder::new();
 
@@ -230,7 +230,7 @@ fn finish_rejects_out_of_range_cfg_targets() {
 }
 
 #[test]
-fn finish_preserves_out_of_range_operation_site_for_verifier() {
+fn finish_keeps_out_range_op_site_verifier() {
     // Given: semantic operation metadata whose pc is outside bytecode.
     let mut builder = StructureMapBuilder::new();
     let site = builder
@@ -247,7 +247,7 @@ fn finish_preserves_out_of_range_operation_site_for_verifier() {
 }
 
 #[test]
-fn finish_allows_duplicate_region_headers_and_exits_for_verifier_tests() {
+fn finish_allows_duplicate_region_headers_exits_verifier_tests() {
     // Given: semantically invalid duplicate headers and exit targets.
     let mut builder = StructureMapBuilder::new();
     let first = builder.begin_region(0, vec![]);
@@ -277,7 +277,7 @@ fn finish_allows_duplicate_region_headers_and_exits_for_verifier_tests() {
 }
 
 #[test]
-fn default_map_accessors_are_empty_and_bounds_safe() {
+fn default_map_accessors_empty_bounds_safe() {
     // Given: the default empty map.
     let map = StructureMap::default();
 

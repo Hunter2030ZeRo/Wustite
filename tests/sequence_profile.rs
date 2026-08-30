@@ -5,7 +5,7 @@ use wustite::structure_map::{RegionId, SlotType, StateSlot};
 use wustite::value::Value;
 
 #[test]
-fn sequence_sites_form_a_two_case_guardable_profile() {
+fn sequence_sites_form_two_case_guardable_profile() {
     // Given: one length site and three differently specialized lists.
     let mut heap = ObjectHeap::new();
     let integer = heap
@@ -55,7 +55,7 @@ fn sequence_sites_form_a_two_case_guardable_profile() {
 }
 
 #[test]
-fn region_entry_records_live_sequence_layouts_before_the_first_access() {
+fn region_entry_records_live_sequence_layouts_pre_first_access() {
     // Given: a typed list already live when a region is first entered.
     let mut heap = ObjectHeap::new();
     let list = heap

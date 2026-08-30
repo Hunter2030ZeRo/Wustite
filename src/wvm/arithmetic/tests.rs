@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn smallint_add_returns_immediate_when_in_range() {
+fn smallint_add_in_range_is_immediate() {
     let mut heap = ObjectHeap::new();
     let mut ops = ValueOps::new(&mut heap);
 
@@ -10,7 +10,7 @@ fn smallint_add_returns_immediate_when_in_range() {
 }
 
 #[test]
-fn smallint_add_promotes_both_overflow_directions() {
+fn smallint_add_promotes_overflows() {
     let mut heap = ObjectHeap::new();
     let upper = ValueOps::new(&mut heap).smallint_add(i64::MAX, 1).unwrap();
     let lower = ValueOps::new(&mut heap).smallint_add(i64::MIN, -1).unwrap();

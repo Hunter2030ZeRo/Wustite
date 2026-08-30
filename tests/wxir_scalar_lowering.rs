@@ -64,7 +64,7 @@ fn proven(ty: SlotType) -> TypeFact {
 }
 
 #[test]
-fn checked_integer_arithmetic_and_floor_divide_lower_natively() {
+fn checked_int_arithmetic_floor_divide_lower_natively() {
     // Given: a loop whose generic arithmetic sites are proven SmallInt operations.
     let small = proven(SlotType::SmallInt);
     let boolean = proven(SlotType::Bool);
@@ -170,7 +170,7 @@ fn checked_integer_arithmetic_and_floor_divide_lower_natively() {
 }
 
 #[test]
-fn integer_comparisons_lower_every_source_operator() {
+fn int_comparisons_lower_every_source_operator() {
     // Given: proven SmallInt comparison sites for all source operators.
     let small = proven(SlotType::SmallInt);
     let boolean = proven(SlotType::Bool);

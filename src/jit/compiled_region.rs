@@ -251,7 +251,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn handle_state_round_trips_a_live_register() {
+    fn handle_state_roundtrips_live_reg() {
         // Given: a live WVM value encoded through the runtime-handle ABI.
         let mut value = Value::SmallInt(42);
         let ty = WxType::Scalar(WxScalarType::RuntimeHandle);

@@ -17,7 +17,7 @@ fn permit() -> super::super::profile::RecordPermit {
 }
 
 #[test]
-fn loop_trace_requires_matching_header_backedge_and_rejects_irreducible_edges() {
+fn loop_trace_validates_backedges_and_reducibility() {
     let start = TraceStart {
         executable: identity(),
         entry: EntryKind::LoopHeader {
@@ -57,7 +57,7 @@ fn loop_trace_requires_matching_header_backedge_and_rejects_irreducible_edges() 
 }
 
 #[test]
-fn trace_limit_undefined_register_and_missing_safepoint_are_typed_failures() {
+fn trace_limit_undefined_reg_missing_safepoint_typed_failures() {
     let start = TraceStart {
         executable: identity(),
         entry: EntryKind::FunctionEntry,
@@ -104,7 +104,7 @@ fn trace_limit_undefined_register_and_missing_safepoint_are_typed_failures() {
 }
 
 #[test]
-fn trace_ssa_renames_registers_and_models_calls_branches_and_loop_control() {
+fn trace_ssa_renames_regs_models_calls_branches_loop_control() {
     let start = TraceStart {
         executable: identity(),
         entry: EntryKind::FunctionEntry,
@@ -183,7 +183,7 @@ fn trace_ssa_renames_registers_and_models_calls_branches_and_loop_control() {
 }
 
 #[test]
-fn nested_loops_split_and_structure_facts_never_replace_live_recording() {
+fn nested_loops_split_structure_facts_never_replace_live_recording() {
     let start = TraceStart {
         executable: identity(),
         entry: EntryKind::FunctionEntry,

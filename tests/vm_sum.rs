@@ -115,7 +115,7 @@ fn sum_one_to_one_hundred() {
 }
 
 #[test]
-fn executable_revisions_have_independent_identity_and_runtime_state() {
+fn exec_revisions_independent_identity_runtime_state() {
     let function = sum_function();
     let mut revised_bytecode = function.bytecode().clone();
     revised_bytecode.code[6] = bytecode::Instruction::Move { dst: 0, src: 1 };
@@ -152,7 +152,7 @@ fn executable_revisions_have_independent_identity_and_runtime_state() {
 }
 
 #[test]
-fn a_b_a_reuses_each_executables_compiled_runtime() {
+fn b_reuses_each_execs_compiled_runtime() {
     let a = sum_function();
     let b = sum_function();
     let mut vm = wvm::Vm::with_hot_threshold(10);
@@ -170,7 +170,7 @@ fn a_b_a_reuses_each_executables_compiled_runtime() {
 }
 
 #[test]
-fn clone_preserves_identity_and_reuses_runtime() {
+fn clone_keeps_identity_reuses_runtime() {
     let original = sum_function();
     let cloned = original.clone();
     let mut vm = wvm::Vm::with_hot_threshold(10);
@@ -183,7 +183,7 @@ fn clone_preserves_identity_and_reuses_runtime() {
 }
 
 #[test]
-fn invalid_executable_does_not_disturb_a_cached_runtime() {
+fn invalid_exec_keeps_cached_runtime() {
     let valid = sum_function();
     let bytecode = bytecode::Function {
         register_count: 0,

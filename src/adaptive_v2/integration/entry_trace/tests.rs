@@ -39,7 +39,7 @@ fn executable(code: Vec<Instruction>, parameters: Vec<ExecutableParameter>) -> E
 }
 
 #[test]
-fn integer_branch_executes_natively_when_live_schema_is_stable() {
+fn stable_int_branch_runs_native() {
     // Given: a non-template two-way integer function and both live profile windows.
     let function = executable(
         vec![
@@ -107,7 +107,7 @@ fn integer_branch_executes_natively_when_live_schema_is_stable() {
 }
 
 #[test]
-fn float_arithmetic_executes_natively_when_live_schema_is_stable() {
+fn stable_float_arithmetic_runs_native() {
     // Given: a float multiply-add entry with an observed F64 schema.
     let function = executable(
         vec![

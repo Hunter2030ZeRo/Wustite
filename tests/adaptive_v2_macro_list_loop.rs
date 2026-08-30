@@ -1,7 +1,7 @@
 use wustite::{ExecutionMode, Runtime, RuntimeConfig, RuntimeValue};
 
 #[test]
-fn hot_list_loops_enter_native_code_once_per_loop_invocation() {
+fn hot_list_loop_single_native_entry() {
     // Given: the retained adaptive-v2 runtime has warmed every loop in the public list workload.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,
@@ -42,7 +42,7 @@ fn hot_list_loops_enter_native_code_once_per_loop_invocation() {
 }
 
 #[test]
-fn all_mutating_list_loops_compile_without_constant_replay() {
+fn mutating_list_loops_compile_without_replay() {
     const SOURCE: &str = r#"
 def main(limit: int, rotations: int):
     values = []
@@ -105,7 +105,7 @@ def main(limit: int, rotations: int):
 }
 
 #[test]
-fn parameter_free_local_list_pipeline_compiles_from_function_entry() {
+fn param_free_local_list_pipeline_compiles_from_entry() {
     const SOURCE: &str = r#"
 def main():
     values = []
@@ -165,7 +165,7 @@ def main():
 }
 
 #[test]
-fn native_list_indices_preserve_negative_pop_and_insert_clamping() {
+fn native_list_indices_keep_negative_pop_insert_clamping() {
     const SOURCE: &str = r#"
 def main(limit: int, rotations: int):
     values = []
@@ -231,7 +231,7 @@ def main(limit: int, rotations: int):
 }
 
 #[test]
-fn fannkuch_reverse_prefix_slice_enters_one_native_invocation() {
+fn fannkuch_slice_single_native_invocation() {
     const SOURCE: &str = r#"
 def main(n: int, rounds: int):
     perm = list(range(n))
@@ -313,7 +313,7 @@ def main(n: int, rounds: int):
 }
 
 #[test]
-fn production_fannkuch_rotation_loop_does_not_deopt_per_permutation() {
+fn fannkuch_rotation_avoids_permutation_deopt() {
     // Given: the production Fannkuch function has compiled its rotation/count loop from live
     // observations. This is the real fixture, including the two independently rooted lists.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {

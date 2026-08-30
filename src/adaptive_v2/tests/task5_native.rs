@@ -216,7 +216,7 @@ fn backedge_snapshot() -> VerifiedSnapshot {
 }
 
 #[test]
-fn cranelift_executes_verified_snapshot_machine_code_without_generic_dispatch() {
+fn cranelift_executes_verified_snapshot_native_direct() {
     // Given: an immutable verified snapshot produced with a live compile permit.
     let snapshot = add_snapshot();
     let mut compiler = NativeCompiler::new();
@@ -237,7 +237,7 @@ fn cranelift_executes_verified_snapshot_machine_code_without_generic_dispatch() 
 }
 
 #[test]
-fn native_boundary_rejects_wrong_arity_and_tags_before_entry() {
+fn native_boundary_rejects_wrong_arity_tags_pre_entry() {
     // Given: compiled code whose entry requires exactly two integers.
     let snapshot = add_snapshot();
     let code = NativeCompiler::new()
@@ -260,7 +260,7 @@ fn native_boundary_rejects_wrong_arity_and_tags_before_entry() {
 }
 
 #[test]
-fn guard_failure_returns_exact_deopt_metadata() {
+fn guard_failure_returns_exact_deopt_meta() {
     // Given: a verified snapshot with a complete guard deopt recipe.
     let snapshot = guard_snapshot();
     let code = NativeCompiler::new()
@@ -279,7 +279,7 @@ fn guard_failure_returns_exact_deopt_metadata() {
 }
 
 #[test]
-fn real_backedge_returns_osr_resume_metadata() {
+fn real_backedge_returns_osr_resume_meta() {
     let snapshot = backedge_snapshot();
     let code = NativeCompiler::new()
         .compile_tier1(&snapshot)
@@ -297,7 +297,7 @@ fn real_backedge_returns_osr_resume_metadata() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn llvm_and_cranelift_publish_identical_real_backedge_exit() {
+fn llvm_cranelift_publish_identical_real_backedge_exit() {
     let snapshot = backedge_snapshot();
     let mut compiler = NativeCompiler::new();
     let tier1 = compiler.compile_tier1(&snapshot).expect("backedge tier1");
@@ -327,7 +327,7 @@ fn llvm_and_cranelift_publish_identical_real_backedge_exit() {
 }
 
 #[test]
-fn optimizer_derivations_are_ordered_deterministic_and_non_mutating() {
+fn optimizer_derivations_ordered_deterministic_non_mutating() {
     // Given: one immutable verified snapshot and the staged optimizer.
     let snapshot = add_snapshot();
     let pipeline = OptimizerPipeline;
@@ -348,7 +348,7 @@ fn optimizer_derivations_are_ordered_deterministic_and_non_mutating() {
 }
 
 #[test]
-fn bridges_require_32_live_failures_and_cap_four_cases() {
+fn bridges_require_32_live_failures_cap_four_cases() {
     // Given: a parent snapshot and empty live bridge registry.
     let parent = add_snapshot().id();
     let mut registry = BridgeRegistry::default();
@@ -403,7 +403,7 @@ fn bridges_require_32_live_failures_and_cap_four_cases() {
 }
 
 #[test]
-fn live_threshold_compiles_links_and_executes_a_separate_child_snapshot() {
+fn live_threshold_compiles_links_executes_separate_child_snapshot() {
     let parent = guard_snapshot();
     let child_source = add_snapshot();
     let mut bridges = BridgeRuntime::new(4, 4_096);
@@ -445,7 +445,7 @@ fn live_threshold_compiles_links_and_executes_a_separate_child_snapshot() {
 }
 
 #[test]
-fn invalid_bridge_body_preserves_parent_fallback() {
+fn invalid_bridge_body_keeps_parent_fallback() {
     let parent = guard_snapshot();
     let mut invalid = add_snapshot().body().clone();
     invalid.dependencies[0].observed_epoch = invalid.dependencies[0].observed_epoch.wrapping_add(1);
@@ -467,7 +467,7 @@ fn invalid_bridge_body_preserves_parent_fallback() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn bridge_child_uses_the_same_snapshot_in_cranelift_and_llvm() {
+fn bridge_child_uses_same_snapshot_in_cranelift_llvm() {
     let parent = guard_snapshot();
     let child_source = duplicate_add_snapshot();
     let original_body = child_source.body().clone();
@@ -533,7 +533,7 @@ fn bridge_child_uses_the_same_snapshot_in_cranelift_and_llvm() {
 }
 
 #[test]
-fn tiered_bridge_cache_key_matches_the_selected_machine_code_receipt() {
+fn tiered_bridge_cache_key_matches_selected_native_receipt() {
     let parent = duplicate_add_snapshot();
     let original_body = parent.body().clone();
     let mut compiler = NativeCompiler::new();
@@ -575,7 +575,7 @@ fn tiered_bridge_cache_key_matches_the_selected_machine_code_receipt() {
 }
 
 #[test]
-fn code_cache_never_evicts_active_code_and_invalidates_stale_epochs() {
+fn code_cache_never_evicts_active_code_invalidates_stale_epochs() {
     // Given: a one-entry cache containing active Tier 1 code metadata.
     let snapshot = add_snapshot();
     let first = snapshot.id();
@@ -613,7 +613,7 @@ fn code_cache_never_evicts_active_code_and_invalidates_stale_epochs() {
 }
 
 #[test]
-fn bounded_cache_owns_and_executes_real_native_code() {
+fn bounded_cache_owns_executes_real_native_code() {
     let snapshot = add_snapshot();
     let mut executor = CachedNativeExecutor::new(2, 1_024);
     let first = executor
@@ -636,7 +636,7 @@ fn bounded_cache_owns_and_executes_real_native_code() {
 }
 
 #[test]
-fn concurrent_cache_leases_preserve_active_entries() {
+fn concurrent_cache_leases_keep_active_entries() {
     let snapshot = add_snapshot();
     let key = CacheKey::new(
         snapshot.id(),
@@ -670,7 +670,7 @@ fn concurrent_cache_leases_preserve_active_entries() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn task5_matching_surface_driver_and_metrics() {
+fn task5_matching_surface_driver_metrics() {
     let snapshot = add_snapshot();
     let mut compile_samples = Vec::new();
     let mut cold_samples = Vec::new();
@@ -765,7 +765,7 @@ fn task5_matching_surface_driver_and_metrics() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn bounded_cache_executes_both_tiers_from_the_exact_snapshot() {
+fn bounded_cache_executes_both_tiers_from_exact_snapshot() {
     let snapshot = add_snapshot();
     let mut executor = CachedNativeExecutor::new(2, 2_048);
     let tier1 = executor
@@ -786,7 +786,7 @@ fn bounded_cache_executes_both_tiers_from_the_exact_snapshot() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn llvm_o3_requires_observed_tier1_and_executes_the_same_snapshot() {
+fn llvm_o3_requires_observed_tier1_executes_same_snapshot() {
     // Given: one verified snapshot that has not yet executed in Tier 1.
     let snapshot = add_snapshot();
     let mut compiler = NativeCompiler::new();
@@ -815,7 +815,7 @@ fn llvm_o3_requires_observed_tier1_and_executes_the_same_snapshot() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn llvm_and_cranelift_execute_identical_float_power_snapshot() {
+fn llvm_cranelift_execute_identical_float_power_snapshot() {
     let snapshot = power_snapshot();
     let mut compiler = NativeCompiler::new();
     let tier1 = compiler.compile_tier1(&snapshot).expect("Tier 1 compile");
@@ -846,7 +846,7 @@ fn llvm_and_cranelift_execute_identical_float_power_snapshot() {
 
 #[test]
 #[cfg(feature = "inkwell")]
-fn llvm_and_cranelift_publish_identical_guard_deopt() {
+fn llvm_cranelift_publish_identical_guard_deopt() {
     // Given: a verified guard snapshot and false condition.
     let snapshot = guard_snapshot();
     let mut compiler = NativeCompiler::new();

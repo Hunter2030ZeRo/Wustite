@@ -1036,7 +1036,7 @@ mod range_tests {
     }
 
     #[test]
-    fn canonical_zero_plus_one_same_length_get_is_proven() {
+    fn canonical_zero_plus_one_same_length_get_proven() {
         assert_eq!(
             canonical_direct_gets(
                 &body(0, 1, NumericComparison::LessThan, 0, 0, true),
@@ -1047,7 +1047,7 @@ mod range_tests {
     }
 
     #[test]
-    fn noncanonical_or_mutating_shapes_keep_the_bounds_check() {
+    fn noncanonical_or_mutating_shapes_keep_bounds_check() {
         for rejected in [
             (-1, 1, NumericComparison::LessThan, 0, 0, true),
             (0, 2, NumericComparison::LessThan, 0, 0, true),

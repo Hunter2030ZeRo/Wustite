@@ -70,7 +70,7 @@ fn interpreter_runtime() -> Runtime {
 }
 
 #[test]
-fn float_arithmetic_returns_a_float_in_interpreter_mode() {
+fn interpreter_float_arithmetic() {
     // Given: a Python function with explicitly typed float arguments.
     let mut runtime = interpreter_runtime();
     let executable = runtime.compile_function(FLOAT_SOURCE, "add").unwrap();
@@ -88,7 +88,7 @@ fn float_arithmetic_returns_a_float_in_interpreter_mode() {
 }
 
 #[test]
-fn boolean_not_and_and_return_a_boolean_in_interpreter_mode() {
+fn interpreter_bool_not_and_ops() {
     // Given: a Python function with an explicitly typed Boolean argument.
     let mut runtime = interpreter_runtime();
     let executable = runtime
@@ -105,7 +105,7 @@ fn boolean_not_and_and_return_a_boolean_in_interpreter_mode() {
 }
 
 #[test]
-fn string_values_round_trip_through_a_typed_argument_in_interpreter_mode() {
+fn interpreter_typed_string_roundtrip() {
     // Given: a string literal and a Python function with an explicitly typed str argument.
     let mut runtime = interpreter_runtime();
     let string = runtime.run_function(STRING_FACTORY_SOURCE, "main").unwrap();
@@ -132,7 +132,7 @@ fn string_values_round_trip_through_a_typed_argument_in_interpreter_mode() {
 }
 
 #[test]
-fn integers_beyond_i64_return_a_big_integer_object_in_interpreter_mode() {
+fn interpreter_bigint_beyond_i64() {
     // Given: a Python expression whose result exceeds the signed 64-bit range.
     let mut runtime = interpreter_runtime();
 
@@ -147,7 +147,7 @@ fn integers_beyond_i64_return_a_big_integer_object_in_interpreter_mode() {
 }
 
 #[test]
-fn bigint_annotations_accept_heap_objects_through_the_execution_abi() {
+fn bigint_annotations_accept_heap_objects_via_abi() {
     // Given: a BigInt-annotated function and a runtime-owned arbitrary-size integer.
     let mut runtime = interpreter_runtime();
     let executable = runtime
@@ -171,7 +171,7 @@ fn bigint_annotations_accept_heap_objects_through_the_execution_abi() {
 }
 
 #[test]
-fn integer_division_returns_float_and_records_float_result_metadata() {
+fn int_division_returns_float_records_float_result_meta() {
     // Given: integer operands for Python's true-division operator.
     let mut runtime = interpreter_runtime();
     let executable = runtime
@@ -199,7 +199,7 @@ fn integer_division_returns_float_and_records_float_result_metadata() {
 }
 
 #[test]
-fn tuple_literals_support_indexing_in_interpreter_mode() {
+fn interpreter_tuple_indexing() {
     // Given: a Python tuple literal with an indexed element.
     let mut runtime = interpreter_runtime();
 
@@ -211,7 +211,7 @@ fn tuple_literals_support_indexing_in_interpreter_mode() {
 }
 
 #[test]
-fn list_literals_support_len_through_typed_arguments_in_interpreter_mode() {
+fn interpreter_typed_list_len() {
     // Given: a list literal and a Python function with an explicitly typed list argument.
     let mut runtime = interpreter_runtime();
     let list = runtime.run_function(LIST_FACTORY_SOURCE, "main").unwrap();
@@ -232,7 +232,7 @@ fn list_literals_support_len_through_typed_arguments_in_interpreter_mode() {
 }
 
 #[test]
-fn dictionary_literals_support_indexing_through_typed_arguments_in_interpreter_mode() {
+fn interpreter_typed_dict_index() {
     // Given: a dictionary literal and a Python function with an explicitly typed dict argument.
     let mut runtime = interpreter_runtime();
     let dictionary = runtime.run_function(DICT_FACTORY_SOURCE, "main").unwrap();
@@ -253,7 +253,7 @@ fn dictionary_literals_support_indexing_through_typed_arguments_in_interpreter_m
 }
 
 #[test]
-fn closureless_function_values_can_be_called_through_typed_arguments_in_interpreter_mode() {
+fn interpreter_typed_fn_callback() {
     // Given: a closureless Python function value and a function-typed callback parameter.
     let mut runtime = interpreter_runtime();
     let function = runtime

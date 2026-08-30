@@ -66,7 +66,7 @@ fn sum_function() -> ExecutableFunction {
 }
 
 #[test]
-fn llvm_region_restores_wvm_state_when_wxir_exits() {
+fn llvm_exit_restores_wvm_state() {
     // Given: verified loop WXIR and its WVM entry state.
     let executable = sum_function();
     let mut interpreter = Vm::with_hot_threshold(u64::MAX);
@@ -101,7 +101,7 @@ fn llvm_region_restores_wvm_state_when_wxir_exits() {
 }
 
 #[test]
-fn vm_promotes_cranelift_region_to_llvm_after_tier1_execution() {
+fn vm_promotes_to_llvm_after_tier1() {
     // Given: a VM configured for one Cranelift execution before Tier-2 promotion.
     let executable = sum_function();
     let mut vm = Vm::with_tier_thresholds(10, 1);
@@ -119,7 +119,7 @@ fn vm_promotes_cranelift_region_to_llvm_after_tier1_execution() {
 }
 
 #[test]
-fn vm_compiles_directly_with_llvm_when_selected() {
+fn vm_uses_selected_llvm_backend() {
     // Given: a VM explicitly configured to use LLVM without a Cranelift tier.
     let executable = sum_function();
     let mut vm = Vm::with_compiler_backend(10, 1, CompilerBackend::Llvm);

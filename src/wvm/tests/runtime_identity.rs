@@ -54,7 +54,7 @@ fn quick_code_runtime_identity() {
 }
 
 #[test]
-fn invalid_executable_builds_no_quick_runtime() {
+fn invalid_exec_skips_quick_runtime() {
     let invalid = exact_add(1);
     let mut vm = Vm::new();
 
@@ -63,7 +63,7 @@ fn invalid_executable_builds_no_quick_runtime() {
 }
 
 #[test]
-fn interpreter_getattr_uses_shape_guarded_inline_cache() {
+fn getattr_uses_shape_inline_cache() {
     const SOURCE: &str = r#"
 class Box:
     def __init__(self, value: int):
@@ -115,7 +115,7 @@ def main():
 }
 
 #[test]
-fn interpreter_plain_calls_hit_the_function_inline_cache() {
+fn interpreter_plain_calls_hit_fn_inline_cache() {
     const SOURCE: &str = r#"
 def add(left: int, right: int):
     return left + right

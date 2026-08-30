@@ -66,7 +66,7 @@ fn build_loop(
 }
 
 #[test]
-fn boolean_and_unary_scalar_operations_lower_natively() {
+fn bool_unary_scalar_ops_lower_natively() {
     // Given: guarded loop inputs with Bool, SmallInt, and Float representations.
     let function = build_loop(
         vec![
@@ -174,7 +174,7 @@ fn boolean_and_unary_scalar_operations_lower_natively() {
 }
 
 #[test]
-fn mixed_smallint_float_arithmetic_inserts_a_signed_cast() {
+fn mixed_smallint_float_arithmetic_inserts_signed_cast() {
     // Given: a proven SmallInt plus Float operation followed by Float negation.
     let function = build_loop(
         vec![

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn analysis_verification_rejects_dangling_value_references() {
+fn analysis_verification_rejects_dangling_value_refs() {
     // Given: a valid map whose instruction output is replaced with an unknown value id.
     let code = vec![Instruction::ConstSmallInt { dst: 0, value: 1 }];
     let mut map = StructureMapBuilder::new().finish(&code, 1).unwrap();
@@ -16,7 +16,7 @@ fn analysis_verification_rejects_dangling_value_references() {
 }
 
 #[test]
-fn guardable_facts_remain_distinct_from_proven_and_unknown_facts() {
+fn guardable_facts_distinct_from_proven_unknown_facts() {
     // Given: a comparison whose operand and result types require runtime guards.
     let mut builder = StructureMapBuilder::new();
     builder
@@ -72,7 +72,7 @@ fn guardable_facts_remain_distinct_from_proven_and_unknown_facts() {
 }
 
 #[test]
-fn branch_merge_with_multiple_reaching_definitions_is_unknown() {
+fn branch_merge_multiple_reaching_definitions_unknown() {
     // Given: both branch arms assign different identities to the same register.
     let mut builder = StructureMapBuilder::new();
     builder

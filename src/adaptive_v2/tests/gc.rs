@@ -5,7 +5,7 @@ use super::super::heap::{GcConfig, GcError, GcHeap, GcObject};
 use super::super::roots::{RootInventory, RootKind};
 
 #[test]
-fn collector_preserves_cycles_aliases_and_old_to_young_edges() {
+fn collector_keeps_cycles_aliases_old_to_young_edges() {
     let heap = GcHeap::new(GcConfig {
         collect_every_allocation: true,
         promotion_age: 1,
@@ -38,7 +38,7 @@ fn collector_preserves_cycles_aliases_and_old_to_young_edges() {
 }
 
 #[test]
-fn allocation_limit_and_unreachable_collection_are_explicit() {
+fn alloc_limit_unreachable_collection_explicit() {
     let heap = GcHeap::new(GcConfig {
         collect_every_allocation: false,
         promotion_age: 2,
@@ -60,7 +60,7 @@ fn allocation_limit_and_unreachable_collection_are_explicit() {
 }
 
 #[test]
-fn collect_every_allocation_uses_only_supplied_roots() {
+fn collect_every_alloc_uses_only_supplied_roots() {
     let heap = GcHeap::new(GcConfig {
         collect_every_allocation: true,
         ..GcConfig::default()
@@ -83,7 +83,7 @@ fn collect_every_allocation_uses_only_supplied_roots() {
 }
 
 #[test]
-fn concurrent_old_mark_observes_barrier_mutation_and_sweeps_dead_old_object() {
+fn concurrent_mark_tracks_barrier_and_sweeps_dead() {
     let heap = GcHeap::new(GcConfig {
         promotion_age: 1,
         ..GcConfig::default()
@@ -123,7 +123,7 @@ fn concurrent_old_mark_observes_barrier_mutation_and_sweeps_dead_old_object() {
 }
 
 #[test]
-fn repeated_minor_and_major_cycles_reclaim_only_unreachable_objects() {
+fn repeat_minor_major_cycles_reclaim_only_unreachable_objects() {
     let heap = GcHeap::new(GcConfig {
         promotion_age: 1,
         ..GcConfig::default()
@@ -156,7 +156,7 @@ fn repeated_minor_and_major_cycles_reclaim_only_unreachable_objects() {
 }
 
 #[test]
-fn interrupted_major_cycle_cleans_up_marker_state_on_drop() {
+fn interrupted_major_cycle_clears_marker_state_on_drop() {
     let heap = GcHeap::new(GcConfig {
         promotion_age: 1,
         ..GcConfig::default()

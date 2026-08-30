@@ -1,7 +1,7 @@
 use super::{Object, ObjectError, ObjectHeap};
 
 #[test]
-fn adaptive_transfer_has_exactly_one_semantic_owner() {
+fn adaptive_transfer_exact_one_semantic_owner() {
     // Given: one list stored behind a stable public object handle.
     let mut heap = ObjectHeap::new();
     let reference = heap.allocate(Object::list(Vec::new())).unwrap();

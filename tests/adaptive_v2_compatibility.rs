@@ -14,7 +14,7 @@ const LOOP_SOURCE: &str = r#"def main():
 "#;
 
 #[test]
-fn public_runtime_config_and_values_keep_legacy_round_trips() {
+fn public_runtime_config_values_keep_legacy_roundtrips() {
     // Given: the v1 configuration and public value variants.
     let default_config = RuntimeConfig::default();
     let values = [
@@ -67,7 +67,7 @@ fn public_runtime_config_and_values_keep_legacy_round_trips() {
 }
 
 #[test]
-fn legacy_wxir_compiler_signature_and_jit_report_remain_usable() {
+fn legacy_wxir_compiler_signature_jit_report_usable() {
     // Given: the established compiler trait signature and a hot loop.
     let compile: fn(
         &mut CraneliftRegionCompiler,

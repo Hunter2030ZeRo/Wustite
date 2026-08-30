@@ -18,7 +18,7 @@ fn valid_executable() -> ExecutableFunction {
 }
 
 #[test]
-fn full_verification_is_shared_across_repeated_calls_and_clones() {
+fn full_verification_shared_by_calls_and_clones() {
     let executable = valid_executable();
     let clone_before_verification = executable.clone();
     reset_full_verification_count();
@@ -31,7 +31,7 @@ fn full_verification_is_shared_across_repeated_calls_and_clones() {
 }
 
 #[test]
-fn failed_verification_is_shared_across_repeated_calls_and_clones() {
+fn failed_verification_shared_by_calls_and_clones() {
     let executable = ExecutableFunction::new(
         Function {
             code: vec![Instruction::Return { src: 0 }],

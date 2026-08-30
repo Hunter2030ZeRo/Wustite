@@ -7,7 +7,7 @@ use crate::value::Value;
 use super::super::integration::AdaptiveVm;
 
 #[test]
-fn profiling_only_list_site_keeps_authoritative_wvm_ownership() {
+fn profiling_list_site_keeps_wvm_ownership() {
     // Given: a cold list-read site and its authoritative public-heap receiver.
     let mut compiler = Runtime::new(RuntimeConfig::default());
     let executable = compiler

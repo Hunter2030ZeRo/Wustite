@@ -88,7 +88,7 @@ fn recipe(point: SafepointId) -> DeoptRecipe {
 }
 
 #[test]
-fn recorder_and_snapshot_require_both_live_profile_windows() {
+fn recorder_snapshot_require_both_live_profile_windows() {
     let mut profile = AdaptiveProfile::new(7);
     profile.seed_static_hint(ProfileCase::new(1), 1_000_000);
     observe(&mut profile, 63);
@@ -111,7 +111,7 @@ fn recorder_and_snapshot_require_both_live_profile_windows() {
 }
 
 #[test]
-fn recorder_enforces_osr_backedge_nested_loop_and_trace_limit_rules() {
+fn recorder_enforces_osr_backedge_nested_loop_trace_limit_rules() {
     let mut profile = recording_profile();
     let permit = profile.take_record_permit().expect("record permit");
     assert!(matches!(
@@ -155,7 +155,7 @@ fn recorder_enforces_osr_backedge_nested_loop_and_trace_limit_rules() {
 }
 
 #[test]
-fn verifier_rejects_duplicate_defs_missing_roots_stale_dependencies_and_borrow_barriers() {
+fn verifier_rejects_bad_defs_roots_deps_and_borrows() {
     let point = SafepointId::new(1);
     let block = Block::new(
         BlockId::new(0),
@@ -196,7 +196,7 @@ fn verifier_rejects_duplicate_defs_missing_roots_stale_dependencies_and_borrow_b
 }
 
 #[test]
-fn snapshot_ids_are_deterministic_and_cover_roots_deopt_and_dependencies() {
+fn snapshot_ids_deterministic_cover_roots_deopt_deps() {
     let mut profile = recording_profile();
     let first = entry_trace(&mut profile);
     assert!(profile.finish_recording());
@@ -216,7 +216,7 @@ fn snapshot_ids_are_deterministic_and_cover_roots_deopt_and_dependencies() {
 }
 
 #[test]
-fn root_map_order_is_semantic_not_insertion_order() {
+fn root_map_uses_semantic_order() {
     let mut first = BTreeMap::new();
     first.insert(2_u32, RootLocation::Ssa(ValueId::new(2)));
     first.insert(1_u32, RootLocation::Ssa(ValueId::new(1)));

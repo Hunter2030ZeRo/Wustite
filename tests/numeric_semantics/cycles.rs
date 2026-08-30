@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn distinct_self_referential_lists_compare_without_recursing_forever() {
+fn distinct_self_referential_lists_compare_cycle_safe() {
     // Given: two distinct lists whose only element points to themselves.
     let function = cyclic_container_comparison(false);
     // When: the VM compares the cyclic structures for equality.
@@ -11,7 +11,7 @@ fn distinct_self_referential_lists_compare_without_recursing_forever() {
 }
 
 #[test]
-fn distinct_self_referential_dicts_compare_without_recursing_forever() {
+fn distinct_self_referential_dicts_compare_cycle_safe() {
     // Given: two distinct dictionaries whose value points to themselves.
     let function = cyclic_container_comparison(true);
     // When: the VM compares the cyclic structures for equality.

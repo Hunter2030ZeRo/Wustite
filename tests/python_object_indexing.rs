@@ -15,7 +15,7 @@ fn assert_execution_error(result: Result<RuntimeValue, RuntimeError>, expected: 
 }
 
 #[test]
-fn negative_list_index_selects_from_the_end() {
+fn negative_list_index_selects_from_end() {
     // Given: a list indexed by the normal negative boundary.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    return [10, 20, 30][-1]\n";
@@ -28,7 +28,7 @@ fn negative_list_index_selects_from_the_end() {
 }
 
 #[test]
-fn out_of_range_list_index_returns_the_exact_runtime_error() {
+fn out_range_list_index_runtime_error() {
     // Given: a list index equal to the sequence length.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    return [10, 20, 30][3]\n";
@@ -67,7 +67,7 @@ fn reverse_slice_preserves_descending_order() {
 }
 
 #[test]
-fn zero_slice_step_returns_the_exact_runtime_error() {
+fn zero_slice_step_runtime_error() {
     // Given: a slice whose explicit stride is zero.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    return [0, 1, 2][::0]\n";
@@ -80,7 +80,7 @@ fn zero_slice_step_returns_the_exact_runtime_error() {
 }
 
 #[test]
-fn extended_slice_replacement_size_mismatch_returns_the_exact_runtime_error() {
+fn extended_slice_replacement_size_mismatch_runtime_error() {
     // Given: two extended-slice targets and only one replacement value.
     let mut runtime = interpreter_runtime();
     let source = "def main():\n    values = [0, 1, 2, 3]\n    values[::2] = [7]\n    return 0\n";

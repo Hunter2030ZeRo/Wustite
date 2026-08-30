@@ -3,7 +3,7 @@ use crate::bytecode::{CompareOperator, Instruction};
 use crate::object::ObjectKind;
 
 #[test]
-fn value_graph_records_provenance_composition_alias_effects_and_escape() {
+fn value_graph_records_provenance_composition_alias_effects_escape() {
     // Given: a parameter and literal used to build, alias, mutate, and return a list.
     let mut builder = StructureMapBuilder::new();
     builder
@@ -83,7 +83,7 @@ fn value_graph_records_provenance_composition_alias_effects_and_escape() {
 }
 
 #[test]
-fn nonescaping_allocations_and_guard_dependencies_are_optimization_facts() {
+fn nonescaping_allocs_guard_deps_optimization_facts() {
     // Given: a local tuple and a pure branch guard derived from a parameter.
     let mut builder = StructureMapBuilder::new();
     builder
@@ -139,7 +139,7 @@ fn nonescaping_allocations_and_guard_dependencies_are_optimization_facts() {
 }
 
 #[test]
-fn region_summary_aggregates_effect_escape_failure_and_guardable_facts() {
+fn region_summary_aggregates_effect_escape_failure_guardable_facts() {
     // Given: a loop that allocates a list and passes it to an unknown call.
     let mut builder = StructureMapBuilder::new();
     builder

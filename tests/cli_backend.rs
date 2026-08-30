@@ -3,7 +3,7 @@
 use std::process::Command;
 
 #[test]
-fn bench_uses_llvm_when_backend_is_selected() {
+fn bench_uses_selected_llvm_backend() {
     // Given: the benchmark command with LLVM selected as its JIT comparison backend.
     let output = Command::new(env!("CARGO_BIN_EXE_wustite"))
         .current_dir(env!("CARGO_MANIFEST_DIR"))

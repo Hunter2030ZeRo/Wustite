@@ -31,7 +31,7 @@ fn config() -> RuntimeConfig {
 }
 
 #[test]
-fn adaptive_runtime_enters_real_machine_code_after_live_gates() {
+fn adaptive_runtime_enters_native_after_gates() {
     // Given: a fresh adaptive runtime and actual Python-to-WVM integer function.
     let mut runtime = Runtime::new_adaptive_v2(config());
     let executable = runtime.compile_function(ADD_SOURCE, "main").unwrap();
@@ -72,7 +72,7 @@ fn adaptive_runtime_enters_real_machine_code_after_live_gates() {
 
 #[cfg(feature = "inkwell")]
 #[test]
-fn adaptive_tiered_runtime_promotes_the_executed_tier1_snapshot_to_llvm() {
+fn adaptive_tiered_runtime_promotes_executed_tier1_snapshot_to_llvm() {
     // Given: a retained public adaptive entry that has crossed both live-profile gates.
     let mut runtime = Runtime::new_adaptive_v2(config());
     let executable = runtime.compile_function(ADD_SOURCE, "main").unwrap();
@@ -102,7 +102,7 @@ fn adaptive_tiered_runtime_promotes_the_executed_tier1_snapshot_to_llvm() {
 
 #[cfg(not(feature = "inkwell"))]
 #[test]
-fn adaptive_tiered_runtime_stays_on_cranelift_when_llvm_is_disabled() {
+fn tiered_runtime_keeps_cranelift_without_llvm() {
     // Given: a default-feature adaptive runtime with no LLVM backend compiled in.
     let mut runtime = Runtime::new_adaptive_v2(config());
     let executable = runtime.compile_function(ADD_SOURCE, "main").unwrap();
@@ -130,7 +130,7 @@ fn adaptive_tiered_runtime_stays_on_cranelift_when_llvm_is_disabled() {
 }
 
 #[test]
-fn adaptive_public_guard_exit_links_and_executes_a_verified_bridge() {
+fn adaptive_public_guard_exit_links_executes_verified_bridge() {
     // Given: a boolean trace recorded on true and retained by the Cranelift-only public runtime.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::Jit(wustite::CompilerBackend::Cranelift),
@@ -181,7 +181,7 @@ fn adaptive_public_guard_exit_links_and_executes_a_verified_bridge() {
 }
 
 #[test]
-fn adaptive_entry_type_change_cold_falls_back_to_wvm() {
+fn entry_type_change_falls_back_to_wvm() {
     // Given: an entry specialized and compiled from live SmallInt observations.
     let mut runtime = Runtime::new_adaptive_v2(config());
     let executable = runtime
@@ -216,7 +216,7 @@ fn adaptive_entry_type_change_cold_falls_back_to_wvm() {
 }
 
 #[test]
-fn public_entry_gate_requires_exactly_sixty_four_then_thirty_two_live_samples() {
+fn public_entry_gate_requires_exact_64_32_live_samples() {
     // Given: an adaptive function with no cached or static readiness credit.
     let mut runtime = Runtime::new_adaptive_v2(config());
     let executable = runtime.compile_function(ADD_SOURCE, "main").unwrap();
@@ -251,7 +251,7 @@ fn public_entry_gate_requires_exactly_sixty_four_then_thirty_two_live_samples() 
 }
 
 #[test]
-fn adaptive_loop_header_osr_finishes_the_live_python_loop_in_machine_code() {
+fn adaptive_loop_header_osr_finishes_live_python_loop_in_native() {
     // Given: a pure integer loop with a StructureMap loop-header entry.
     let mut runtime = Runtime::new_adaptive_v2(config());
     let executable = runtime.compile_function(LOOP_SOURCE, "main").unwrap();
@@ -276,7 +276,7 @@ fn adaptive_loop_header_osr_finishes_the_live_python_loop_in_machine_code() {
 }
 
 #[test]
-fn shared_runtime_clones_share_code_and_rooted_results_are_runtime_owned() {
+fn runtime_clones_share_code_and_own_results() {
     // Given: two clones sharing one adaptive profile and native-code core.
     let runtime = SharedRuntime::new_adaptive_v2(config());
     let executable = runtime.compile_function(ADD_SOURCE, "main").unwrap();
@@ -342,7 +342,7 @@ fn shared_runtime_clones_share_code_and_rooted_results_are_runtime_owned() {
 }
 
 #[test]
-fn vm_adaptive_constructor_is_opt_in_and_legacy_default_is_unchanged() {
+fn vm_adaptive_constructor_opt_in_legacy_default_unchanged() {
     // Given/When: callers construct each VM core explicitly.
     let _adaptive = Vm::new_adaptive_v2();
     let legacy = Runtime::new(RuntimeConfig::default());
@@ -352,7 +352,7 @@ fn vm_adaptive_constructor_is_opt_in_and_legacy_default_is_unchanged() {
 }
 
 #[test]
-fn adaptive_interpreter_never_reports_native_success() {
+fn interpreter_never_reports_native_success() {
     // Given: adaptive-v2 is explicitly selected with native compilation disabled.
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::Interpreter,
@@ -388,7 +388,7 @@ fn adaptive_interpreter_never_reports_native_success() {
 }
 
 #[test]
-fn rooted_boxed_scalar_survives_collection_until_the_last_result_clone_drops() {
+fn boxed_scalar_lives_until_last_clone() {
     // Given: a shared interpreter result whose i64 requires an adaptive boxed scalar.
     let runtime = SharedRuntime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::Interpreter,
@@ -425,7 +425,7 @@ fn rooted_boxed_scalar_survives_collection_until_the_last_result_clone_drops() {
 }
 
 #[test]
-fn rooted_object_keeps_both_adaptive_and_public_compatibility_heaps_alive() {
+fn rooted_object_keeps_both_adaptive_public_compat_heaps_alive() {
     // Given: a shared adaptive runtime returning a newly allocated, adaptively mutated list.
     let runtime = SharedRuntime::new_adaptive_v2(config());
     let executable = runtime
@@ -453,7 +453,7 @@ fn rooted_object_keeps_both_adaptive_and_public_compatibility_heaps_alive() {
 }
 
 #[test]
-fn shared_runtime_sequential_object_executions_have_distinct_adapter_ownership() {
+fn sequential_object_runs_keep_adapter_ownership() {
     let runtime = SharedRuntime::new_adaptive_v2(config());
     let executable = runtime
         .compile_function(EXECUTION_LIST_SOURCE, "main")
@@ -480,7 +480,7 @@ fn shared_runtime_sequential_object_executions_have_distinct_adapter_ownership()
 }
 
 #[test]
-fn shared_runtime_object_list_call_mutators_overlap_collections_without_global_execution_lock() {
+fn shared_mutators_overlap_gc_without_global_lock() {
     // Given: two object-heavy programs and a collector sharing one adaptive runtime core.
     let runtime = SharedRuntime::new_adaptive_v2(config());
     let list = runtime

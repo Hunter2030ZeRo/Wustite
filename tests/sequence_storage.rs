@@ -2,7 +2,7 @@ use wustite::object::{SequenceObject, SequenceStrategy};
 use wustite::value::Value;
 
 #[test]
-fn homogeneous_values_select_a_typed_strategy() {
+fn homogeneous_values_select_typed_strategy() {
     // Given: a sequence containing only small integers.
     let sequence = SequenceObject::from_values(vec![Value::SmallInt(3), Value::SmallInt(5)]);
 
@@ -15,7 +15,7 @@ fn homogeneous_values_select_a_typed_strategy() {
 }
 
 #[test]
-fn a_type_mismatch_generalizes_storage_and_invalidates_layout() {
+fn type_mismatch_generalizes_storage_invalidates_layout() {
     // Given: a typed integer sequence with a stable layout version.
     let mut sequence = SequenceObject::from_values(vec![Value::SmallInt(7)]);
     let initial_version = sequence.layout_version();
@@ -30,7 +30,7 @@ fn a_type_mismatch_generalizes_storage_and_invalidates_layout() {
 }
 
 #[test]
-fn same_strategy_assignment_preserves_layout_but_length_changes_do_not() {
+fn strategy_write_keeps_layout_length_change_invalidates() {
     // Given: a homogeneous boolean sequence.
     let mut sequence = SequenceObject::from_values(vec![Value::Bool(false)]);
     let initial_version = sequence.layout_version();

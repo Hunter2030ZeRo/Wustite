@@ -3,7 +3,7 @@ use wustite::{CompilerBackend, ExecutionMode, Runtime, RuntimeConfig, RuntimeVal
 const CALL_SOURCE: &str = "def helper(value: int):\n    return value\n\ndef main():\n    values = [0]\n    total = 0\n    for index in range(10):\n        values[0] = values[0] + 1\n        total += helper(len(values))\n    return total\n";
 
 #[test]
-fn native_runtime_calls_are_grouped_by_operation_and_source_function() {
+fn native_runtime_calls_grouped_op_source_fn() {
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Jit(CompilerBackend::Cranelift),
         hot_threshold: 1,
@@ -32,7 +32,7 @@ fn native_runtime_calls_are_grouped_by_operation_and_source_function() {
 }
 
 #[test]
-fn interpreter_guest_calls_are_reported_as_fallbacks() {
+fn interpreter_guest_calls_reported_fallbacks() {
     let mut runtime = Runtime::new(RuntimeConfig {
         execution_mode: ExecutionMode::Interpreter,
         hot_threshold: 1,

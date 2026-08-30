@@ -331,7 +331,7 @@ mod transaction_tests {
     use crate::value::Value;
 
     #[test]
-    fn integer_snapshot_commit_rejects_stale_layout_without_mutation() {
+    fn int_snapshot_rejects_stale_layout_atomically() {
         // Given: an immutable snapshot whose authoritative list changes before commit.
         let mut sequence = SequenceObject::from_values(vec![Value::SmallInt(1)]);
         let (_, version) = sequence.integer_snapshot().expect("integer snapshot");
@@ -349,7 +349,7 @@ mod transaction_tests {
     }
 
     #[test]
-    fn integer_snapshot_commit_rejects_layout_strategy_change() {
+    fn int_snapshot_commit_rejects_layout_strategy_change() {
         // Given: a snapshot whose list changes from integer to generic object storage.
         let mut sequence = SequenceObject::from_values(vec![Value::SmallInt(1)]);
         let (_, version) = sequence.integer_snapshot().expect("integer snapshot");
@@ -364,7 +364,7 @@ mod transaction_tests {
     }
 
     #[test]
-    fn float_snapshot_commit_is_bit_exact_and_rejects_stale_layout() {
+    fn float_snapshot_commit_bit_exact_rejects_stale_layout() {
         // Given: an owned float snapshot containing signed zero and a NaN payload.
         let nan = f64::from_bits(0x7ff8_0000_0000_0042);
         let mut sequence = SequenceObject::from_values(vec![Value::Float(-0.0), Value::Float(nan)]);
@@ -388,7 +388,7 @@ mod transaction_tests {
     }
 
     #[test]
-    fn float_snapshot_commit_rejects_storage_strategy_change() {
+    fn float_commit_rejects_strategy_change() {
         // Given: a float snapshot whose authoritative list widens to object storage.
         let mut sequence = SequenceObject::from_values(vec![Value::Float(1.0)]);
         let (_, version) = sequence.float_snapshot().expect("float snapshot");
@@ -403,7 +403,7 @@ mod transaction_tests {
     }
 
     #[test]
-    fn widened_float_commit_requires_the_exact_integer_snapshot() {
+    fn widened_float_commit_requires_exact_int_snapshot() {
         // Given: an integer list and its immutable layout version.
         let mut sequence = SequenceObject::from_values(vec![Value::SmallInt(1)]);
         let (_, version) = sequence.integer_snapshot().expect("integer snapshot");

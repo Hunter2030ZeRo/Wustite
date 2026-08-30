@@ -407,7 +407,7 @@ mod tests {
     use crate::adaptive_v2::wxir_v2::ir::{InstructionKind, ValueType};
 
     #[test]
-    fn reverse_prefix_replay_validates_before_mutation() {
+    fn reverse_prefix_replay_validates_pre_mutation() {
         let operation = InstructionKind::ListReversePrefix {
             element_type: ValueType::I64,
         };
@@ -433,7 +433,7 @@ mod tests {
     }
 
     #[test]
-    fn reverse_prefix_replay_handles_unit_odd_and_full_lengths() {
+    fn reverse_prefix_replay_handles_unit_odd_full_lengths() {
         let operation = InstructionKind::ListReversePrefix {
             element_type: ValueType::I64,
         };

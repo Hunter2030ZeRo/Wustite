@@ -18,7 +18,7 @@ fn safepoint_handshake_invalidates_scoped_borrows() {
 }
 
 #[test]
-fn scoped_borrow_carries_epoch_and_cannot_escape_collection_scope() {
+fn scoped_borrow_cannot_escape_collection() {
     let heap = GcHeap::new(GcConfig::default());
     let handle = heap
         .allocate(GcObject::new())
@@ -38,7 +38,7 @@ fn scoped_borrow_carries_epoch_and_cannot_escape_collection_scope() {
 }
 
 #[test]
-fn root_inventory_names_every_current_and_future_root_surface() {
+fn root_inventory_names_every_current_future_root_surface() {
     let heap = GcHeap::new(GcConfig::default());
     let handle = heap
         .allocate(GcObject::new())
@@ -63,7 +63,7 @@ fn root_inventory_names_every_current_and_future_root_surface() {
 }
 
 #[test]
-fn multi_mutator_handshake_parks_peer_without_atomic_protocol() {
+fn handshake_parks_peer_without_atomics() {
     let coordinator = Arc::new(SafepointCoordinator::new());
     let initiator = coordinator.register();
     let mut peer = coordinator.register();
@@ -84,7 +84,7 @@ fn multi_mutator_handshake_parks_peer_without_atomic_protocol() {
 
 #[cfg(loom)]
 #[test]
-fn loom_safepoint_request_waits_for_peer_and_releases_it_after_the_stop() {
+fn safepoint_waits_peer_and_releases_after_stop() {
     use loom::sync::Arc as LoomArc;
     use loom::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 

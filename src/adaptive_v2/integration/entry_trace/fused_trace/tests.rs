@@ -66,7 +66,7 @@ fn list_get() -> ExecutableFunction {
 }
 
 #[test]
-fn parameter_free_rotation_loop_lowers_to_one_entry_snapshot() {
+fn param_free_rotation_loop_lowers_to_one_entry_snapshot() {
     const SOURCE: &str = r#"
 def main():
     values = []
@@ -151,7 +151,7 @@ def main():
 }
 
 #[test]
-fn list_input_result_depends_on_live_elements_and_index() {
+fn list_input_result_depends_on_live_elements_index() {
     // Given: a verified list access and both required live profile windows.
     let executable = list_get();
     let (record_permit, compile_permit) = permits(&executable);
@@ -269,7 +269,7 @@ fn add_callee() -> ExecutableFunction {
 }
 
 #[test]
-fn verified_constant_callee_is_inlined_without_call_or_helper_operations() {
+fn verified_constant_callee_inlined_helper_free() {
     // Given: a caller whose immutable constant pool owns a verified add body.
     let callee = add_callee();
     crate::verifier::verify(&callee).expect("verified callee");
@@ -351,7 +351,7 @@ fn verified_constant_callee_is_inlined_without_call_or_helper_operations() {
 }
 
 #[test]
-fn fifth_live_case_never_yields_a_record_permit() {
+fn fifth_live_case_never_yields_record_permit() {
     // Given: four established live cases followed by a fifth polymorphic case.
     let mut profile = AdaptiveProfile::new(7);
     for case in 0..4 {
@@ -375,7 +375,7 @@ fn fifth_live_case_never_yields_a_record_permit() {
 }
 
 #[test]
-fn static_hint_without_live_windows_cannot_authorize_fusion() {
+fn fusion_rejects_static_hint_without_live_windows() {
     // Given: a static hint with no live observations.
     let mut profile = AdaptiveProfile::new(7);
     profile.seed_static_hint(ProfileCase::new(1), 1_000_000);
@@ -389,7 +389,7 @@ fn static_hint_without_live_windows_cannot_authorize_fusion() {
 }
 
 #[test]
-fn stale_schema_and_opaque_call_are_kept_cold() {
+fn stale_schema_opaque_call_kept_cold() {
     // Given: a live permit for one schema and an opaque callable parameter.
     let code = vec![
         Instruction::Call {
@@ -455,7 +455,7 @@ fn stale_schema_and_opaque_call_are_kept_cold() {
 }
 
 #[test]
-fn missing_and_guardable_sequence_facts_do_not_waive_a_runtime_guard() {
+fn sequence_facts_keep_runtime_guard() {
     // Given: a live permit but only a Guardable sequence strategy and no emitted guard.
     let executable = list_get();
     let (record_permit, _) = permits(&executable);
@@ -483,7 +483,7 @@ fn missing_and_guardable_sequence_facts_do_not_waive_a_runtime_guard() {
 }
 
 #[test]
-fn shape_loop_fixture_lowers_to_an_input_derived_helper_free_entry() {
+fn shape_loop_fixture_lowers_to_input_derived_helper_free_entry() {
     // Given: the real shape benchmark and live-only recording/compilation permits.
     let executable = crate::frontend::python::compile_python_function(
         include_str!("../../../../../benchmarks/adaptive_shape_objects.py"),
@@ -515,7 +515,7 @@ fn shape_loop_fixture_lowers_to_an_input_derived_helper_free_entry() {
 }
 
 #[test]
-fn call_loop_fixture_lowers_to_an_argument_derived_helper_free_entry() {
+fn call_loop_fixture_lowers_to_arg_derived_helper_free_entry() {
     // Given: the real bound-method benchmark and live-only recording/compilation permits.
     let executable = crate::frontend::python::compile_python_function(
         include_str!("../../../../../benchmarks/adaptive_call_objects.py"),
@@ -569,7 +569,7 @@ fn execute_macro(source: &str) -> Vec<NativeValue> {
 }
 
 #[test]
-fn scalar_replaced_fields_change_the_native_shape_result() {
+fn scalar_replaced_fields_change_native_shape_result() {
     // Given: constructor arguments and a method body that differ from the benchmark constants.
     let source = r#"
 class Point:
@@ -598,7 +598,7 @@ def main():
 }
 
 #[test]
-fn scalar_replaced_callee_changes_the_native_call_result() {
+fn scalar_replaced_callee_changes_native_call_result() {
     // Given: a callee whose multiplier, offset, argument, and loop bound all differ.
     let source = r#"
 class Amplifier:
@@ -623,7 +623,7 @@ def main():
 }
 
 #[test]
-fn compiler_kernels_entry_lowers_as_one_helper_free_native_cfg() {
+fn compiler_kernels_entry_lowers_one_helper_free_native_cfg() {
     // Given: the real nested-loop compiler workload and live-only permits.
     let executable = crate::frontend::python::compile_python_function(
         include_str!("../../../../../benchmarks/compiler_kernels.py"),
@@ -655,7 +655,7 @@ fn compiler_kernels_entry_lowers_as_one_helper_free_native_cfg() {
 }
 
 #[test]
-fn scalar_cfg_result_tracks_changed_loop_and_callee_bodies() {
+fn scalar_cfg_result_tracks_changed_loop_callee_bodies() {
     // Given: two loops and a conditional callee whose operations differ from compiler_kernels.
     let source = r#"
 def choose(left: int, right: int, enabled: bool):

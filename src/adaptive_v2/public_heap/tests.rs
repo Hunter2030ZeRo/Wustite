@@ -18,7 +18,7 @@ fn integer(runtime: &AdaptiveHeapRuntime, value: i64) -> HeapValue {
 }
 
 #[test]
-fn rooted_clone_keeps_payload_alive_until_last_clone_drops() {
+fn payload_lives_until_last_root_clone() {
     // Given: a rooted object and a cloned host-root lease.
     let runtime = AdaptiveHeapRuntime::new(GcConfig::default());
     let rooted = runtime.allocate_object().expect("object allocation");
@@ -44,7 +44,7 @@ fn rooted_clone_keeps_payload_alive_until_last_clone_drops() {
 }
 
 #[test]
-fn independent_roots_are_counted_and_cross_runtime_values_are_rejected() {
+fn roots_counted_and_foreign_values_rejected() {
     // Given: two independent leases for one object and a foreign runtime.
     let runtime = AdaptiveHeapRuntime::new(GcConfig::default());
     let first = runtime.allocate_object().expect("object allocation");
@@ -70,7 +70,7 @@ fn independent_roots_are_counted_and_cross_runtime_values_are_rejected() {
 }
 
 #[test]
-fn allocation_limit_failure_leaves_existing_payload_usable() {
+fn alloc_limit_failure_leaves_existing_payload_usable() {
     // Given: a heap whose single slot is occupied by a rooted object.
     let runtime = AdaptiveHeapRuntime::new(GcConfig {
         allocation_limit: Some(1),
@@ -94,7 +94,7 @@ fn allocation_limit_failure_leaves_existing_payload_usable() {
 }
 
 #[test]
-fn collect_every_allocation_preserves_rooted_graph_and_reclaims_dead_payloads() {
+fn collect_every_alloc_keeps_roots_and_reclaims_dead() {
     // Given: collect-before-allocation stress mode and rooted object/list payloads.
     let runtime = AdaptiveHeapRuntime::new(GcConfig {
         collect_every_allocation: true,
@@ -124,7 +124,7 @@ fn collect_every_allocation_preserves_rooted_graph_and_reclaims_dead_payloads() 
 }
 
 #[test]
-fn typed_object_list_and_call_helpers_share_value_words_without_pc_dispatch() {
+fn typed_object_list_call_helpers_share_value_words_direct() {
     // Given: actual dense-object, typed-list, and registered-call payloads.
     let runtime = AdaptiveHeapRuntime::new(GcConfig::default());
     let object = runtime.allocate_object().expect("object allocation");
@@ -166,7 +166,7 @@ fn typed_object_list_and_call_helpers_share_value_words_without_pc_dispatch() {
 }
 
 #[test]
-fn list_set_insert_pop_and_len_share_one_rooted_payload() {
+fn list_set_insert_pop_len_share_one_rooted_payload() {
     // Given: a collect-every-allocation runtime and one rooted integer list.
     let runtime = AdaptiveHeapRuntime::new(GcConfig {
         collect_every_allocation: true,
@@ -202,7 +202,7 @@ fn list_set_insert_pop_and_len_share_one_rooted_payload() {
 }
 
 #[test]
-fn concurrent_payload_operations_use_scoped_locks_without_corrupting_gc_edges() {
+fn concurrent_payload_ops_use_scoped_locks_keeps_gc_edges() {
     // Given: one runtime with independent rooted lists shared by worker threads.
     let runtime = Arc::new(AdaptiveHeapRuntime::new(GcConfig::default()));
     let lists: Vec<_> = (0..8)
@@ -250,7 +250,7 @@ fn concurrent_payload_operations_use_scoped_locks_without_corrupting_gc_edges() 
 }
 
 #[test]
-fn reclaimed_handle_reports_stale_not_a_detached_payload() {
+fn reclaimed_handle_reports_stale() {
     // Given: a list value retained after its only root is dropped.
     let runtime = AdaptiveHeapRuntime::new(GcConfig::default());
     let list = runtime.allocate_list().expect("list allocation");

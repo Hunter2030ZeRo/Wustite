@@ -55,7 +55,7 @@ fn executable_with_live_slot(slot_type: SlotType) -> ExecutableFunction {
 }
 
 #[test]
-fn any_live_slot_executes_through_native_pointer_state() {
+fn any_live_slot_executes_via_native_pointer_state() {
     // Given: a valid loop whose entry metadata contains an Any slot.
     let executable = executable_with_live_slot(SlotType::Any);
     let mut vm = Vm::with_hot_threshold(0);
@@ -74,7 +74,7 @@ fn any_live_slot_executes_through_native_pointer_state() {
 }
 
 #[test]
-fn object_live_slot_executes_through_native_pointer_state() {
+fn object_live_slot_executes_via_native_pointer_state() {
     // Given: a loop whose entry metadata claims an object live slot.
     let slot_type = SlotType::Object(ObjectKind::List);
     let executable = executable_with_live_slot(slot_type);

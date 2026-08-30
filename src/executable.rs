@@ -126,7 +126,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn raw_id_is_clone_stable_and_revision_unique() {
+    fn raw_id_clone_stable_revision_unique() {
         let executable = ExecutableFunction::new(
             Function {
                 code: Vec::new(),

@@ -8,7 +8,7 @@ use wustite::structure_map::{
 use wustite::wxir::{WxInstKind, build_region};
 
 #[test]
-fn list_length_uses_an_explicit_sequence_instruction() {
+fn list_length_uses_explicit_sequence_instruction() {
     // Given: a loop whose live list is measured on every iteration.
     let function = Function {
         register_count: 3,

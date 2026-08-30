@@ -56,7 +56,7 @@ fn help_describes_commands_and_options() {
 }
 
 #[test]
-fn run_passes_typed_arguments_to_the_selected_function() {
+fn run_passes_typed_args_to_selected_fn() {
     // Given: a Python function with two typed positional parameters.
     // When: both values are supplied as repeatable CLI arguments.
     let output = run_cli(&[
@@ -77,7 +77,7 @@ fn run_passes_typed_arguments_to_the_selected_function() {
 }
 
 #[test]
-fn run_parses_rich_scalar_and_object_arguments_from_function_metadata() {
+fn run_parses_rich_scalar_object_args_from_fn_meta() {
     // Given: functions annotated with each CLI-supported rich argument type.
     let cases = [
         ("float_echo", "2.5", "float", Some(serde_json::json!(2.5))),
@@ -117,7 +117,7 @@ fn run_parses_rich_scalar_and_object_arguments_from_function_metadata() {
 }
 
 #[test]
-fn basic_run_prints_only_the_result() {
+fn basic_run_prints_only_result() {
     let output = run_cli(&["run", "examples/sum.py"]);
 
     assert!(output.status.success());
@@ -126,7 +126,7 @@ fn basic_run_prints_only_the_result() {
 }
 
 #[test]
-fn repeated_run_reuses_compiled_region_and_traces_to_stderr() {
+fn repeat_run_reuses_region_traces_to_stderr() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",
@@ -161,7 +161,7 @@ fn interpreter_mode_never_tiers_up() {
 }
 
 #[test]
-fn interpreter_mode_rejects_a_compiler_backend() {
+fn interpreter_mode_rejects_compiler_backend() {
     // Given: mutually exclusive interpreter-only and native backend selections.
     // When: both are supplied at the CLI boundary.
     let output = run_cli(&[
@@ -178,7 +178,7 @@ fn interpreter_mode_rejects_a_compiler_backend() {
 }
 
 #[test]
-fn explicit_cranelift_backend_never_reports_tier2_execution() {
+fn explicit_cranelift_backend_never_reports_tier2_exec() {
     // Given: a run explicitly restricted to Cranelift for longer than Tier-2 promotion takes.
     let output = run_cli(&[
         "run",
@@ -205,7 +205,7 @@ fn explicit_cranelift_backend_never_reports_tier2_execution() {
 }
 
 #[test]
-fn json_run_is_one_typed_document_with_jit_snapshots() {
+fn json_run_one_typed_document_jit_snapshots() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",
@@ -260,7 +260,7 @@ fn json_run_is_one_typed_document_with_jit_snapshots() {
 }
 
 #[test]
-fn inspect_human_output_uses_runtime_metadata() {
+fn inspect_human_output_uses_runtime_meta() {
     let output = run_cli(&["inspect", "examples/sum.py"]);
 
     assert!(output.status.success());
@@ -283,7 +283,7 @@ fn inspect_human_output_uses_runtime_metadata() {
 }
 
 #[test]
-fn inspect_json_contains_the_same_structured_metadata() {
+fn inspect_json_contains_same_structured_meta() {
     let output = run_cli(&["inspect", "examples/sum.py", "--json"]);
 
     assert!(output.status.success());
@@ -301,7 +301,7 @@ fn inspect_json_contains_the_same_structured_metadata() {
 }
 
 #[test]
-fn operational_and_usage_errors_use_the_expected_streams_and_codes() {
+fn operational_usage_errors_use_expected_streams_codes() {
     let missing = run_cli(&["run", "tests/fixtures/does-not-exist.py"]);
     assert_eq!(missing.status.code(), Some(1));
     assert!(stdout(&missing).is_empty());

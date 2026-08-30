@@ -6,7 +6,7 @@ use super::super::value_word::{ScalarValue, ValueWord};
 use std::thread;
 
 #[test]
-fn immutable_shapes_reuse_transitions_and_keep_dense_slots_class_qualified() {
+fn immutable_shapes_keep_class_qualified_slots() {
     let mut symbols = SymbolTable::new();
     let name = symbols.intern("field").expect("field symbol");
     let owned_name = String::from("temporary");
@@ -48,7 +48,7 @@ fn immutable_shapes_reuse_transitions_and_keep_dense_slots_class_qualified() {
 }
 
 #[test]
-fn dense_existing_write_preserves_shape_and_method_paths_have_distinct_allocation_semantics() {
+fn dense_write_keeps_shape_and_method_alloc_semantics() {
     let heap = GcHeap::new(GcConfig::default());
     let mut symbols = SymbolTable::new();
     let field = symbols.intern("field").expect("field symbol");
@@ -111,7 +111,7 @@ fn dense_existing_write_preserves_shape_and_method_paths_have_distinct_allocatio
 }
 
 #[test]
-fn runtime_symbol_namespaces_remain_distinct_across_mutator_threads() {
+fn runtime_symbols_isolated_across_threads() {
     let namespaces: Vec<_> = (0..8)
         .map(|_| thread::spawn(|| SymbolTable::new().namespace()))
         .map(|thread| thread.join().expect("symbol mutator should finish"))
