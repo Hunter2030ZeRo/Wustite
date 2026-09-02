@@ -279,12 +279,12 @@ def main(n: int, rounds: int):
         .expect("compiled adaptive report");
     let entries = report.machine_entries.saturating_sub(before);
 
-    // Then: slice reversal remains exact and the two architectural trace units (the outer
-    // permutation loop and its nested reversal loop) each enter native code once. The count is
-    // bounded by trace topology, not by the eighty reversal rounds.
+    // Then: slice reversal remains exact. With the 32-entry profile threshold, one trace unit
+    // already enters native code during warmup, so the next complete invocation enters the
+    // selected native trace once rather than once per reversal round.
     assert_eq!(value, EXPECTED);
     assert_eq!(report.compile_failure, None, "{report:?}");
-    assert_eq!(entries, 2, "{report:?}");
+    assert_eq!(entries, 1, "{report:?}");
     assert_eq!(report.helper_calls, 0, "{report:?}");
     assert_eq!(report.generic_dispatch_calls, 0, "{report:?}");
     assert_eq!(report.deopts, 0, "{report:?}");

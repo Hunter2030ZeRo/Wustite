@@ -26,14 +26,14 @@ fn observe(profile: &mut AdaptiveProfile, count: usize) {
 
 fn recording_profile() -> AdaptiveProfile {
     let mut profile = AdaptiveProfile::new(7);
-    observe(&mut profile, 64);
+    observe(&mut profile, 32);
     profile
 }
 
 fn entry_trace(profile: &mut AdaptiveProfile) -> RecordedTrace {
     let permit = profile
         .take_record_permit()
-        .expect("64 live observations create a record permit");
+        .expect("32 live observations create a record permit");
     let mut recorder = TraceRecorder::try_start(
         permit,
         TraceStart {
@@ -91,7 +91,7 @@ fn recipe(point: SafepointId) -> DeoptRecipe {
 fn recorder_snapshot_require_both_live_profile_windows() {
     let mut profile = AdaptiveProfile::new(7);
     profile.seed_static_hint(ProfileCase::new(1), 1_000_000);
-    observe(&mut profile, 63);
+    observe(&mut profile, 31);
     assert!(profile.take_record_permit().is_none());
     observe(&mut profile, 1);
     let trace = entry_trace(&mut profile);

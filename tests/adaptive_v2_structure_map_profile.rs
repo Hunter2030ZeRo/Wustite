@@ -14,7 +14,7 @@ fn verified_facts_classify_entry_without_readiness() {
     });
     let executable = runtime.compile_function(ADD, "main").unwrap();
 
-    // When: fewer than the mandatory 64 live entries confirm the static facts.
+    // When: fewer than the mandatory 32 live entries confirm the static facts.
     for _ in 0..31 {
         assert_eq!(
             runtime
@@ -29,9 +29,9 @@ fn verified_facts_classify_entry_without_readiness() {
 
     // Then: StructureMap reduced classification work but did not authorize recording or native code.
     let report = runtime.last_adaptive_report().unwrap();
-    assert_eq!(report.readiness.live, 63, "{report:?}");
+    assert_eq!(report.readiness.live, 31, "{report:?}");
     assert_eq!(report.readiness.static_analysis, 0, "{report:?}");
-    assert_eq!(report.static_fact_matches, 126, "{report:?}");
+    assert_eq!(report.static_fact_matches, 62, "{report:?}");
     assert_eq!(report.traces, 0, "{report:?}");
     assert_eq!(report.machine_entries, 0, "{report:?}");
 }
@@ -45,7 +45,7 @@ fn structure_facts_keep_both_live_stability_windows() {
     });
     let executable = runtime.compile_function(ADD, "main").unwrap();
 
-    // When: exactly 96 live calls cross 64+32 while compilation still happens after observation.
+    // When: exactly 64 live calls cross 32+32 while compilation still happens after observation.
     for _ in 0..64 {
         assert_eq!(
             runtime
@@ -60,9 +60,9 @@ fn structure_facts_keep_both_live_stability_windows() {
 
     // Then: static facts were consumed, but all readiness came from live executions.
     let report = runtime.last_adaptive_report().unwrap();
-    assert_eq!(report.readiness.live, 96, "{report:?}");
+    assert_eq!(report.readiness.live, 64, "{report:?}");
     assert_eq!(report.readiness.static_analysis, 0, "{report:?}");
-    assert_eq!(report.static_fact_matches, 192, "{report:?}");
+    assert_eq!(report.static_fact_matches, 128, "{report:?}");
     assert_eq!(report.traces, 1, "{report:?}");
     assert_eq!(report.machine_entries, 0, "{report:?}");
 }

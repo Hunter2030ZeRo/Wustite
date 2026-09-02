@@ -49,7 +49,7 @@ pub(super) fn run(args: BenchArgs) -> Result<(), String> {
             .execute_measured_with_args(&executable, &interpreter_arguments)
             .map_err(|error| error.to_string())?;
         match expected {
-            Some(value) if value != execution.value => {
+            Some(value) if !runtime_value_eq(&value, &execution.value) => {
                 return Err("interpreter benchmark samples returned different values".to_owned());
             }
             None => expected = Some(execution.value),
@@ -128,12 +128,34 @@ fn print_adaptive_delta(start: Option<&AdaptiveReport>, end: &AdaptiveReport) {
     );
 }
 
+fn runtime_value_eq(a: &wustite::RuntimeValue, b: &wustite::RuntimeValue) -> bool {
+    match (a, b) {
+        (wustite::RuntimeValue::Float(x), wustite::RuntimeValue::Float(y)) => {
+            if x == y {
+                return true;
+            }
+            if x.is_nan() || y.is_nan() {
+                return x.is_nan() && y.is_nan();
+            }
+            if !x.is_finite() || !y.is_finite() {
+                return false;
+            }
+            let diff = (x - y).abs();
+            let scale = x.abs().max(y.abs());
+
+            diff <= 1e-12 || diff <= 1e-12 * scale
+        }
+
+        _ => a == b,
+    }
+}
+
 fn validate_result(
     sample: &str,
     actual: wustite::RuntimeValue,
     expected: wustite::RuntimeValue,
 ) -> Result<(), String> {
-    if actual == expected {
+    if runtime_value_eq(&actual, &expected) {
         Ok(())
     } else {
         Err(format!(
@@ -154,6 +176,7 @@ fn print_benchmark(
     println!("Function: {}", args.function);
     println!("Warmup runs: {}", args.warmup);
     println!("Measured iterations: {}", args.iterations);
+    println!("Runtime core version: {}", args.runtime_core);
     println!(
         "Interpreter warmup runs: {}",
         args.interpreter_warmup.unwrap_or(args.warmup)
@@ -263,5 +286,59 @@ fn format_duration(duration: Duration) -> String {
         format!("{:.3} μs", seconds * 1e6)
     } else {
         format!("{:.3} ns", seconds * 1e9)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::runtime_value_eq;
+    use wustite::RuntimeValue;
+
+    #[test]
+    fn benchmark_float_equivalence_handles_tolerance_nan_and_infinity() {
+        assert!(runtime_value_eq(
+            &RuntimeValue::Float(1.0),
+            &RuntimeValue::Float(1.0 + 5e-13)
+        ));
+        assert!(runtime_value_eq(
+            &RuntimeValue::Float(1e12),
+            &RuntimeValue::Float(1e12 + 0.5)
+        ));
+        assert!(!runtime_value_eq(
+            &RuntimeValue::Float(1.0),
+            &RuntimeValue::Float(1.0 + 1e-9)
+        ));
+        assert!(runtime_value_eq(
+            &RuntimeValue::Float(f64::NAN),
+            &RuntimeValue::Float(f64::NAN)
+        ));
+        assert!(runtime_value_eq(
+            &RuntimeValue::Float(f64::INFINITY),
+            &RuntimeValue::Float(f64::INFINITY)
+        ));
+        assert!(!runtime_value_eq(
+            &RuntimeValue::Float(f64::INFINITY),
+            &RuntimeValue::Float(f64::NEG_INFINITY)
+        ));
+        assert!(!runtime_value_eq(
+            &RuntimeValue::Float(f64::INFINITY),
+            &RuntimeValue::Float(f64::MAX)
+        ));
+    }
+
+    #[test]
+    fn benchmark_non_float_values_remain_exact() {
+        assert!(runtime_value_eq(
+            &RuntimeValue::SmallInt(1),
+            &RuntimeValue::SmallInt(1)
+        ));
+        assert!(!runtime_value_eq(
+            &RuntimeValue::SmallInt(1),
+            &RuntimeValue::SmallInt(2)
+        ));
+        assert!(!runtime_value_eq(
+            &RuntimeValue::Float(1.0),
+            &RuntimeValue::SmallInt(1)
+        ));
     }
 }

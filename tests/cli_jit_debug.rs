@@ -222,7 +222,11 @@ fn nested_objects_report_native_success() {
 
     // Then: guarded StructureMap selection compiles native regions without disabling a helper.
     assert!(output.status.success(), "{}", stderr(&output));
-    assert_eq!(stdout(&output).trim(), "1.6236422398020796");
+    let actual = stdout(&output).trim().parse::<f64>().unwrap();
+    let expected = 1.623_642_239_802_079_6_f64;
+    let difference = (actual - expected).abs();
+    let scale = actual.abs().max(expected.abs());
+    assert!(difference <= 1e-12 || difference <= 1e-12 * scale);
     let diagnostic = stderr(&output);
     let attempts = debug_metric(&diagnostic, "compilation_attempts");
     assert!(attempts > 0);

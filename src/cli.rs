@@ -106,7 +106,7 @@ struct RunArgs {
     jit_policy: JitPolicyArg,
 
     /// Runtime core. The legacy core remains the default until performance qualification passes.
-    #[arg(long, value_enum, default_value_t = RuntimeCoreArg::Legacy)]
+    #[arg(long, value_enum, default_value_t = RuntimeCoreArg::AdaptiveV2)]
     runtime_core: RuntimeCoreArg,
 }
 
@@ -134,6 +134,15 @@ pub(super) enum JitPolicyArg {
 pub(super) enum RuntimeCoreArg {
     Legacy,
     AdaptiveV2,
+}
+
+impl std::fmt::Display for RuntimeCoreArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Legacy => "legacy core 1.0",
+            Self::AdaptiveV2 => "core 2.0",
+        })
+    }
 }
 
 impl From<JitPolicyArg> for JitPolicy {
@@ -195,7 +204,7 @@ pub(super) struct BenchArgs {
     pub(super) jit_policy: JitPolicyArg,
 
     /// Runtime core used for the adaptive side of the comparison.
-    #[arg(long, value_enum, default_value_t = RuntimeCoreArg::Legacy)]
+    #[arg(long, value_enum, default_value_t = RuntimeCoreArg::AdaptiveV2)]
     pub(super) runtime_core: RuntimeCoreArg,
 }
 
