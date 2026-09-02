@@ -1,94 +1,46 @@
 [CmdletBinding()]
-param(
-    [string]$Release = $env:WUSTITE_RELEASE
-)
+param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-if ([string]::IsNullOrWhiteSpace($Release)) {
-    $Release = "latest"
+$repository = $env:WUSTITE_REPOSITORY
+if ([string]::IsNullOrWhiteSpace($repository)) {
+    $repository = "https://github.com/Hunter2030ZeRo/Wustite"
 }
 
-$NonInteractive = $env:WUSTITE_NON_INTERACTIVE -match "^(?i:1|true|yes)$"
-$ReleasesMetadataTimeoutSec = 30
-$ReleasesAssetTimeoutSec = 300
-
-function Write-Step {
-    param(
-        [string]$Message
-    )
-    Write-Host "===> $Message"
+$installRoot = $env:WUSTITE_INSTALL_ROOT
+if ([string]::IsNullOrWhiteSpace($installRoot)) {
+    $installRoot = $env:CARGO_INSTALL_ROOT
 }
 
-function Write-WarningStep {
-    param(
-        [string]$Message
-    )
-    Write-Warning $Message
+if ($null -eq (Get-Command cargo -ErrorAction SilentlyContinue)) {
+    throw "Cargo is required. Install Rust from https://rustup.rs/ and try again."
 }
 
-function Prompt-YesNo {
-    param(
-        [string]$Prompt
-    )
+$cargoArguments = @("install", "--git", $repository, "--locked", "--force")
+if (-not [string]::IsNullOrWhiteSpace($installRoot)) {
+    $cargoArguments += @("--root", $installRoot)
+}
+$cargoArguments += "wustite"
 
-    if ($NonInteractive) {
-        return $false
-    }
-
-    if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected) {
-        return $false
-    }
-
-    $choice = Read-Host "$Prompt [y/N]"
-    return $choice -match "^(?i:y(?:es)?)$"
+Write-Host "Installing Wustite from $repository"
+& cargo @cargoArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "Cargo failed to install Wustite (exit code $LASTEXITCODE)."
 }
 
-
-function Normalize-Version {
-    param(
-        [string]$RawVersion
-    )
-
-    if ([string]::IsNullOrWhiteSpace($RawVersion) -or $RawVersion -eq "latest") {
-        return "latest"
-    }
-
-    return $RawVersion
+if (-not [string]::IsNullOrWhiteSpace($installRoot)) {
+    $binDirectory = Join-Path $installRoot "bin"
+} elseif (-not [string]::IsNullOrWhiteSpace($env:CARGO_HOME)) {
+    $binDirectory = Join-Path $env:CARGO_HOME "bin"
+} else {
+    $binDirectory = Join-Path $env:USERPROFILE ".cargo\bin"
 }
 
-function Assert-ValidReleaseVersion {
-    param(
-        [string]$Version
-    )
-
-    if ($Version -cne "latest" -and $Version -cnotmatch "^[0-9]+\.[0-9]+\.[0-9]+(?:-alpha(?:\.[0-9]+){0,2}|-beta(?:\.[0-9]+)?)?$") {
-        throw "Invalid Wustite release version: $Version. Expected latest or x.y.z[-alpha[.N[.M]]|-beta[.N]]."
-    }
+$executable = Join-Path $binDirectory "wustite.exe"
+Write-Host "Wustite installed at $executable"
+if (($env:PATH -split [IO.Path]::PathSeparator) -notcontains $binDirectory) {
+    Write-Host "Add $binDirectory to PATH to run wustite from any directory."
 }
-
-function Find-ReleaseAssetMetadata {
-    param(
-        [string]$AssetName, 
-        [object]$ReleaseMetadata,
-        [string]$Url = $null
-    )
-
-    $asset = $ReleaseMetadata.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
-    if ($null -eq $asset) {
-        return $null
-    }
-
-    $digestMatch = [regex]::Match([string]$asset.digest, "^sha256:([0-9a-fA-F]{64})$")
-    if (-not $digestMatch.Success) {
-        throw "Could not find SHA-256 digest for release asset $AssetName."
-    }
-
-    return [PSCustomObject]@{
-        Url = if ([string]::IsNullOrWhiteSpace($Url)) { $asset.browser_download_url } else { $Url }
-        Sha256 = $digestMatch.Groups[1].Value.ToLowerInvariant()
-    }
-}
-

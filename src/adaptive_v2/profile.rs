@@ -75,6 +75,7 @@ impl CompilePermit {
 pub(crate) struct AdaptiveProfile {
     lifecycle: Lifecycle,
     schema_epoch: u64,
+    hot_threshold: u64,
     live_entries: u64,
     stable_live: u64,
     cases: Vec<ProfileCase>,
@@ -84,10 +85,15 @@ pub(crate) struct AdaptiveProfile {
 }
 
 impl AdaptiveProfile {
-    pub(crate) const fn new(schema_epoch: u64) -> Self {
+    pub(crate) const fn new(schema_epoch: u64, hot_threshold: u64) -> Self {
         Self {
             lifecycle: Lifecycle::Profiling,
             schema_epoch,
+            hot_threshold: if hot_threshold < 32 {
+                32
+            } else {
+                hot_threshold
+            },
             live_entries: 0,
             stable_live: 0,
             cases: Vec::new(),
@@ -157,7 +163,9 @@ impl AdaptiveProfile {
         }
         self.observe_case(observation.case);
         match self.lifecycle {
-            Lifecycle::Profiling if self.live_entries >= 32 && self.stable_live >= 32 => {
+            Lifecycle::Profiling
+                if self.live_entries >= self.hot_threshold && self.stable_live >= 32 =>
+            {
                 self.lifecycle = Lifecycle::ReadyToRecord;
             }
             Lifecycle::Recording if self.recording_complete && self.stable_live >= 32 => {

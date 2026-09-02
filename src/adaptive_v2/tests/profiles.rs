@@ -11,7 +11,7 @@ fn live(case: u8) -> LiveObservation {
 
 #[test]
 fn live_profile_requires_exact_32_entry_32_stable_boundaries() {
-    let mut profile = AdaptiveProfile::new(7);
+    let mut profile = AdaptiveProfile::new(7, 1);
     profile.seed_static_hint(ProfileCase::new(1), 10_000);
     assert_eq!(profile.lifecycle(), Lifecycle::Profiling);
     assert_eq!(profile.live_entries(), 0);
@@ -37,15 +37,26 @@ fn live_profile_requires_exact_32_entry_32_stable_boundaries() {
 }
 
 #[test]
+fn configured_hot_threshold_extends_entry_window_above_floor() {
+    let mut profile = AdaptiveProfile::new(11, 40);
+    for _ in 0..39 {
+        profile.observe_live(live(1));
+    }
+    assert_eq!(profile.lifecycle(), Lifecycle::Profiling);
+    profile.observe_live(live(1));
+    assert_eq!(profile.lifecycle(), Lifecycle::ReadyToRecord);
+}
+
+#[test]
 fn polymorphism_guardability_proven_facts_obey_live_global_gates() {
-    let mut poly = AdaptiveProfile::new(1);
+    let mut poly = AdaptiveProfile::new(1, 32);
     for index in 0..35 {
         poly.observe_live(live((index % 4) as u8));
     }
     assert_eq!(poly.lifecycle(), Lifecycle::ReadyToRecord);
     assert_eq!(poly.case_count(), 4);
 
-    let mut generic = AdaptiveProfile::new(1);
+    let mut generic = AdaptiveProfile::new(1, 32);
     for case in 0..5 {
         generic.observe_live(live(case));
     }
@@ -57,7 +68,7 @@ fn polymorphism_guardability_proven_facts_obey_live_global_gates() {
     assert!(generic.take_record_permit().is_none());
     assert!(generic.take_compile_permit().is_none());
 
-    let mut guarded = AdaptiveProfile::new(1);
+    let mut guarded = AdaptiveProfile::new(1, 32);
     for _ in 0..128 {
         let decision = guarded.observe_live(LiveObservation::new(
             ProfileCase::new(3),
@@ -70,7 +81,7 @@ fn polymorphism_guardability_proven_facts_obey_live_global_gates() {
     }
     assert_eq!(guarded.lifecycle(), Lifecycle::Profiling);
 
-    let mut proven = AdaptiveProfile::new(1);
+    let mut proven = AdaptiveProfile::new(1, 32);
     for _ in 0..31 {
         assert_eq!(
             proven.observe_live(LiveObservation::new(ProfileCase::new(4), FactClass::Proven,)),
@@ -84,7 +95,7 @@ fn polymorphism_guardability_proven_facts_obey_live_global_gates() {
 
 #[test]
 fn invalidation_resets_live_ready_rejects_stale_schema_evidence() {
-    let mut profile = AdaptiveProfile::new(4);
+    let mut profile = AdaptiveProfile::new(4, 32);
     for _ in 0..32 {
         profile.observe_live(live(1));
     }
@@ -101,7 +112,7 @@ fn invalidation_resets_live_ready_rejects_stale_schema_evidence() {
 
 #[test]
 fn stable_polymorphic_boundary_illegal_transitions_explicit() {
-    let mut profile = AdaptiveProfile::new(9);
+    let mut profile = AdaptiveProfile::new(9, 32);
     assert!(!profile.start_recording());
     assert!(!profile.finish_recording());
     for case in 0..4 {

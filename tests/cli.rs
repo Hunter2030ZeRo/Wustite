@@ -130,6 +130,8 @@ fn repeat_run_reuses_region_traces_to_stderr() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",
+        "--runtime-core",
+        "legacy",
         "--hot-threshold",
         "10",
         "--repeat",
@@ -209,6 +211,8 @@ fn json_run_one_typed_document_jit_snapshots() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",
+        "--runtime-core",
+        "legacy",
         "--hot-threshold",
         "10",
         "--repeat",

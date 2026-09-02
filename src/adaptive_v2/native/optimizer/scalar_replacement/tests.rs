@@ -367,7 +367,7 @@ fn branch_merge_needs_same_virtual_fields() {
 }
 
 fn compile_permit(schema_epoch: u64) -> crate::adaptive_v2::profile::CompilePermit {
-    let mut profile = AdaptiveProfile::new(9);
+    let mut profile = AdaptiveProfile::new(9, 10);
     let observation = LiveObservation::new(ProfileCase::new(1), FactClass::UnknownClassified);
     for _ in 0..64 {
         profile.observe_live(observation);

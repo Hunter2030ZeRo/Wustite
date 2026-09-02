@@ -40,7 +40,7 @@ impl SharedRuntime {
             super::ExecutionMode::AdaptiveJit => Some(CompilerBackend::Tiered),
             super::ExecutionMode::Jit(backend) => Some(backend),
         };
-        let adaptive = Arc::new(AdaptiveVm::new(backend));
+        let adaptive = Arc::new(AdaptiveVm::new(backend, config.hot_threshold));
         Self {
             inner: Arc::new(SharedState { config, adaptive }),
         }

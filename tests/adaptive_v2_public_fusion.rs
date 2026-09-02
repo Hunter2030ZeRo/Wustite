@@ -12,6 +12,8 @@ fn run(path: &str) -> Output {
             "adaptive-v2",
             "--backend",
             "cranelift",
+            "--hot-threshold",
+            "32",
             "--repeat",
             "3",
             "--json",

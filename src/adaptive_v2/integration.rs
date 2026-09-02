@@ -40,6 +40,7 @@ pub(crate) struct AdaptiveVm {
     functions: Mutex<HashMap<ExecutableId, Arc<Mutex<FunctionState>>>>,
     report: Mutex<AdaptiveReport>,
     backend: Option<CompilerBackend>,
+    hot_threshold: u64,
     loops: loop_osr::LoopOsr,
     heap: AdaptiveHeapRuntime,
     object_sites: Arc<object_osr::ObjectSites>,
@@ -271,14 +272,15 @@ unsafe impl Send for SharedTier1Code {}
 unsafe impl Sync for SharedTier1Code {}
 
 impl AdaptiveVm {
-    pub(crate) fn new(backend: Option<CompilerBackend>) -> Self {
+    pub(crate) fn new(backend: Option<CompilerBackend>, hot_threshold: u64) -> Self {
         let runtime_id = NEXT_RUNTIME_ID.fetch_add(1, Ordering::Relaxed);
         let heap = AdaptiveHeapRuntime::new(GcConfig::default());
         Self {
             functions: Mutex::new(HashMap::new()),
             report: Mutex::new(AdaptiveReport::new()),
             backend,
-            loops: loop_osr::LoopOsr::new(backend, runtime_id),
+            hot_threshold,
+            loops: loop_osr::LoopOsr::new(backend, runtime_id, hot_threshold),
             heap,
             object_sites: Arc::new(object_osr::ObjectSites::new()),
             objects: Mutex::new(HashMap::new()),
@@ -437,6 +439,7 @@ impl AdaptiveVm {
                             self.heap.clone(),
                             self.backend,
                             Arc::clone(&self.object_sites),
+                            self.hot_threshold,
                         ),
                         report: AdaptiveReport::new(),
                     })),
@@ -479,7 +482,7 @@ impl AdaptiveVm {
             .entry(id)
             .or_insert_with(|| {
                 Arc::new(Mutex::new(FunctionState {
-                    profile: AdaptiveProfile::new(id.as_u64()),
+                    profile: AdaptiveProfile::new(id.as_u64(), self.hot_threshold),
                     observation: None,
                     native: None,
                     draft: None,
@@ -2303,6 +2306,7 @@ mod concurrency_tests {
                     AdaptiveHeapRuntime::new(GcConfig::default()),
                     Some(CompilerBackend::Cranelift),
                     Arc::new(object_osr::ObjectSites::new()),
+                    32,
                 ),
                 report: AdaptiveReport::new(),
             })),
@@ -2327,6 +2331,7 @@ mod concurrency_tests {
                     AdaptiveHeapRuntime::new(GcConfig::default()),
                     Some(CompilerBackend::Cranelift),
                     Arc::new(object_osr::ObjectSites::new()),
+                    32,
                 ),
                 report: AdaptiveReport::new(),
             })),

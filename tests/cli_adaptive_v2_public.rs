@@ -22,6 +22,8 @@ fn adaptive_json_after_native_entry() {
         "20",
         "--arg",
         "22",
+        "--hot-threshold",
+        "32",
         "--repeat",
         "100",
         "--json",
@@ -46,11 +48,53 @@ fn adaptive_json_after_native_entry() {
 }
 
 #[test]
-fn legacy_default_json_inert_command_policy_unchanged() {
-    // Given: legacy default execution and an adaptive-only option on inspect.
+fn adaptive_cli_hot_threshold_delays_entry_recording() {
+    let output = run(&[
+        "run",
+        "tests/fixtures/adaptive_add.py",
+        "--runtime-core",
+        "adaptive-v2",
+        "--arg",
+        "20",
+        "--arg",
+        "22",
+        "--repeat",
+        "40",
+        "--hot-threshold",
+        "100",
+        "--json",
+    ]);
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let adaptive = &document["adaptive_v2"];
+    let entry = adaptive["regions"]
+        .as_array()
+        .and_then(|regions| {
+            regions
+                .iter()
+                .find(|region| region["reason"] == "collecting live entry observations")
+        })
+        .expect("entry profile region");
+    assert_eq!(document["hot_threshold"], 100);
+    assert_eq!(entry["live_entries"], 40);
+    assert_eq!(entry["lifecycle"], "profiling");
+    assert_eq!(adaptive["traces"], 0);
+    assert_eq!(adaptive["machine_entries"], 0);
+}
+
+#[test]
+fn explicit_legacy_json_inert_command_policy_unchanged() {
+    // Given: explicit legacy execution and an adaptive-only option on inspect.
     let legacy = run(&[
         "run",
         "tests/fixtures/adaptive_add.py",
+        "--runtime-core",
+        "legacy",
         "--arg",
         "20",
         "--arg",
@@ -87,6 +131,8 @@ fn adaptive_human_diagnostics_stderr_only() {
         "20",
         "--arg",
         "22",
+        "--hot-threshold",
+        "32",
         "--repeat",
         "100",
         "--debug-jit",
@@ -146,6 +192,8 @@ fn tiered_cli_reports_post_exec_llvm_promotion() {
         "20",
         "--arg",
         "22",
+        "--hot-threshold",
+        "32",
         "--repeat",
         "107",
         "--json",
@@ -177,6 +225,8 @@ fn cranelift_cli_executes_both_guarded_loops_direct() {
         "adaptive-v2",
         "--backend",
         "cranelift",
+        "--hot-threshold",
+        "32",
         "--json",
     ]);
 

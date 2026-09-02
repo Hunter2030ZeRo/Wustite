@@ -6,7 +6,7 @@ use super::super::wxir_v2::ir::{
 use super::task4_support::identity;
 
 fn permit() -> super::super::profile::RecordPermit {
-    let mut profile = AdaptiveProfile::new(7);
+    let mut profile = AdaptiveProfile::new(7, 32);
     for _ in 0..64 {
         profile.observe_live(LiveObservation::new(
             ProfileCase::new(1),

@@ -146,7 +146,7 @@ impl Runtime {
 
     pub fn new_adaptive_v2(config: RuntimeConfig) -> Self {
         let vm = match config.execution_mode {
-            ExecutionMode::Interpreter => Vm::adaptive_v2_interpreter(),
+            ExecutionMode::Interpreter => Vm::adaptive_v2_interpreter(config.hot_threshold),
             ExecutionMode::AdaptiveJit => Vm::with_adaptive_v2_backend(
                 config.hot_threshold,
                 crate::wvm::DEFAULT_TIER2_THRESHOLD,

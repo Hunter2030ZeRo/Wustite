@@ -61,6 +61,8 @@ fn debug_jit_reports_scalar_activity() {
     let output = run_cli(&[
         "run",
         "tests/fixtures/jit_failure.py",
+        "--runtime-core",
+        "legacy",
         "--hot-threshold",
         "8",
         "--debug",
@@ -90,6 +92,8 @@ fn run_dump_wxir_prints_each_region_to_stderr() {
     let output = run_cli(&[
         "run",
         "tests/fixtures/jit_failure.py",
+        "--runtime-core",
+        "legacy",
         "--hot-threshold",
         "8",
         "--dump-wxir",
@@ -108,6 +112,8 @@ fn bench_debug_jit_reports_cold_native() {
     let output = run_cli(&[
         "bench",
         "tests/fixtures/jit_failure.py",
+        "--runtime-core",
+        "legacy",
         "--warmup",
         "0",
         "--iterations",
@@ -167,6 +173,8 @@ fn bench_reports_exact_measured_adaptive_window() {
         "adaptive-v2",
         "--backend",
         "cranelift",
+        "--hot-threshold",
+        "32",
         "--warmup",
         "192",
         "--iterations",
@@ -193,6 +201,8 @@ fn bench_dump_wxir_prints_regions_to_stderr() {
     let output = run_cli(&[
         "bench",
         "tests/fixtures/jit_failure.py",
+        "--runtime-core",
+        "legacy",
         "--warmup",
         "0",
         "--iterations",
@@ -215,6 +225,8 @@ fn nested_objects_report_native_success() {
     let output = run_cli(&[
         "run",
         "examples/spectral_norm.py",
+        "--runtime-core",
+        "legacy",
         "--hot-threshold",
         "8",
         "--debug",

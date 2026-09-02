@@ -48,6 +48,25 @@ parameter's annotation after the function is compiled. The CLI accepts `int`
 constructed through the Runtime API. It is not a drop-in replacement for the
 CPython command line.
 
+### Install
+
+Wustite currently installs from source and requires [Rust and Cargo](https://rustup.rs/).
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Hunter2030ZeRo/Wustite/main/install.ps1 | iex
+```
+
+macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Hunter2030ZeRo/Wustite/main/install.sh | sh
+```
+
+Both installers place the `wustite` executable in Cargo's bin directory. Set
+`WUSTITE_INSTALL_ROOT` before running the command to choose another install root.
+
 ```text
 cargo run -- run examples/sum.py
 cargo run -- run examples/sum.py --repeat 2 --hot-threshold 10 --trace-jit

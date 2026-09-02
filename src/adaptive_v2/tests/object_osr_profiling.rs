@@ -7,7 +7,7 @@ use crate::value::Value;
 use super::super::integration::AdaptiveVm;
 
 #[test]
-fn profiling_list_site_keeps_wvm_ownership() {
+fn profiling_list_site_keeps_wvm_ownership_and_uses_vm_threshold() {
     // Given: a cold list-read site and its authoritative public-heap receiver.
     let mut compiler = Runtime::new(RuntimeConfig::default());
     let executable = compiler
@@ -33,7 +33,7 @@ fn profiling_list_site_keeps_wvm_ownership() {
     let mut registers = vec![Value::Uninitialized; executable.bytecode().register_count];
     registers[usize::from(*object)] = Value::Object(reference);
     registers[usize::from(*key)] = Value::SmallInt(0);
-    let adaptive = AdaptiveVm::new(Some(CompilerBackend::Cranelift));
+    let adaptive = AdaptiveVm::new(Some(CompilerBackend::Cranelift), 40);
 
     // When: the site records its first live observation without compiled code.
     let ticket = adaptive.object_before(1, &executable, pc, instruction, &registers, &mut heap);
@@ -47,4 +47,24 @@ fn profiling_list_site_keeps_wvm_ownership() {
         panic!("expected list receiver")
     };
     assert_eq!(sequence.get(0), Some(Value::SmallInt(17)));
+
+    for _ in 0..38 {
+        assert!(
+            adaptive
+                .object_before(1, &executable, pc, instruction, &registers, &mut heap)
+                .is_none()
+        );
+    }
+    let cold = adaptive.report();
+    assert_eq!(cold.traces, 0, "{cold:?}");
+    assert_eq!(cold.regions[0].lifecycle, "profiling");
+    assert!(
+        adaptive
+            .object_before(1, &executable, pc, instruction, &registers, &mut heap)
+            .is_none()
+    );
+    let recording = adaptive.report();
+    assert_eq!(recording.traces, 1, "{recording:?}");
+    assert_eq!(recording.regions[0].live_entries, 40);
+    assert_eq!(recording.regions[0].lifecycle, "recording");
 }

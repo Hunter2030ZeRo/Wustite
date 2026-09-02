@@ -25,7 +25,7 @@ fn observe(profile: &mut AdaptiveProfile, count: usize) {
 }
 
 fn recording_profile() -> AdaptiveProfile {
-    let mut profile = AdaptiveProfile::new(7);
+    let mut profile = AdaptiveProfile::new(7, 32);
     observe(&mut profile, 32);
     profile
 }
@@ -89,7 +89,7 @@ fn recipe(point: SafepointId) -> DeoptRecipe {
 
 #[test]
 fn recorder_snapshot_require_both_live_profile_windows() {
-    let mut profile = AdaptiveProfile::new(7);
+    let mut profile = AdaptiveProfile::new(7, 32);
     profile.seed_static_hint(ProfileCase::new(1), 1_000_000);
     observe(&mut profile, 31);
     assert!(profile.take_record_permit().is_none());

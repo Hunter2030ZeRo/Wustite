@@ -20,6 +20,8 @@ fn structure_map_default_jit_policy() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",
+        "--runtime-core",
+        "legacy",
         "--hot-threshold",
         &u64::MAX.to_string(),
         "--json",
@@ -40,6 +42,8 @@ fn profile_jit_policy_waits_hot_threshold() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",
+        "--runtime-core",
+        "legacy",
         "--jit-policy",
         "profile",
         "--hot-threshold",
@@ -62,6 +66,8 @@ fn structure_map_jit_policy_selected_explicitly() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",
+        "--runtime-core",
+        "legacy",
         "--jit-policy",
         "structure-map",
         "--hot-threshold",
@@ -83,6 +89,8 @@ fn structure_map_compiles_after_hot_validation() {
     let output = run_cli(&[
         "run",
         "examples/sum.py",
+        "--runtime-core",
+        "legacy",
         "--jit-policy",
         "structure-map",
         "--hot-threshold",

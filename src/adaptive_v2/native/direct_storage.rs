@@ -1479,7 +1479,7 @@ mod tests {
     }
 
     fn compile_permit(schema_epoch: u64) -> crate::adaptive_v2::profile::CompilePermit {
-        let mut profile = AdaptiveProfile::new(schema_epoch);
+        let mut profile = AdaptiveProfile::new(schema_epoch, 32);
         let observation = LiveObservation::new(ProfileCase::new(1), FactClass::UnknownClassified);
         for _ in 0..64 {
             profile.observe_live(observation);

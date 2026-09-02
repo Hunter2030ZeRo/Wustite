@@ -121,6 +121,7 @@ pub(crate) struct ObjectOsr {
     bindings: HashMap<ObjectRef, transfer::Binding>,
     sites: Arc<ObjectSites>,
     backend: Option<CompilerBackend>,
+    hot_threshold: u64,
 }
 
 impl ObjectOsr {
@@ -128,12 +129,14 @@ impl ObjectOsr {
         heap: AdaptiveHeapRuntime,
         backend: Option<CompilerBackend>,
         sites: Arc<ObjectSites>,
+        hot_threshold: u64,
     ) -> Self {
         Self {
             context: AdaptiveNativeContext::with_runtime(heap),
             bindings: HashMap::new(),
             sites,
             backend,
+            hot_threshold,
         }
     }
 

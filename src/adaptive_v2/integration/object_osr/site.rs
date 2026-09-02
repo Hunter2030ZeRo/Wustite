@@ -111,7 +111,10 @@ impl ObjectOsr {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let state = sites.entry(key.clone()).or_insert_with(|| SiteState {
-            profile: AdaptiveProfile::new(key.executable.wrapping_add(u64::from(key.pc))),
+            profile: AdaptiveProfile::new(
+                key.executable.wrapping_add(u64::from(key.pc)),
+                self.hot_threshold,
+            ),
             classification: super::super::observation::instruction_classification(
                 executable, source_pc,
             ),

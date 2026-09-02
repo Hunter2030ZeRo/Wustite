@@ -64,6 +64,7 @@ impl Vm {
         vm.tier2_threshold = tier2_threshold;
         vm.adaptive_v2 = Some(Arc::new(crate::adaptive_v2::integration::AdaptiveVm::new(
             Some(compiler_backend),
+            hot_threshold,
         )));
         vm
     }
@@ -80,10 +81,11 @@ impl Vm {
         vm
     }
 
-    pub(crate) fn adaptive_v2_interpreter() -> Self {
+    pub(crate) fn adaptive_v2_interpreter(hot_threshold: u64) -> Self {
         let mut vm = Self::interpreter();
         vm.adaptive_v2 = Some(Arc::new(crate::adaptive_v2::integration::AdaptiveVm::new(
             None,
+            hot_threshold,
         )));
         vm
     }

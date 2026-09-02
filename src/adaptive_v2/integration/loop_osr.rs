@@ -28,6 +28,7 @@ pub(super) struct LoopOsr {
     report: Mutex<AdaptiveReport>,
     backend: Option<CompilerBackend>,
     runtime_id: u64,
+    hot_threshold: u64,
 }
 
 #[derive(Default)]
@@ -57,12 +58,17 @@ enum LoopCode {
 }
 
 impl LoopOsr {
-    pub(super) fn new(backend: Option<CompilerBackend>, runtime_id: u64) -> Self {
+    pub(super) fn new(
+        backend: Option<CompilerBackend>,
+        runtime_id: u64,
+        hot_threshold: u64,
+    ) -> Self {
         Self {
             states: Mutex::new(LoopRegistry::default()),
             report: Mutex::new(AdaptiveReport::new()),
             backend,
             runtime_id,
+            hot_threshold,
         }
     }
 
@@ -142,7 +148,7 @@ impl LoopOsr {
                 .entry((executable.id(), region_id, case))
                 .or_insert_with(|| {
                     Arc::new(Mutex::new(LoopState {
-                        profile: AdaptiveProfile::new(epoch),
+                        profile: AdaptiveProfile::new(epoch, self.hot_threshold),
                         draft: None,
                         native: None,
                         preheader: None,

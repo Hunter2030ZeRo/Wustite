@@ -16,7 +16,7 @@ fn permits(
     crate::adaptive_v2::profile::RecordPermit,
     crate::adaptive_v2::profile::CompilePermit,
 ) {
-    let mut profile = AdaptiveProfile::new(executable.id().as_u64());
+    let mut profile = AdaptiveProfile::new(executable.id().as_u64(), 10);
     let observation = LiveObservation::new(ProfileCase::new(1), FactClass::UnknownClassified);
     for _ in 0..64 {
         profile.observe_live(observation);
@@ -353,7 +353,7 @@ fn verified_constant_callee_inlined_helper_free() {
 #[test]
 fn fifth_live_case_never_yields_record_permit() {
     // Given: four established live cases followed by a fifth polymorphic case.
-    let mut profile = AdaptiveProfile::new(7);
+    let mut profile = AdaptiveProfile::new(7, 10);
     for case in 0..4 {
         for _ in 0..32 {
             profile.observe_live(LiveObservation::new(
@@ -377,7 +377,7 @@ fn fifth_live_case_never_yields_record_permit() {
 #[test]
 fn fusion_rejects_static_hint_without_live_windows() {
     // Given: a static hint with no live observations.
-    let mut profile = AdaptiveProfile::new(7);
+    let mut profile = AdaptiveProfile::new(7, 10);
     profile.seed_static_hint(ProfileCase::new(1), 1_000_000);
 
     // When: recording authorization is requested.

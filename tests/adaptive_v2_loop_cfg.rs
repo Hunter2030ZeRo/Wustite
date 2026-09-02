@@ -7,6 +7,32 @@ fn adaptive_runtime() -> Runtime {
     })
 }
 
+#[test]
+fn adaptive_loop_osr_waits_for_configured_hot_threshold() {
+    let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
+        execution_mode: ExecutionMode::AdaptiveJit,
+        hot_threshold: 1_000,
+    });
+    let source = include_str!("fixtures/adaptive_loop_integer_arithmetic.py");
+    let executable = runtime.compile_function(source, "main").unwrap();
+
+    assert_eq!(
+        runtime.execute(&executable).unwrap(),
+        RuntimeValue::SmallInt(1)
+    );
+    let report = runtime.last_adaptive_report().unwrap();
+    let loop_region = report
+        .regions
+        .iter()
+        .find(|region| region.reason.starts_with("loop region"))
+        .expect("loop profile region");
+    assert!(loop_region.live_entries >= 32, "{report:?}");
+    assert!(loop_region.live_entries < 1_000, "{report:?}");
+    assert_eq!(loop_region.lifecycle, "profiling");
+    assert_eq!(report.traces, 0, "{report:?}");
+    assert_eq!(report.machine_entries, 0, "{report:?}");
+}
+
 fn execute(source: &str) -> (RuntimeValue, wustite::AdaptiveReport) {
     let mut runtime = adaptive_runtime();
     let executable = runtime.compile_function(source, "main").unwrap();

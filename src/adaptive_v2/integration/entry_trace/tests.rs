@@ -10,7 +10,7 @@ fn permits(
     executable: &ExecutableFunction,
     arguments: &[Value],
 ) -> (SnapshotDraft, crate::adaptive_v2::profile::CompilePermit) {
-    let mut profile = AdaptiveProfile::new(executable.id().as_u64());
+    let mut profile = AdaptiveProfile::new(executable.id().as_u64(), 32);
     let observation = LiveObservation::new(ProfileCase::new(1), FactClass::UnknownClassified);
     for _ in 0..64 {
         profile.observe_live(observation);

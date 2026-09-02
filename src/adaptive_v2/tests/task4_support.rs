@@ -25,7 +25,7 @@ pub(super) fn dependencies(schema_epoch: u64) -> Vec<Dependency> {
 }
 
 pub(super) fn compile_permit(schema_epoch: u64) -> CompilePermit {
-    let mut profile = AdaptiveProfile::new(schema_epoch);
+    let mut profile = AdaptiveProfile::new(schema_epoch, 10);
     for _ in 0..64 {
         observe(&mut profile);
     }
