@@ -12,17 +12,15 @@
 CPython is known to consume up to 75x more energy and run up to 76x slower 
 than native C code [[1](#1)]. Alternative runtimes have tried to close 
 this gap via JIT compilation — however, either their development 
-has largely stalled, or remains active but suffers from poor 
-C extension compatibility (NumPy, pandas, etc.).
+has largely stalled, or they suffer from innate problem of JIT compilation — warm-up time.
 Wustite takes a different approach. Instead of relying on runtime profiling 
-to warm up a JIT, Wustite statically builds a **structure map** via bytecode lowering, which is ahead-of-time-generated 
+to warm up compilation, Wustite statically builds a **structure map** via bytecode lowering, which is ahead-of-time-generated 
 metadata passed into the JIT compiler that contains control flow, inferred type, estimated hot loops, etc. 
-This lets the runtime skip the warm-up phase entirely and eliminates interpretation 
-overhead at execution. This is paired with **Wustite Virtual Machine(WVM)**, 
-a register-based bytecode virtual machine that is 
+This enables less time spent for runtime profiling, accelerating the initial optimization attempt. 
+This is paired with **Wustite Virtual Machine(WVM)**, a register-based bytecode virtual machine that is 
 CPython-compatible — so Wustite aims to deliver both the performance of 
-ahead-of-time compilation and the efficiency of a runtime that doesn't 
-sacrifice compatibility to get there.
+just-in-time compilation and the efficiency of a runtime that doesn't 
+sacrifice responsiveness to get there.
 
 WVM compiles down to **Wustite eXtensive Intermediate Representation(WXIR)**, which is 
 Wustite's specific IR designed for backend-independent SSA optimization. Due to this, 
@@ -50,7 +48,7 @@ CPython command line.
 
 ### Install
 
-Wustite currently installs from source and requires [Rust and Cargo](https://rustup.rs/).
+Wustite currently builds from source and requires [Rust and Cargo](https://rustup.rs/). The one-line installer is provided, but does not ship with pre-build binaries.
 
 Windows PowerShell:
 
