@@ -48,7 +48,7 @@ CPython command line.
 
 ### Install
 
-Wustite currently builds from source and requires [Rust and Cargo](https://rustup.rs/). The one-line installer is provided, but does not ship with pre-build binaries.
+Wustite currently builds from source and requires [Rust and Cargo](https://rustup.rs/). The one-line installer is provided, but does not ship with pre-built binaries.
 
 Windows PowerShell:
 
