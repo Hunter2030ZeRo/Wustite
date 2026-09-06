@@ -212,7 +212,7 @@ def main():
 fn runtime() -> Runtime {
     Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,
-        hot_threshold: 1,
+        hot_threshold: 10,
     })
 }
 

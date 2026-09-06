@@ -89,11 +89,7 @@ impl AdaptiveProfile {
         Self {
             lifecycle: Lifecycle::Profiling,
             schema_epoch,
-            hot_threshold: if hot_threshold < 32 {
-                32
-            } else {
-                hot_threshold
-            },
+            hot_threshold: if hot_threshold == 0 { 1 } else { hot_threshold },
             live_entries: 0,
             stable_live: 0,
             cases: Vec::new(),
@@ -164,11 +160,14 @@ impl AdaptiveProfile {
         self.observe_case(observation.case);
         match self.lifecycle {
             Lifecycle::Profiling
-                if self.live_entries >= self.hot_threshold && self.stable_live >= 32 =>
+                if self.live_entries >= self.hot_threshold
+                    && self.stable_live >= self.hot_threshold =>
             {
                 self.lifecycle = Lifecycle::ReadyToRecord;
             }
-            Lifecycle::Recording if self.recording_complete && self.stable_live >= 32 => {
+            Lifecycle::Recording
+                if self.recording_complete && self.stable_live >= self.hot_threshold =>
+            {
                 self.lifecycle = Lifecycle::ReadyToCompile;
             }
             Lifecycle::Profiling

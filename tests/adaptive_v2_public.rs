@@ -23,10 +23,12 @@ def main(value: int):
 const SHARED_LIST_SOURCE: &str = include_str!("../benchmarks/adaptive_list_objects.py");
 const SHARED_CALL_SOURCE: &str = include_str!("../benchmarks/adaptive_call_objects.py");
 
+const HOT_THRESHOLD: u64 = 1;
+
 fn config() -> RuntimeConfig {
     RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,
-        hot_threshold: 1,
+        hot_threshold: HOT_THRESHOLD,
     }
 }
 
@@ -36,7 +38,7 @@ fn adaptive_runtime_enters_native_after_gates() {
     let mut runtime = Runtime::new_adaptive_v2(config());
     let executable = runtime.compile_function(ADD_SOURCE, "main").unwrap();
 
-    // When: the same entry accumulates 32 pre-record and 32 post-record live samples.
+    // When: the same entry accumulates the configured pre-record and post-record live samples.
     for _ in 0..100 {
         assert_eq!(
             runtime
@@ -65,7 +67,7 @@ fn adaptive_runtime_enters_native_after_gates() {
     assert_eq!(report.cache_misses, 1);
     assert_eq!(report.cache_hits, report.machine_entries);
     assert!(report.cache_bytes > 0, "{report:?}");
-    assert_eq!(report.readiness.live, 64);
+    assert_eq!(report.readiness.live, 2 * HOT_THRESHOLD);
     assert_eq!(report.readiness.cached, 0);
     assert_eq!(report.readiness.static_analysis, 0);
 }
@@ -216,38 +218,49 @@ fn entry_type_change_falls_back_to_wvm() {
 }
 
 #[test]
-fn public_entry_gate_requires_exact_32_32_live_samples() {
-    // Given: an adaptive function with no cached or static readiness credit.
-    let mut runtime = Runtime::new_adaptive_v2(config());
-    let executable = runtime.compile_function(ADD_SOURCE, "main").unwrap();
-    let arguments = [RuntimeValue::SmallInt(20), RuntimeValue::SmallInt(22)];
-
-    // When: execution stops on each live threshold boundary.
-    for _ in 0..31 {
-        runtime.execute_with_args(&executable, &arguments).unwrap();
+fn public_entry_gate_uses_configured_live_windows() {
+    for threshold in [0_u64, 1, 4, 10, 32, 40] {
+        let effective = threshold.max(1);
+        let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
+            hot_threshold: threshold,
+            ..config()
+        });
+        let executable = runtime.compile_function(ADD_SOURCE, "main").unwrap();
+        let arguments = [RuntimeValue::SmallInt(20), RuntimeValue::SmallInt(22)];
+        for observed in 1..=2 * effective {
+            assert_eq!(
+                runtime.execute_with_args(&executable, &arguments).unwrap(),
+                RuntimeValue::SmallInt(42)
+            );
+            let report = runtime.last_adaptive_report().unwrap();
+            let lifecycle = if observed < effective {
+                "profiling"
+            } else if observed < 2 * effective {
+                "recording"
+            } else {
+                "compiled"
+            };
+            assert_eq!(
+                report.regions[0].lifecycle, lifecycle,
+                "threshold={threshold}, observed={observed}"
+            );
+            assert_eq!(report.readiness.live, observed);
+            assert_eq!(report.machine_entries, 0);
+            assert_eq!(report.readiness.cached, 0);
+            assert_eq!(report.readiness.static_analysis, 0);
+            if observed >= effective {
+                assert_eq!(report.regions[0].stable_observations, observed - effective);
+            }
+        }
+        assert_eq!(
+            runtime.execute_with_args(&executable, &arguments).unwrap(),
+            RuntimeValue::SmallInt(42)
+        );
+        let report = runtime.last_adaptive_report().unwrap();
+        assert_eq!(report.machine_entries, 1);
+        assert_eq!(report.native_executions, 1);
+        assert_eq!(report.readiness.live, 2 * effective);
     }
-    let before_record = runtime.last_adaptive_report().unwrap().clone();
-    runtime.execute_with_args(&executable, &arguments).unwrap();
-    let record_started = runtime.last_adaptive_report().unwrap().clone();
-    for _ in 0..31 {
-        runtime.execute_with_args(&executable, &arguments).unwrap();
-    }
-    let before_compile = runtime.last_adaptive_report().unwrap().clone();
-    runtime.execute_with_args(&executable, &arguments).unwrap();
-    let compiled = runtime.last_adaptive_report().unwrap();
-
-    // Then: neither phase advances early and only live observations contribute.
-    assert_eq!(before_record.readiness.live, 31);
-    assert_eq!(before_record.regions[0].lifecycle, "profiling");
-    assert_eq!(record_started.readiness.live, 32);
-    assert_eq!(record_started.regions[0].lifecycle, "recording");
-    assert_eq!(before_compile.readiness.live, 63);
-    assert_eq!(before_compile.regions[0].stable_observations, 31);
-    assert_eq!(compiled.readiness.live, 64);
-    assert_eq!(compiled.regions[0].lifecycle, "compiled");
-    assert_eq!(compiled.machine_entries, 0);
-    assert_eq!(compiled.readiness.cached, 0);
-    assert_eq!(compiled.readiness.static_analysis, 0);
 }
 
 #[test]
@@ -337,7 +350,7 @@ fn runtime_clones_share_code_and_own_results() {
     let report = runtime.adaptive_report().unwrap().unwrap();
     assert!(report.machine_entries > 0, "{report:?}");
     assert_eq!(report.cache_misses, 1, "{report:?}");
-    assert_eq!(report.readiness.live, 64, "{report:?}");
+    assert_eq!(report.readiness.live, 2 * HOT_THRESHOLD, "{report:?}");
     assert_eq!(report.generic_dispatch_calls, 0, "{report:?}");
 }
 

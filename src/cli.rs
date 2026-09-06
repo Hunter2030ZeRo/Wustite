@@ -85,7 +85,7 @@ struct RunArgs {
     #[arg(long, value_enum, default_value_t = BackendArg::Tiered)]
     backend: BackendArg,
 
-    /// Region-entry threshold for adaptive JIT compilation.
+    /// Live observations required in each adaptive profiling/stability window (0 uses 1).
     #[arg(long, default_value_t = RuntimeConfig::default().hot_threshold)]
     hot_threshold: u64,
 

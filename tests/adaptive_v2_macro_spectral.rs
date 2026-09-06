@@ -315,7 +315,7 @@ def main(size: int, seed: object, marker: object):
 "#;
     let mut runtime = Runtime::new_adaptive_v2(RuntimeConfig {
         execution_mode: ExecutionMode::AdaptiveJit,
-        hot_threshold: 1,
+        hot_threshold: 10,
     });
     let executable = runtime.compile_function(SOURCE, "main").expect("fixture");
     let cases = [
